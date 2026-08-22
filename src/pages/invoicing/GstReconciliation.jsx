@@ -372,7 +372,7 @@ export default function GstReconciliation() {
                   className={`rounded-xl border p-4 text-left transition ${CHIP[cfg.color]} ${active ? 'ring-2 ring-offset-1 ring-offset-dark-900 ring-current' : ''}`}>
                   <span className="text-xs font-medium opacity-80 uppercase tracking-wide">{cfg.label}</span>
                   <p className="text-2xl font-bold mt-1">{count}</p>
-                  <p className="text-[10px] leading-snug opacity-70 mt-1">{cfg.help}</p>
+                  <p className="text-[10px] leading-snug mt-1">{cfg.help}</p>
                 </button>
               );
             })}

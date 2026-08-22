@@ -1,0 +1,54 @@
+# WCAG AA contrast gate for the public routes.
+#
+# Deliberately its own workflow rather than a step in deploy.yml: a new gate
+# should not be able to block a production deploy on day one. Promote it into
+# deploy.yml once it has been green for a while.
+#
+# Uses playwright-core against the runner's preinstalled Chrome, so nothing
+# downloads a browser.
+name: Contrast (WCAG AA)
+
+on:
+  pull_request:
+    branches: [main, redesign]
+  workflow_dispatch:
+
+jobs:
+  contrast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Serve the build
+        run: |
+          npx --yes serve -s dist -l 5173 &
+          npx --yes wait-on http://localhost:5173 --timeout 60000
+
+      # CONTRAST_AUTH_STORAGE is optional. Unset (forks, dependabot) the authed
+      # routes are SKIPPED and the public set still gates — a PR that cannot
+      # hold a secret should not go red for it.
+      - name: Contrast gate
+        run: npm run check:contrast -- --json contrast-report.json
+        env:
+          CONTRAST_AUTH_STORAGE: ${{ secrets.CONTRAST_AUTH_STORAGE }}
+          CONTRAST_ORG_SLUG: ${{ vars.CONTRAST_ORG_SLUG }}
+
+      # Uploaded even on failure — the JSON names every offending node,
+      # its ratio and its selector, which is what you actually need to fix it.
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contrast-report
+          path: contrast-report.json
+          if-no-files-found: ignore

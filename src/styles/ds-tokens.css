@@ -47,9 +47,29 @@
   --brand-line: rgba(34, 197, 94, 0.28);
   --brand-glow: rgba(34, 197, 94, 0.20);
 
+  /* Ink — text sitting ON a *-soft tint (status chips, badges, tinted rows).
+     On a dark surface the accent itself is already the readable choice, so
+     these alias it; the light theme overrides them. Split out rather than
+     darkening --brand/--warn because those are also the button fill and the
+     active-tab underline, where the current values are correct. */
+  --brand-ink: var(--brand);
+  --warn-ink:  var(--warn);
+  --attn-ink:  var(--attn);
+
   /* Status */
   --warn: #FBBF24; --warn-soft: rgba(251, 191, 36, 0.13);
+  /* `attn` sits between warn and danger. Added in phase 14 for the aging
+     ramps (aged AR/AP, follow-ups), which need FOUR severity steps: the
+     legacy pages used emerald→amber→orange→red and collapsing orange into
+     amber would erase the 31-60 bucket's distinction from 1-30. It is a
+     status tone, not an app accent — do not reuse --a-employee for this
+     just because the hue matches. */
+  --attn: #FB923C; --attn-soft: rgba(251, 146, 60, 0.13);
   --danger: #F87171; --danger-soft: rgba(248, 113, 113, 0.13);
+  /* Text on a solid --danger fill. Dark theme's danger is a light red, so
+     the label goes dark — the same inversion --brand-fg makes for --brand. */
+  --danger-fg:   #1A0505;
+  --danger-glow: rgba(248, 113, 113, 0.20);
   --info: #60A5FA; --info-soft: rgba(96, 165, 250, 0.13);
 
   /* App accents — icon tints, chips, group accent bars.
@@ -67,6 +87,50 @@
   --a-incentive:#FACC15;
   --a-kb:       #A78BFA;
   --a-settings: #94A3B8;
+
+
+  /* App-card accent INK — the eyebrow label, CTA text and icon tint on the
+     app launcher's bento cards. These were hard-coded dark-theme hexes in
+     AppBentoCard's colorConfig; on a white card they measured 1.67–2.98:1,
+     so every app label on the launcher failed AA in light theme. The light
+     values below are the first Tailwind step clearing 4.5:1 on white
+     (measured, not chosen by eye). Card TINTS keep their own rgb triples —
+     only the text colour needs to move. */
+  --acc-rivvra: #4ADE80;
+  --acc-blue: #60A5FA;
+  --acc-purple: #C084FC;
+  /* Chip's purple tone puts this ink on a 14% wash of itself. In dark that
+     measures fine; in light the accent is too light, so light overrides it. */
+  --acc-purple-ink: #C084FC;
+  --acc-orange: #FB923C;
+  --acc-cyan: #22D3EE;
+  --acc-amber: #FBBF24;
+  --acc-emerald: #34D399;
+  --acc-indigo: #818CF8;
+  --acc-teal: #2DD4BF;
+  --acc-fuchsia: #E879F9;
+  --acc-slate: #CBD5E1;
+  --acc-sky: #38BDF8;
+  --acc-rose: #FB7185;
+
+  /* Accent INK — the accent used as TEXT.
+     Measured 2026-08-22 against three backdrops: the accent's own 15% tint
+     (the AppBentoCard pill), surface-1 and surface-2, taking the worst. In
+     DARK every accent already cleared 4.5, so ink == accent here and the pair
+     exists only so callers can always say `-ink` for text without knowing
+     which theme they are in. */
+  --acc-rivvra-ink:  #4ADE80;
+  --acc-blue-ink:    #60A5FA;
+  --acc-orange-ink:  #FB923C;
+  --acc-cyan-ink:    #22D3EE;
+  --acc-amber-ink:   #FBBF24;
+  --acc-emerald-ink: #34D399;
+  --acc-indigo-ink:  #818CF8;
+  --acc-teal-ink:    #2DD4BF;
+  --acc-fuchsia-ink: #E879F9;
+  --acc-slate-ink:   #CBD5E1;
+  --acc-sky-ink:     #38BDF8;
+  --acc-rose-ink:    #FB7185;
 
   /* Elevation */
   --sh-1: 0 1px 2px rgba(0,0,0,.36);
@@ -107,8 +171,25 @@
   --brand-glow: rgba(21, 128, 61, 0.14);
 
   --warn: #B45309; --warn-soft: rgba(180, 83, 9, 0.10);
+  --attn: #C2410C; --attn-soft: rgba(194, 65, 12, 0.10);
   --danger: #B91C1C; --danger-soft: rgba(185, 28, 28, 0.09);
+  --danger-fg:   #FFFFFF;
+  --danger-glow: rgba(185, 28, 28, 0.14);
   --info: #1D4ED8; --info-soft: rgba(29, 78, 216, 0.09);
+
+  /* On paper a 10% tint barely darkens the surface, so the accent has to go
+     darker than its own value to clear AA as small text on top of it.
+     Measured against the real composited tints: brand 4.37 → 6.25,
+     warn 4.35 → 5.55. Danger (5.63) and info (5.77) already clear it, so
+     they keep their accent value and get no ink override. */
+  --brand-ink: #12652F;
+  --warn-ink:  #9A4708;
+  /* Chosen by measurement, not by eye. On paper the whole warn→attn→danger
+     stretch is compressed, so the value that matters is the WEAKEST adjacent
+     gap. #9A3412 read 11.9 ΔE from warn-ink but 18.5 from danger — lopsided;
+     #9C2B06 balances at 14.8 / 15.0, raising the weak link, and measures 6.58
+     on its own tint and 7.17 on the page background (both AAA). */
+  --attn-ink:  #9C2B06;
 
   --a-outreach: #15803D;
   --a-ess:      #1D4ED8;
@@ -123,6 +204,45 @@
   --a-incentive:#A21CAF;
   --a-kb:       #6D28D9;
   --a-settings: #52606D;
+
+  --acc-rivvra: #15803D;
+  --acc-blue: #2563EB;
+  --acc-purple: #9333EA;
+  --acc-purple-ink: #6B21A8;
+  --acc-orange: #C2410C;
+  --acc-cyan: #0E7490;
+  --acc-amber: #B45309;
+  --acc-emerald: #047857;
+  --acc-indigo: #4F46E5;
+  --acc-teal: #0F766E;
+  --acc-fuchsia: #C026D3;
+  --acc-slate: #475569;
+  --acc-sky: #0369A1;
+  --acc-rose: #E11D48;
+
+  /* Accent INK — see the dark block. In LIGHT, 11 of 13 accents FAILED as
+     text on their own 15% tint (3.37-4.56 against a 4.5 floor): they were
+     chosen for dark and reused here without re-checking. Only indigo and
+     slate passed. `--acc-purple-ink` already existed, which is how this class
+     of bug was found once before and fixed for one accent only.
+
+     These are darkened along the same hue (channels scaled toward black) to
+     the first value clearing ~4.62 — a little headroom so a future surface
+     tweak does not silently drop them under. The accents themselves are
+     UNCHANGED: they are still used for fills, icon marks and glows, where
+     they were never the problem. */
+  --acc-rivvra-ink:  #126D34;
+  --acc-blue-ink:    #2056CC;
+  --acc-orange-ink:  #A9390A;
+  --acc-cyan-ink:    #0C6780;
+  --acc-amber-ink:   #994708;
+  --acc-emerald-ink: #046C4E;
+  --acc-indigo-ink:  #4E45E3;
+  --acc-teal-ink:    #0E6A63;
+  --acc-fuchsia-ink: #9C1FAB;
+  --acc-slate-ink:   #475569;
+  --acc-sky-ink:     #036499;
+  --acc-rose-ink:    #B6173A;
 
   --sh-1: 0 1px 2px rgba(28,25,20,.06);
   --sh-2: 0 4px 12px -3px rgba(28,25,20,.09);

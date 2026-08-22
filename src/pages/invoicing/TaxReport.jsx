@@ -166,15 +166,15 @@ function LegacyTaxReport() {
               </h2>
               <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
                 <div className="rounded-xl border p-5 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                  <span className="text-xs font-medium opacity-70 uppercase tracking-wider">Tax Collected</span>
+                  <span className="text-xs font-medium uppercase tracking-wider">Tax Collected</span>
                   <p className="text-2xl font-bold mt-2">{formatCurrency(sumRow.taxCollected, sumRow.currency)}</p>
                 </div>
                 <div className="rounded-xl border p-5 bg-red-500/10 text-red-400 border-red-500/20">
-                  <span className="text-xs font-medium opacity-70 uppercase tracking-wider">Tax Paid</span>
+                  <span className="text-xs font-medium uppercase tracking-wider">Tax Paid</span>
                   <p className="text-2xl font-bold mt-2">{formatCurrency(sumRow.taxPaid, sumRow.currency)}</p>
                 </div>
                 <div className="rounded-xl border p-5 bg-blue-500/10 text-blue-400 border-blue-500/20">
-                  <span className="text-xs font-medium opacity-70 uppercase tracking-wider">Net Tax</span>
+                  <span className="text-xs font-medium uppercase tracking-wider">Net Tax</span>
                   <p className="text-2xl font-bold mt-2">{formatCurrency(sumRow.netTax, sumRow.currency)}</p>
                 </div>
               </div>
@@ -203,7 +203,7 @@ function LegacyTaxReport() {
                       </thead>
                       <tbody>
                         {rows.map((row, i) => (
-                          <tr key={`${row.taxId || i}-${sumRow.currency}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
+                          <tr key={`${row.taxId || 'x'}-${sumRow.currency}-${i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                             <td className="px-5 py-3 text-white font-medium">{row.taxName || '-'}</td>
                             <td className="px-5 py-3 text-right text-dark-300">{row.rate != null ? `${row.rate}%` : '-'}</td>
                             <td className="px-5 py-3 text-right text-emerald-400">{formatCurrency(row.collected, sumRow.currency)}</td>

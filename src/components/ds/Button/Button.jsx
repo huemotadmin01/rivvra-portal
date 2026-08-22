@@ -5,7 +5,17 @@ export function Button({
   disabled = false,
   iconRight = null,
   iconLeft = null,
+  // Render as something other than <button>. The only real use is `as="a"` for
+  // a navigation that must stay a link — middle-click, open-in-new-tab and
+  // "copy link address" are behaviours a button cannot give back. `type` and
+  // `disabled` are button-only attributes and are dropped for other elements.
+  as: As = 'button',
   children,
+  // Pulled out of `rest` so a caller-supplied style merges with the computed
+  // one. Spreading `rest` over `style=` replaced it wholesale, dropping the
+  // button's own display, padding and height — a caller tinting the text
+  // colour got an unstyled inline element.
+  style,
   ...rest
 }) {
   const base = {
@@ -46,18 +56,27 @@ export function Button({
       background: 'transparent',
       color: 'var(--fg-2, #a2aebc)',
     },
+    // Destructive confirm. Same weight as `primary` — a delete is still the
+    // dialog's main action — but the fill carries the warning, so it never
+    // reads as the safe choice.
+    danger: {
+      background: 'var(--danger, #ef4444)',
+      color: 'var(--danger-fg, #fff)',
+      boxShadow: '0 1px 0 rgba(255,255,255,.14) inset, 0 6px 18px -8px var(--danger-glow, rgba(239,68,68,.2))',
+    },
   };
 
+  const isButton = As === 'button';
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      style={{ ...base, ...sizes[size], ...variants[variant] }}
+    <As
+      {...(isButton ? { type: 'button', disabled } : {})}
+      {...(!isButton && disabled ? { 'aria-disabled': true } : {})}
+      style={{ ...base, ...sizes[size], ...variants[variant], ...style }}
       {...rest}
     >
       {iconLeft}
       {children}
       {iconRight}
-    </button>
+    </As>
   );
 }

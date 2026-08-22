@@ -51,7 +51,7 @@ function legacyToRec(legacy) {
 function FeedbackChip({ result, legacy }) {
   let rec = result?.recommendation;
   if (!rec && legacy && typeof legacy === 'string') rec = legacyToRec(legacy);
-  if (!rec) return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+  if (!rec) return <span style={{ color: 'var(--fg-4)' }}>—</span>;
   const tone = rec === 'Proceed' ? 'brand' : rec === 'Awaited' ? 'warn' : 'danger';
   return <Chip tone={tone} title={legacy || ''}>{rec}</Chip>;
 }
@@ -59,13 +59,13 @@ function FeedbackChip({ result, legacy }) {
 function RoundCell({ interview }) {
   const dt = formatDateTimeShort(interview?.datetime);
   if (!interview || (!dt && !interview.recommendation && !interview.legacyFeedback)) {
-    return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+    return <span style={{ color: 'var(--fg-4)' }}>—</span>;
   }
   return (
     <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {dt
         ? <span style={{ color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>{dt}</span>
-        : <span style={{ color: 'var(--fg-faint)', fontSize: 11.5 }}>Not scheduled</span>}
+        : <span style={{ color: 'var(--fg-4)', fontSize: 11.5 }}>Not scheduled</span>}
       <span><FeedbackChip result={interview.recommendation ? { recommendation: interview.recommendation } : null} legacy={interview.legacyFeedback} /></span>
     </span>
   );
@@ -73,7 +73,7 @@ function RoundCell({ interview }) {
 
 function InterviewSummaryCell({ app }) {
   const interviews = app.interviews || [];
-  if (interviews.length === 0 && !app.currentRoundKey) return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+  if (interviews.length === 0 && !app.currentRoundKey) return <span style={{ color: 'var(--fg-4)' }}>—</span>;
   let primary = app.currentRoundKey ? interviews.find(i => i.roundKey === app.currentRoundKey) : null;
   if (!primary) {
     const scheduled = interviews.filter(i => i.datetime);
@@ -87,7 +87,7 @@ function InterviewSummaryCell({ app }) {
         {label && <span style={{ color: 'var(--fg-2)', fontWeight: 550, marginRight: 5 }}>{label}</span>}
         {dt
           ? <span style={{ color: 'var(--fg-4)' }}>{dt}</span>
-          : (label ? <span style={{ color: 'var(--fg-faint)' }}>not scheduled</span> : <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          : (label ? <span style={{ color: 'var(--fg-4)' }}>not scheduled</span> : <span style={{ color: 'var(--fg-4)' }}>—</span>)}
       </span>
       {interviews.length > 0 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -127,24 +127,39 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
     { key: 'archived', label: 'Archived', dot: 'var(--fg-4)' },
   ];
   const seg = (on) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px',
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', flexShrink: 0,
     borderRadius: 'var(--r-full, 999px)', font: "500 12px/1 'Inter', system-ui, sans-serif",
     background: on ? 'var(--surface-4)' : 'transparent',
     color: on ? 'var(--fg)' : 'var(--fg-4)', whiteSpace: 'nowrap',
     transition: 'background 120ms var(--e-out), color 120ms var(--e-out)',
   });
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, flexShrink: 0,
-      borderRadius: 'var(--r-full, 999px)', background: 'var(--surface-2)',
-      boxShadow: 'inset 0 0 0 1px var(--line)',
-    }}>
+    // Four segments come to ~410px, which is wider than a phone. The strip
+    // scrolls inside itself rather than pushing the page sideways — the
+    // segments keep flexShrink:0 so they never squash into unreadable stubs.
+    <span
+      className="ats-lifecycle"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2,
+        maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none',
+        borderRadius: 'var(--r-full, 999px)', background: 'var(--surface-2)',
+        boxShadow: 'inset 0 0 0 1px var(--line)',
+      }}
+    >
+      <style>{'.ats-lifecycle::-webkit-scrollbar{display:none}'}</style>
       {segments.map(s => (
         <button key={s.key} type="button" style={seg(lifecycle === s.key)} onClick={() => onChange(s.key)} aria-pressed={lifecycle === s.key}>
           <span style={{ width: 6, height: 6, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
           {s.label}
+          {/* The count follows the segment. On the ACTIVE pill the backdrop
+              is --surface-4, the darkest surface, where --fg-4 measures 4.31
+              against a 4.5 floor; --fg-2 there is 8.50. Inactive segments sit
+              on --surface-2, where --fg-4 is 5.12 and correct. */}
           {counts[s.key] != null && (
-            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-faint)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
+            <span style={{
+              font: '600 10px/1 var(--font)', fontVariantNumeric: 'tabular-nums',
+              color: lifecycle === s.key ? 'var(--fg-2)' : 'var(--fg-4)',
+            }}>{counts[s.key]}</span>
           )}
         </button>
       ))}
@@ -587,7 +602,9 @@ export default function AtsApplicationsV2() {
             <span style={{
               width: 28, height: 28, borderRadius: 999, flexShrink: 0, display: 'grid', placeItems: 'center',
               background: refused ? 'var(--danger-soft, rgba(239,68,68,.14))' : 'var(--brand-soft)',
-              color: refused ? 'var(--danger)' : 'var(--brand)',
+              // Initials are TEXT on their own tint — --brand there measures
+              // 4.37 in light. --brand-ink is the pairing built for it.
+              color: refused ? 'var(--danger)' : 'var(--brand-ink)',
               font: "600 11px/1 'Inter', system-ui, sans-serif",
             }}>
               {(app.candidateName || '?')[0].toUpperCase()}
@@ -608,14 +625,14 @@ export default function AtsApplicationsV2() {
           </span>
         </td>
         <td style={td({ color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })} title={app.candidateEmail || ''}>
-          {app.candidateEmail || <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+          {app.candidateEmail || <span style={{ color: 'var(--fg-4)' }}>—</span>}
         </td>
         <td style={td({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
           {app.jobPositionId && app.jobName ? (
             <Link to={orgPath(`/ats/jobs/${app.jobPositionId}`)} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--fg-2)' }}>
               {app.jobName}
             </Link>
-          ) : (app.jobName || <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          ) : (app.jobName || <span style={{ color: 'var(--fg-4)' }}>—</span>)}
         </td>
         <td style={td()}>
           <StageBadge stageName={stages.find((s) => s._id === app.stageId)?.name || app.stageName || app.stageId?.name} />
@@ -625,7 +642,7 @@ export default function AtsApplicationsV2() {
             <Link to={orgPath(`/employee/${app.recruiterId}`)} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--fg-2)' }}>
               {app.recruiterName}
             </Link>
-          ) : (app.recruiterName || <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          ) : (app.recruiterName || <span style={{ color: 'var(--fg-4)' }}>—</span>)}
         </td>
         <td style={td({ textAlign: 'center' })}><EvalStars value={app.evaluation || 0} /></td>
         <td style={td({ textAlign: 'center' })}><AiScoreBadge score={app.aiJobFitScore} size="sm" /></td>

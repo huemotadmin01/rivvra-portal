@@ -4,8 +4,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { getLeaveHistory } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
 import { ArrowLeft, History } from 'lucide-react';
-import { DataTable, EmptyState, Chip } from '../../components/ds';
-import { InlineSelect } from './LeaveBalancesV2';
+import { DataTable, EmptyState, Chip , InlineSelect } from '../../components/ds';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -85,7 +84,7 @@ export default function LeaveHistoryV2() {
         return (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <Chip tone={meta.tone}>{meta.label}</Chip>
-            {ev.reconstructed && <span style={{ font: '450 9px/1 var(--font)', color: 'var(--fg-faint)' }} title="Reconstructed from policy schedule">est.</span>}
+            {ev.reconstructed && <span style={{ font: '450 9px/1 var(--font)', color: 'var(--fg-4)' }} title="Reconstructed from policy schedule">est.</span>}
           </span>
         );
       },
@@ -115,7 +114,7 @@ export default function LeaveHistoryV2() {
       render: (ev) => {
         const isLopReq = ev.kind === 'leave_request' && ev.leaveType === 'lop';
         return (
-          <span style={{ fontWeight: 550, color: ev.delta > 0 ? 'var(--brand)' : ev.delta < 0 ? 'var(--danger)' : 'var(--fg-faint)' }}>
+          <span style={{ fontWeight: 550, color: ev.delta > 0 ? 'var(--brand)' : ev.delta < 0 ? 'var(--danger)' : 'var(--fg-4)' }}>
             {ev.delta > 0 ? '+' : ''}{ev.delta !== 0 ? fmt(ev.delta) : (isLopReq && ev.lopDays ? `(${fmt(ev.lopDays)} LOP)` : '—')}
           </span>
         );
@@ -123,7 +122,7 @@ export default function LeaveHistoryV2() {
     },
     {
       key: 'runningBalance', header: 'Balance', align: 'right', width: 90,
-      render: (ev) => ev.countsToBalance ? fmt(ev.runningBalance) : <span style={{ color: 'var(--fg-faint)' }}>—</span>,
+      render: (ev) => ev.countsToBalance ? fmt(ev.runningBalance) : <span style={{ color: 'var(--fg-4)' }}>—</span>,
     },
   ];
 

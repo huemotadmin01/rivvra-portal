@@ -3,9 +3,8 @@ import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { getLeaveReportSummary, getLeaveReportUtilization, exportLeaveReport } from '../../utils/timesheetApi';
 import { Download, Loader2, Users, TrendingUp } from 'lucide-react';
-import { DataTable, FilterBar, Pagination, EmptyState, Button, Stat } from '../../components/ds';
+import { DataTable, FilterBar, Pagination, EmptyState, Button, Stat, InlineSelect, SkeletonCardGrid } from '../../components/ds';
 import { PageHeaderV2 } from '../../components/platform/v2/listkit';
-import { InlineSelect } from './LeaveBalancesV2';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -219,9 +218,7 @@ export default function LeaveReportsV2() {
           )}
         </>
       ) : loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-          {[0, 1, 2, 3].map(i => <div key={i} style={{ ...card, height: 90, opacity: 0.5 }} />)}
-        </div>
+        <SkeletonCardGrid count={4} minWidth={160} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>

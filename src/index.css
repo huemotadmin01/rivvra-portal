@@ -103,6 +103,23 @@
     @apply bg-dark-950 text-white m-0;
   }
 
+  /* The rule above is a fixed dark value on <body>, which sits OUTSIDE
+     `.ds-shell` — so the palette bridge cannot reach it, and correctly so:
+     the bridge must never touch the legacy shell.
+
+     The consequence only shows on a tall page. `.ds-shell` paints
+     `var(--bg)`, but where its painted region ends the body shows through,
+     so in light theme a long v2 page ends in a band of slate-950. Found on
+     the ATS dashboard, which is 4,271px tall — measured body
+     `rgb(2, 6, 23)` against a `--bg` of `#FAF8F4`.
+
+     Scoped with :has() so only a document actually rendering the v2 shell
+     follows the theme. Without the shell mounted — the legacy app, which is
+     what production serves — the rule above still wins and nothing changes. */
+  body:has(.ds-shell) {
+    background-color: var(--bg);
+  }
+
   /* Dark-theme date input: make calendar icon visible */
   input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(0.7);

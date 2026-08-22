@@ -1,9 +1,10 @@
+import './v2/marketing-tokens.css';
 import MarketingNav from './MarketingNav';
 import MarketingFooter from './MarketingFooter';
 
 export default function MarketingLayout({ activePage, children }) {
   return (
-    <div className="min-h-screen bg-dark-950 relative overflow-hidden font-marketing">
+    <div className="marketing-shell min-h-screen bg-dark-950 relative overflow-hidden font-marketing">
       {/* Subtle ambient background */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-rivvra-500/[0.04] rounded-full blur-[130px]" />

@@ -1,0 +1,1599 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
+import { useToast } from '../../context/ToastContext';
+import atsApi from '../../utils/atsApi';
+import { formatCurrency } from '../../utils/formatCurrency';
+import {
+  Loader2, BarChart3, Users, UserCheck, Clock,
+  FileBarChart, RefreshCw, Download, ChevronDown,
+  AlertTriangle, MessageSquareWarning, Hourglass, ArrowRight,
+  Layers,
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { usePlatform } from '../../context/PlatformContext';
+import MyTeamWidget from '../../components/shared/MyTeamWidget';
+import { Chip, EmptyState, Meter, Panel, Spinner, Stat } from '../../components/ds';
+
+/* ============================================================================
+ * AtsDashboardV2 — ATS dashboard on ds (phase 7)
+ * ============================================================================
+ * Started as a byte-identical copy of AtsDashboard.jsx, then only the leaf
+ * presentational components were rewritten. The ~680-line main component body
+ * — every fetch, gate, CSV builder and derived metric — is untouched, and the
+ * rewritten leaves keep their original signatures so no call site moved.
+ *
+ * The one substantive change is the form of two charts, and it is deliberate.
+ *
+ * `DonutChart` was a hand-rolled SVG donut with a fixed 12-colour palette. Run
+ * through the palette validator against the light surface it FAILS: slots 2
+ * and 3 — #a855f7 and #3b82f6, which sit ADJACENT in the ring — are ΔE 0.9
+ * apart under deuteranopia, i.e. the same colour to the most common form of
+ * colour blindness. Seven of the twelve also fall below 3:1 on the light
+ * surface, and its track ring was a hardcoded #1f2937 that stayed dark in
+ * light theme.
+ *
+ * The fix is not a better palette, it is the right form. Both donuts plot a
+ * magnitude comparison across close values — 11 recruiters and 9 clients on
+ * staging — and a donut is the wrong chart for that past ~6 segments. Ranked
+ * one-hue horizontal bars answer "who has the most" directly, need no
+ * categorical palette at all (so there is no CVD risk to validate), and keep
+ * every category named rather than folding the 9th onward into "Other".
+ * `BreakdownChart` replaces it. The call sites keep their `.slice(0, 12)`:
+ * with bars the cap is no longer needed to keep arcs and legend in sync, but
+ * removing it would change which rows appear, and this is a layout pass.
+ * ========================================================================== */
+
+/* ── Sticky range preference ──────────────────────────────────────────────
+ * 2026-05-12 Phase 1 (audit Q8 = D). Per-user, per-device. Default = 30d
+ * on first visit; respects the user's last selection thereafter. */
+const RANGE_STORAGE_KEY = 'rivvra:ats-reporting-range';
+function readStoredRange() {
+  try {
+    const stored = localStorage.getItem(RANGE_STORAGE_KEY);
+    if (stored && ['all', '7d', '30d', '90d', 'ytd'].includes(stored)) return stored;
+  } catch (_) { /* localStorage blocked */ }
+  return '30d';
+}
+function writeStoredRange(key) {
+  try { localStorage.setItem(RANGE_STORAGE_KEY, key); } catch (_) {}
+}
+
+/* ── CSV export ───────────────────────────────────────────────────────────
+ * 2026-05-12 audit P3 #28. Client-side serialise — the dashboard data
+ * is already loaded; no need for a separate backend export endpoint.
+ * Layout is multi-section: headline counts at top, then each breakdown
+ * (by stage / source / recruiter) with its own header row. Recruiters
+ * can paste this straight into Sheets for leadership reporting. */
+function csvEscape(value) {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildReportingCsv(data, rangeLabel) {
+  const lines = [];
+  lines.push(`ATS Reporting Export,${csvEscape(rangeLabel)}`);
+  lines.push(`Generated,${new Date().toISOString()}`);
+  lines.push('');
+  lines.push('Headline metrics');
+  lines.push('Metric,Value');
+  lines.push(`Total applications,${data.totalApplications ?? 0}`);
+  lines.push(`Total candidates,${data.totalCandidates ?? 0}`);
+  lines.push(`Total jobs,${data.totalJobs ?? 0}`);
+  lines.push(`Total hired,${data.hiredCount ?? 0}`);
+  lines.push(`Avg time to hire (days),${data.avgTimeToHire ?? ''}`);
+  lines.push('');
+  lines.push('Applications by stage');
+  lines.push('Stage,Count');
+  (data.applicationsByStage || []).forEach((s) => {
+    lines.push(`${csvEscape(s.stageName)},${s.count}`);
+  });
+  lines.push('');
+  lines.push('Applications by source');
+  lines.push('Source,Count');
+  (data.applicationsBySource || []).forEach((s) => {
+    lines.push(`${csvEscape(s.source)},${s.count}`);
+  });
+  lines.push('');
+  if (Array.isArray(data.applicationsByTeam) && data.applicationsByTeam.length > 0) {
+    lines.push('Recruitment teams performance');
+    lines.push('Team,Recruiters,Applications,Hired,Conversion %,% of Total');
+    const total = data.totalApplications || 0;
+    data.applicationsByTeam.forEach((t) => {
+      const conv = t.conversion == null ? '' : `${t.conversion}%`;
+      const pct = total > 0 ? `${((t.count / total) * 100).toFixed(1)}%` : '0.0%';
+      lines.push(`${csvEscape(t.teamName)},${t.recruiterCount ?? 0},${t.count},${t.hired ?? 0},${conv},${pct}`);
+    });
+    lines.push('');
+  }
+  lines.push('Applications by recruiter');
+  lines.push('Recruiter,Applications,Hired,Conversion %');
+  (data.applicationsByRecruiter || []).forEach((r) => {
+    const conv = r.conversion == null ? '' : `${r.conversion}%`;
+    lines.push(`${csvEscape(r.recruiterName)},${r.count},${r.hired ?? 0},${conv}`);
+  });
+  // Phase 3 export sections.
+  if (data.offerAcceptance) {
+    lines.push('');
+    lines.push('Offer acceptance');
+    lines.push('Metric,Value');
+    lines.push(`Offered,${data.offerAcceptance.proposed ?? 0}`);
+    lines.push(`Accepted,${data.offerAcceptance.accepted ?? 0}`);
+    lines.push(`Rate,${data.offerAcceptance.rate == null ? '' : `${data.offerAcceptance.rate}%`}`);
+  }
+  if (Array.isArray(data.refusalReasons) && data.refusalReasons.length > 0) {
+    lines.push('');
+    lines.push('Refusal reasons');
+    lines.push('Reason,Count');
+    data.refusalReasons.forEach((r) => {
+      lines.push(`${csvEscape(r.reasonName)},${r.count}`);
+    });
+  }
+  return lines.join('\n');
+}
+
+function downloadCsv(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
+/* ── Time-range options ───────────────────────────────────────────────────
+ * 2026-05-12 audit P1 #8. Each option emits a { dateFrom, dateTo } pair
+ * (or both null = all time). "Custom" is intentionally omitted for now —
+ * the four presets cover ~95% of recruiter intent and avoid a date
+ * picker dependency. Add later if leadership asks for arbitrary ranges. */
+const TIME_RANGE_OPTIONS = [
+  { key: 'all', label: 'All time' },
+  { key: '7d', label: 'Last 7 days', days: 7 },
+  { key: '30d', label: 'Last 30 days', days: 30 },
+  { key: '90d', label: 'Last 90 days', days: 90 },
+  { key: 'ytd', label: 'Year to date' },
+];
+
+function rangeToDates(key) {
+  if (key === 'all') return { dateFrom: null, dateTo: null };
+  const now = new Date();
+  if (key === 'ytd') {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    return { dateFrom: yearStart.toISOString(), dateTo: now.toISOString() };
+  }
+  const opt = TIME_RANGE_OPTIONS.find((o) => o.key === key);
+  if (!opt?.days) return { dateFrom: null, dateTo: null };
+  const from = new Date(now.getTime() - opt.days * 24 * 60 * 60 * 1000);
+  return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
+}
+
+/* ── KPI Tile (2026-05-16 redesign) ───────────────────────────────────────
+ * Extension of StatCard with a clickable Link wrapper and a subtitle line
+ * for secondary context (e.g. "avg 18 days to hire" under the Hired count).
+ * Use for the headline 4-tile row. */
+/* Colour names map to semantic tokens rather than fixed Tailwind steps. The
+ * `subtitle` becomes Stat's `note`, which is already muted ink — the legacy
+ * `opacity-60` on it measured below AA in light theme. */
+const TILE_COLORS = {
+  emerald: 'var(--brand)',
+  amber:   'var(--warn)',
+  red:     'var(--danger)',
+  purple:  'var(--a-ats)',
+  blue:    'var(--info)',
+  dark:    'var(--fg-3)',
+};
+
+function KpiTile({ label, value, subtitle, icon: Icon, color = 'dark', to }) {
+  const navigate = useNavigate();
+  return (
+    <Stat
+      label={label}
+      value={value}
+      note={subtitle}
+      icon={<Icon size={14} />}
+      color={TILE_COLORS[color] || TILE_COLORS.dark}
+      title={subtitle || undefined}
+      onClick={to ? () => navigate(to) : undefined}
+    />
+  );
+}
+
+/* ── BreakdownChart — ranked one-hue horizontal bars ─────────────────────
+ * Replaces the SVG donut. Both call sites plot a magnitude comparison across
+ * close values (11 recruiters / 9 clients on staging), which a donut answers
+ * badly past ~6 segments — and its 12-colour categorical palette failed CVD
+ * validation outright (adjacent slots #a855f7/#3b82f6 at deuteran ΔE 0.9).
+ *
+ * Bars need one hue, so there is no categorical palette to get wrong, and no
+ * category has to be folded into "Other" to fit a colour budget. Same props
+ * as the donut it replaces, plus `onSliceClick`, which keeps the drill-down.
+ * `centerLabel` becomes the total shown beside the title. */
+function BreakdownChart({ title, data, labelKey = 'label', valueKey = 'value', centerLabel, onSliceClick }) {
+  const total = data.reduce((s, d) => s + (d[valueKey] || 0), 0);
+  const max = Math.max(...data.map((d) => d[valueKey] || 0), 1);
+  return (
+    <Panel
+      title={title}
+      actions={total > 0 ? (
+        <span style={{ font: "450 11.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+          {total} {centerLabel || ''}
+        </span>
+      ) : null}
+    >
+      {total === 0 ? (
+        <EmptyState compact title="No data yet" />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {data.map((d, i) => {
+            const v = d[valueKey] || 0;
+            const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
+            const label = d[labelKey];
+            const row = (
+              <>
+                <span
+                  title={label}
+                  style={{
+                    width: 130, flexShrink: 0, textAlign: 'right',
+                    font: "450 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-3)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {label}
+                </span>
+                <Meter value={v} max={max} size="lg" readout={v} style={{ flex: 1, minWidth: 0 }} />
+                <span style={{
+                  width: 44, flexShrink: 0, textAlign: 'right',
+                  font: "450 10.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {pct}%
+                </span>
+              </>
+            );
+            return onSliceClick ? (
+              <button
+                key={`${label}-${i}`}
+                type="button"
+                onClick={() => onSliceClick(d)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                }}
+              >
+                {row}
+              </button>
+            ) : (
+              <div key={`${label}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {row}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/* ── SubmissionsTable (2026-05-16) ────────────────────────────────────────
+ * Odoo-parity table for "Today's Submissions" and "Last Working Day
+ * Submissions". Renders Candidate / Job / Recruiter / Account Owner /
+ * Stage columns, grouped by recruitmentTeamName with a subheader per
+ * team. Each row is a Link to the application detail. */
+function SubmissionsTable({ title, subtitle, rows, orgSlug, groupBy = 'team', emptyText = 'No submissions' }) {
+  const grouped = useMemo(() => {
+    const unknown = groupBy === 'source' ? 'No Source' : 'Unassigned';
+    const m = new Map();
+    for (const r of rows) {
+      const key = (groupBy === 'source' ? r.source : r.teamName) || unknown;
+      if (!m.has(key)) m.set(key, []);
+      m.get(key).push(r);
+    }
+    return Array.from(m.entries()).sort(([a], [b]) => {
+      if (a === unknown) return 1;
+      if (b === unknown) return -1;
+      return a.localeCompare(b);
+    });
+  }, [rows, groupBy]);
+
+  return (
+    <div className="bg-dark-850 rounded-xl border border-dark-700 overflow-hidden">
+      <div className="p-4 pb-2">
+        <h3 className="text-sm font-semibold text-dark-200">{title}</h3>
+        {subtitle && <p className="text-[11px] text-dark-500">{subtitle}</p>}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-8">{emptyText}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          {grouped.map(([teamName, teamRows]) => (
+            <div key={teamName} className="border-t border-dark-800">
+              <div className="px-3 py-1.5 bg-dark-900/60 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-dark-300 uppercase tracking-wide">
+                  {teamName}
+                </span>
+                <span className="text-[11px] text-dark-500">{teamRows.length}</span>
+              </div>
+              <table className="w-full text-[11px]">
+                <thead className="text-dark-400">
+                  <tr className="border-b border-dark-800">
+                    <th className="text-left font-medium px-3 py-1.5">Candidate</th>
+                    <th className="text-left font-medium px-3 py-1.5 hidden md:table-cell">Job Position</th>
+                    <th className="text-left font-medium px-3 py-1.5 hidden lg:table-cell">Recruiter</th>
+                    <th className="text-left font-medium px-3 py-1.5 hidden lg:table-cell">Account Owner</th>
+                    <th className="text-left font-medium px-3 py-1.5">Stage</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-800">
+                  {teamRows.map((a) => {
+                    // 2026-05-18: paint refused rows red so the recruiter
+                    // can scan today's submissions and spot which leads
+                    // already bounced without opening each card. Honors
+                    // both applicationStatus (canonical) and the legacy
+                    // refused boolean for any pre-rename rows.
+                    const isRefused = a.applicationStatus === 'refused' || a.refused === true;
+                    return (
+                      <tr key={a._id} className={`hover:bg-dark-800/50 ${isRefused ? 'bg-red-500/[0.06]' : ''}`}>
+                        <td className="px-3 py-1.5 max-w-[180px]">
+                          <Link
+                            to={`/org/${orgSlug}/ats/applications/${a._id}`}
+                            className={`truncate block hover:text-rivvra-300 ${isRefused ? 'text-red-300' : 'text-dark-100'}`}
+                            title={a.candidateName}
+                          >
+                            {a.candidateName || 'Unknown'}
+                          </Link>
+                        </td>
+                        <td className={`px-3 py-1.5 truncate max-w-[200px] hidden md:table-cell ${isRefused ? 'text-red-300/80' : 'text-dark-300'}`} title={a.jobName}>
+                          {a.jobName || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 truncate max-w-[140px] hidden lg:table-cell ${isRefused ? 'text-red-300/70' : 'text-dark-400'}`} title={a.recruiterName}>
+                          {a.recruiterName || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 truncate max-w-[140px] hidden lg:table-cell ${isRefused ? 'text-red-300/70' : 'text-dark-400'}`} title={a.accountOwnerName}>
+                          {a.accountOwnerName || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 whitespace-nowrap ${isRefused ? 'text-red-300' : 'text-dark-300'}`}>
+                          {isRefused ? 'Refused' : (a.stageName || '—')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Time-in-Stage card (2026-05-16) ──────────────────────────────────────
+ * Average dwell time per stage for non-archived apps in the current
+ * window. Surfaces bottlenecks: e.g. "L2 Interview avg 8.7d" tells you
+ * which stage is silently eating cycle time. Uses a horizontal bar
+ * normalised against the worst-offender stage. */
+/* ── Job Aging / Delivery SLA ─────────────────────────────────────────────
+ * Ported from the legacy dashboard 2026-08-22 (added on `main` 2026-08-20,
+ * growth-plan P0 #2). Rows arrive pre-sorted oldest-first and the red/amber/
+ * green flags are computed SERVER-side against the org's reportingThresholds,
+ * so this card never duplicates the defaults — the `?? 30` / `?? 7` below are
+ * label fallbacks only, never inputs to a decision.
+ *
+ * Spliced verbatim: the destructure defaults, `breaching`, the 8-row cut, and
+ * the `ageDays` + asterisk pair. The asterisk is load-bearing — it marks a job
+ * aged from CREATION because it has no approval timestamp, so the number is
+ * not comparable to the others, and its tooltip says which. Presentation is
+ * ds; the table keeps its own overflow-x so columns cannot be silently lost
+ * (house mobile rule). */
+function JobAgingCard({ jobAging, orgPath }) {
+  const { jobs = [], timeToFill = {}, thresholds = {} } = jobAging || {};
+  const [showAll, setShowAll] = useState(false);
+  const breaching = jobs.filter((j) => j.flag === 'red').length;
+  const visible = showAll ? jobs : jobs.slice(0, 8);
+  const FLAG_TONE = { red: 'danger', amber: 'warn', green: 'brand' };
+
+  const th = { padding: '8px 12px 8px 0', font: "500 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', textAlign: 'left', whiteSpace: 'nowrap' };
+  const thR = { ...th, textAlign: 'right' };
+  const td = { padding: '8px 12px 8px 0', font: "450 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' };
+  const tdR = { ...td, textAlign: 'right' };
+  const trunc = { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+  return (
+    <Panel
+      title="Job Aging & Delivery SLA"
+      sub={`Open approved jobs by days open — target ${thresholds.targetDays ?? 30}d, submittal window ${thresholds.noSubmittalDays ?? 7}d`}
+      actions={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0 }}>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ font: "700 19px/1.2 'Inter', system-ui, sans-serif", color: breaching > 0 ? 'var(--danger)' : 'var(--fg-4)' }}>{breaching}</p>
+            <p style={{ font: "450 10px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>breaching SLA</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ font: "700 19px/1.2 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+              {timeToFill.medianDays != null ? `${timeToFill.medianDays}d` : '—'}
+            </p>
+            <p style={{ font: "450 10px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+              median time-to-fill{timeToFill.count ? ` (n=${timeToFill.count})` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+    >
+      {jobs.length === 0 ? (
+        <EmptyState compact>No open approved jobs</EmptyState>
+      ) : (
+        <>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                  <th style={th}>Job</th>
+                  <th style={th}>Client</th>
+                  <th style={th}>Recruiter</th>
+                  <th style={thR}>Days open</th>
+                  <th style={thR}>Submittals</th>
+                  <th style={thR}>Last {thresholds.noSubmittalDays ?? 7}d</th>
+                  <th style={thR}>In pipeline</th>
+                  <th style={{ ...thR, paddingRight: 0 }}>Hired</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((j) => (
+                  <tr key={j._id} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td style={{ ...td, maxWidth: 180 }}>
+                      {/* orgPath is a FUNCTION from usePlatform, not a string.
+                          Interpolating it stringified the arrow-function source
+                          into the href, producing an unroutable URL that fell
+                          through to the `*` catch-all and bounced the user out. */}
+                      <Link to={orgPath(`/ats/jobs/${j._id}`)} title={j.name} style={{ ...trunc, color: 'var(--fg-2)' }}>
+                        {j.name}
+                      </Link>
+                    </td>
+                    <td style={{ ...td, maxWidth: 120, color: 'var(--fg-3)' }} title={j.clientName || ''}><span style={trunc}>{j.clientName || '—'}</span></td>
+                    <td style={{ ...td, maxWidth: 110, color: 'var(--fg-3)' }} title={j.recruiterName || ''}><span style={trunc}>{j.recruiterName || '—'}</span></td>
+                    <td style={tdR}>
+                      <Chip
+                        tone={FLAG_TONE[j.flag] || FLAG_TONE.green}
+                        title={j.agingFromApproval ? 'Since approval' : 'Since creation (no approval timestamp)'}
+                      >
+                        {j.ageDays}d{!j.agingFromApproval && '*'}
+                      </Chip>
+                    </td>
+                    <td style={tdR}>{j.submittals}</td>
+                    <td style={{ ...tdR, color: j.noRecentSubmittal ? 'var(--warn-ink)' : 'var(--fg-2)', fontWeight: 500 }}>
+                      {j.recentSubmittals}
+                    </td>
+                    <td style={tdR}>{j.activePipeline}</td>
+                    <td style={{ ...tdR, paddingRight: 0 }}>{j.hiredCount}/{j.expectedHires}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {jobs.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, marginTop: 12, marginLeft: 'auto',
+                background: 'none', font: "450 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--brand-ink)',
+              }}
+            >
+              {showAll ? 'Show fewer' : `Show all ${jobs.length}`} <ArrowRight size={12} />
+            </button>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function TimeInStageCard({ data }) {
+  const ordered = useMemo(() => {
+    return [...data]
+      .filter((s) => Number.isFinite(s.sequence))
+      .sort((a, b) => a.sequence - b.sequence);
+  }, [data]);
+  const maxDays = Math.max(...ordered.map((s) => s.avgDays || 0), 1);
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Time in Stage</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Avg days apps sit in each stage — flags bottlenecks</p>
+      {ordered.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
+      ) : (
+        <div className="space-y-1.5">
+          {ordered.map((stage) => {
+            const days = stage.avgDays || 0;
+            const pct = (days / maxDays) * 100;
+            const hot = days >= 7;
+            return (
+              <div key={stage.stageId} className="flex items-center gap-3">
+                <span className="text-xs text-dark-300 w-28 shrink-0 truncate" title={stage.stageName}>{stage.stageName}</span>
+                <div className="flex-1 bg-dark-800 rounded-full h-4 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${hot ? 'bg-amber-500/70' : 'bg-blue-500/60'}`}
+                    style={{ width: `${pct}%`, minWidth: days > 0 ? '0.5rem' : 0 }}
+                  />
+                </div>
+                <span className="text-[11px] font-medium text-dark-300 w-14 text-right shrink-0">
+                  {days.toFixed(1)}d
+                </span>
+                <span className="text-[10px] text-dark-500 w-10 text-right shrink-0">n={stage.sampleSize}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Stat Card ────────────────────────────────────────────────────────────
+ * 2026-05-14: restyled to match the CRM Dashboard KPICard pattern —
+ * tinted full-card background instead of a dark card with a tinted
+ * icon badge. Keeps font sizes / padding aligned across the two
+ * dashboards so they read as the same family. */
+function StatCard({ label, value, icon: Icon, color = 'dark' }) {
+  return (
+    <Stat
+      label={label}
+      value={value}
+      icon={<Icon size={14} />}
+      color={TILE_COLORS[color] || TILE_COLORS.dark}
+    />
+  );
+}
+
+/* ── Horizontal Bar Chart (pure CSS) ──────────────────────────────────── */
+function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
+  const maxVal = Math.max(...data.map((d) => d[valueKey]), 1);
+
+  return (
+    <Panel title={title}>
+      {data.length === 0 ? (
+        <EmptyState compact title="No data yet" />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {data.map((item, i) => {
+            const hasLabel = item[labelKey] && String(item[labelKey]).trim();
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span
+                  title={item[labelKey] || 'Unknown'}
+                  style={{
+                    width: 112, flexShrink: 0, textAlign: 'right',
+                    font: `450 11.5px/1.4 'Inter', system-ui, sans-serif`,
+                    color: hasLabel ? 'var(--fg-3)' : 'var(--fg-4)',
+                    fontStyle: hasLabel ? 'normal' : 'italic',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {hasLabel ? item[labelKey] : 'Unknown'}
+                </span>
+                <Meter
+                  value={item[valueKey]}
+                  max={maxVal}
+                  size="lg"
+                  color={barColor}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <span style={{
+                  width: 32, flexShrink: 0, textAlign: 'right',
+                  font: `500 11.5px/1.4 'Inter', system-ui, sans-serif`,
+                  color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {item[valueKey]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/* ── Recruitment Funnel ───────────────────────────────────────────────────
+ * 2026-05-12 Phase 1 (audit Q2 = A). Full pipeline funnel:
+ *   - One bar per stage in canonical sequence order (New → ... → Hired)
+ *   - Each row shows applicants currently at OR past this stage
+ *     (cumulative-from-end, so "L1" = current L1 + everyone downstream)
+ *   - Stage-to-stage conversion % shown between bars (e.g. "30% of L1 → L2")
+ *
+ * Why cumulative-from-end: an applicant currently "Hired" passed through
+ * every earlier stage. A "candidates currently at this stage" view would
+ * look like a near-empty funnel because most are clustered at one end.
+ * Cumulative answers the question recruiters actually ask — "how many
+ * have we kept through this gate?"
+ */
+function RecruitmentFunnel({ data, onStageClick }) {
+  // Only stages with a known sequence; sort ascending. Stages with null
+  // sequence (e.g. archived or oddly imported) drop out of the funnel.
+  const ordered = useMemo(() => {
+    return [...data]
+      .filter((s) => Number.isFinite(s.sequence))
+      .sort((a, b) => a.sequence - b.sequence);
+  }, [data]);
+
+  // Cumulative-from-end: passed[i] = sum(ordered[i..].count).
+  const passed = useMemo(() => {
+    const out = new Array(ordered.length).fill(0);
+    let running = 0;
+    for (let i = ordered.length - 1; i >= 0; i--) {
+      running += ordered[i].count || 0;
+      out[i] = running;
+    }
+    return out;
+  }, [ordered]);
+
+  const maxVal = Math.max(...passed, 1);
+
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Recruitment Funnel</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Applicants currently at or past each stage</p>
+
+      {ordered.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
+      ) : (
+        <div className="space-y-1">
+          {ordered.map((stage, i) => {
+            const count = passed[i];
+            const pct = Math.round((count / maxVal) * 100);
+            const isLast = i === ordered.length - 1;
+            // Conversion from this stage to the next (% that progressed)
+            const conv = !isLast && passed[i] > 0
+              ? Math.round((passed[i + 1] / passed[i]) * 100)
+              : null;
+            const Row = onStageClick ? 'button' : 'div';
+            const rowProps = onStageClick
+              ? { type: 'button', onClick: () => onStageClick(stage) }
+              : {};
+            return (
+              <div key={stage.stageId || i}>
+                <Row
+                  {...rowProps}
+                  className={`flex items-center gap-3 w-full text-left ${onStageClick ? 'hover:bg-dark-800/50 rounded -mx-1 px-1 py-0.5 transition-colors cursor-pointer' : ''}`}
+                >
+                  <span className="text-xs text-dark-300 w-32 shrink-0 truncate" title={stage.stageName}>
+                    {stage.stageName}
+                  </span>
+                  <div className="flex-1 bg-dark-800 rounded-full h-5 overflow-hidden">
+                    <div
+                      className="bg-rivvra-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, minWidth: count > 0 ? '1.25rem' : 0 }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-dark-200 w-8 text-right shrink-0">
+                    {count}
+                  </span>
+                </Row>
+                {!isLast && (
+                  <div className="flex items-center gap-3 pl-32">
+                    <div className="flex-1 flex items-center gap-2 py-1 text-[11px] text-dark-500">
+                      <ChevronDown size={10} />
+                      <span>
+                        {conv === null
+                          ? <span className="italic">—</span>
+                          : <><span className={conv >= 50 ? 'text-emerald-400' : conv >= 25 ? 'text-amber-400' : 'text-red-400'}>{conv}%</span> progressed to {ordered[i + 1].stageName}</>}
+                      </span>
+                    </div>
+                    <span className="w-8" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Recruiter Table ──────────────────────────────────────────────────── */
+/* ── Recruitment Teams Performance ────────────────────────────────────────
+ * 2026-05-14. Roll-up of Applications-by-Recruiter, grouped by each
+ * recruiter's recruitment team. Helps admins compare Team A vs Team B
+ * at a glance. Conversion uses the same 20% / 5% color thresholds as
+ * the recruiter table for visual consistency. */
+function TeamPerformanceTable({ data, totalApplications }) {
+  const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
+
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Recruitment Teams Performance</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Applications rolled up by recruiter's recruitment team</p>
+
+      {sorted.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No team data yet</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-dark-400 border-b border-dark-700">
+                <th className="text-left py-2 pr-3 font-medium uppercase text-[10px] tracking-wider">Team</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Recruiters</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Apps</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Hired</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Conversion</th>
+                <th className="text-right py-2 pl-3 font-medium uppercase text-[10px] tracking-wider">% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((t) => {
+                const pct = totalApplications > 0
+                  ? ((t.count / totalApplications) * 100).toFixed(1)
+                  : '0.0';
+                const convText = t.conversion == null ? '—' : `${t.conversion}%`;
+                const convColor = t.conversion == null
+                  ? 'text-dark-500'
+                  : t.conversion >= 20
+                  ? 'text-emerald-400'
+                  : t.conversion >= 5
+                  ? 'text-amber-400'
+                  : 'text-dark-400';
+                const isUnassigned = !t.teamId;
+                return (
+                  <tr key={t.teamId || '__unassigned__'} className="border-b border-dark-700/50 last:border-0">
+                    <td className={`py-2 pr-3 ${isUnassigned ? 'text-dark-500 italic' : 'text-dark-200'}`}>
+                      {t.teamName}
+                    </td>
+                    <td className="py-2 px-3 text-right text-dark-300">{t.recruiterCount}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{t.count}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{t.hired ?? 0}</td>
+                    <td className={`py-2 px-3 text-right font-medium ${convColor}`}>{convText}</td>
+                    <td className="py-2 pl-3 text-right text-dark-400">{pct}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecruiterTable({ data, totalApplications }) {
+  // Sort descending by application count, memoised so we don't re-sort
+  // on every parent re-render (the table doesn't own this state).
+  // 2026-05-12 Phase 3 (audit Q5 = A): added Hired + Conversion columns.
+  const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
+
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-3">Applications by Recruiter</h3>
+
+      {sorted.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-dark-400 border-b border-dark-700">
+                <th className="text-left py-2 pr-3 font-medium uppercase text-[10px] tracking-wider">Recruiter</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Apps</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Hired</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Conversion</th>
+                <th className="text-right py-2 pl-3 font-medium uppercase text-[10px] tracking-wider">% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((r, i) => {
+                const pct = totalApplications > 0
+                  ? ((r.count / totalApplications) * 100).toFixed(1)
+                  : '0.0';
+                const convText = r.conversion == null ? '—' : `${r.conversion}%`;
+                // Highlight conversion in green when ≥ 20%, amber 5-20%, dim otherwise.
+                // Tells managers at a glance who's closing vs. just sourcing.
+                const convColor = r.conversion == null
+                  ? 'text-dark-500'
+                  : r.conversion >= 20
+                  ? 'text-emerald-400'
+                  : r.conversion >= 5
+                  ? 'text-amber-400'
+                  : 'text-dark-400';
+                return (
+                  <tr key={i} className="border-b border-dark-700/50 last:border-0">
+                    <td className="py-2 pr-3 text-dark-200">{r.recruiterName}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{r.count}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{r.hired ?? 0}</td>
+                    <td className={`py-2 px-3 text-right font-medium ${convColor}`}>{convText}</td>
+                    <td className="py-2 pl-3 text-right text-dark-400">{pct}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Offer Acceptance Card ────────────────────────────────────────────────
+ * Phase 3 (audit Q7 = B). Big rate number + the underlying counts
+ * (offered / accepted) so the recruiter can sanity-check what the
+ * percentage is computed from. Empty state when no offers in the
+ * range — avoids displaying a misleading "0%" before there's data. */
+function OfferAcceptanceCard({ data }) {
+  const proposed = data?.proposed ?? 0;
+  const accepted = data?.accepted ?? 0;
+  const rate = data?.rate;
+  const rateColor = rate == null ? 'text-dark-500'
+    : rate >= 70 ? 'text-emerald-400'
+    : rate >= 40 ? 'text-amber-400'
+    : 'text-red-400';
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Offer Acceptance</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Accepted ÷ offered in this window</p>
+      {proposed === 0 ? (
+        <p className="text-xs text-dark-600 text-center py-4">No offers extended yet</p>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className={`text-2xl font-bold ${rateColor}`}>{rate == null ? '—' : `${rate}%`}</p>
+            <p className="text-[11px] text-dark-500 mt-1">
+              {accepted} accepted of {proposed} offered
+            </p>
+          </div>
+          <div className="text-right text-[11px] text-dark-400 space-y-0.5">
+            <div><span className="text-emerald-400 font-medium">{accepted}</span> Accepted</div>
+            <div><span className="text-dark-300 font-medium">{proposed - accepted}</span> Pending / declined</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Pipeline-health Alert Card ───────────────────────────────────────────
+ * 2026-05-12 Phase 2 (audit Q6 = A). Three of these on the dashboard for
+ * Stale apps / Awaiting result / Pending approvals. Each renders:
+ *   - Heading + threshold label (e.g. "Stale (> 14 days)")
+ *   - Count badge
+ *   - First N affected records as clickable rows
+ *   - "View all" link when items overflow N (capped at 25 server-side)
+ * Empty state collapses to a single "All clear" line — recruiters don't
+ * need to scroll past three blank cards on a healthy day.
+ */
+function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, renderItem, emptyMessage, viewAllPath }) {
+  const list = Array.isArray(items) ? items : [];
+  const visible = list.slice(0, 5);
+  const overflow = list.length > 5;
+  // 2026-07-18 audit D10: the server caps each alert list at 25 and does
+  // not return a true total — when we're at the cap, "View all 25" (and
+  // the count badge) undercounts. Render "25+" so the number is honest.
+  const SERVER_CAP = 25;
+  const atCap = list.length >= SERVER_CAP;
+  const countLabel = atCap ? `${SERVER_CAP}+` : String(list.length);
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`p-1.5 rounded-lg shrink-0 ${iconColor}`}>
+            <Icon size={14} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-dark-200 truncate">{title}</h3>
+            <p className="text-[11px] text-dark-500">{thresholdLabel}</p>
+          </div>
+        </div>
+        <span className={`text-xl font-bold ${list.length > 0 ? 'text-amber-400' : 'text-dark-500'}`}>
+          {countLabel}
+        </span>
+      </div>
+      {list.length === 0 ? (
+        <p className="text-xs text-dark-600 text-center py-4">{emptyMessage}</p>
+      ) : (
+        <>
+          <ul className="space-y-2">
+            {visible.map(renderItem)}
+          </ul>
+          {overflow && viewAllPath && (
+            <Link
+              to={viewAllPath}
+              className="flex items-center justify-end gap-1 mt-3 text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
+            >
+              View all {countLabel} <ArrowRight size={12} />
+            </Link>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Main AtsDashboard Component ──────────────────────────────────────── */
+export default function AtsDashboardV2() {
+  const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
+  const { orgPath } = usePlatform();
+  const { showToast } = useToast();
+
+  // 2026-05-14: in-page admin guard removed — /ats/dashboard is the
+  // universal ATS landing now, so blocking non-admins here breaks the
+  // landing for recruiters. The page renders whatever the API returns;
+  // any admin-only data the endpoint chooses to exclude is the API's
+  // responsibility, not the page's.
+  const orgSlug = currentOrg?.slug;
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [data, setData] = useState(null);
+  // 2026-07-18 audit D11: fetch-error message for the no-data state's
+  // Retry affordance.
+  const [fetchError, setFetchError] = useState(null);
+  // Which company the on-screen `data` belongs to. If a refetch for a
+  // DIFFERENT company fails, we must clear the stale numbers instead of
+  // silently presenting the previous company's dashboard.
+  const dataCompanyRef = useRef(null);
+  // Sticky per-user range. Lazy init reads localStorage; falls back to 30d.
+  const [rangeKey, setRangeKey] = useState(() => readStoredRange());
+  // 2026-07-22 audit fix #6: rangeToDates(rangeKey) mints fresh Date objects
+  // (new ISO strings) on every call. Passing it inline to MyTeamWidget gave
+  // it new dateFrom/dateTo identities on every dashboard re-render (group-by
+  // toggle, refresh, any toast) — its fetch effect keys on those, so it
+  // refetched constantly. Memoize on rangeKey so the identities are stable.
+  const rangeDates = useMemo(() => rangeToDates(rangeKey), [rangeKey]);
+  // Submissions tables grouping: 'team' (default) or 'source'. Shared so
+  // Today's + Last Working Day toggle together.
+  const [submissionsGroupBy, setSubmissionsGroupBy] = useState('team');
+
+  const fetchDashboard = useCallback(async ({ silent = false } = {}) => {
+    if (!orgSlug) return;
+    // First fetch: full-page loading. Range change or explicit refresh:
+    // small spinner only, dashboard stays rendered.
+    if (silent || data) setRefreshing(true);
+    else setLoading(true);
+    const fetchCompanyId = currentCompany?._id || null;
+    try {
+      const res = await atsApi.getDashboard(orgSlug, rangeToDates(rangeKey));
+      if (res.success) {
+        setData(res);
+        setFetchError(null);
+        dataCompanyRef.current = fetchCompanyId;
+      } else {
+        showToast(res?.error || 'Failed to load reporting data', 'error');
+        // D11: same stale-company guard as the catch below.
+        if (dataCompanyRef.current !== fetchCompanyId) {
+          setData(null);
+          setFetchError(res?.error || 'Failed to load reporting data');
+        }
+      }
+    } catch (err) {
+      // Surface the actual server error so we can diagnose post-deploy
+      // instead of staring at a generic "Failed" toast.
+      showToast(err?.message || 'Failed to load reporting data', 'error');
+      // D11: if this fetch was for a different company than the data on
+      // screen (i.e. a company-switch refetch failed), clear the previous
+      // company's numbers and fall through to the error/retry state.
+      if (dataCompanyRef.current !== fetchCompanyId) {
+        setData(null);
+        setFetchError(err?.message || 'Failed to load reporting data');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, rangeKey, showToast]);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  // Full-page loading only on the very first fetch. Subsequent fetches
+  // (range change, refresh) keep the existing dashboard rendered and
+  // surface progress via the small spinner inside the Refresh button.
+  if (loading && !data) {
+    return (
+      <div className="p-4 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={28} className="animate-spin text-rivvra-500" />
+        </div>
+      </div>
+    );
+  }
+
+  // Empty / no data state. D11: when the last fetch FAILED (vs. genuinely
+  // no data), say so and offer Retry instead of a misleading "No data yet".
+  if (!data) {
+    return (
+      <div className="p-4 max-w-6xl mx-auto">
+        <div className="flex flex-col items-center justify-center py-20 text-dark-400">
+          <FileBarChart size={40} className="mb-3 opacity-40" />
+          {fetchError ? (
+            <>
+              <p className="text-sm text-dark-300">Couldn't load reporting data</p>
+              <p className="text-xs text-dark-500 mt-1">{fetchError}</p>
+              <button
+                type="button"
+                onClick={() => fetchDashboard()}
+                className="mt-4 px-4 py-2 rounded-lg bg-rivvra-500/10 text-rivvra-300 ring-1 ring-rivvra-500/30 text-sm font-medium hover:bg-rivvra-500/20 transition-colors"
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-dark-300">No data yet</p>
+              <p className="text-xs text-dark-500 mt-1">Reporting data will appear once there are applications.</p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    applicationsByStage = [],
+    applicationsByStageActive = [],
+    applicationsBySource = [],
+    applicationsByRecruiter = [],
+    applicationsByTeam = [],
+    totalJobs = 0,
+    totalApplications = 0,
+    totalCandidates = 0,
+    hiredCount = 0,
+    avgTimeToHire = 0,
+    alerts = {},
+    offerAcceptance = null,
+    refusalReasons = [],
+    // 2026-05-16 redesign: new KPI tiles + advanced cards.
+    activePipelineCount = 0,
+    offerActive = { total: 0, proposal: 0, signed: 0 },
+    openJobsCount = 0,
+    jobsByClient = [],
+    timeInStage = [],
+    todaySubmissions = [],
+    openJobsList = [],
+    lastWorkingDaySubmissions = [],
+    // 2026-08-20: job-aging SLA card.
+    jobAging = { jobs: [], timeToFill: { medianDays: null, count: 0 }, thresholds: {} },
+  } = data;
+
+  // 2026-05-19: deep-link scope suffix. Dashboard data is scoped by
+  // role (admin/team/self) on the server; tile clicks must carry the
+  // same scope into the Applications list so a recruiter doesn't widen
+  // org-wide on a click. data.scope.mode is the source of truth.
+  const scopeMode = data?.scope?.mode;
+  const scopeQuery = scopeMode === 'self' ? '&mine=1'
+    : scopeMode === 'team' ? '&team=1'
+    : '';
+
+  return (
+    <div className="p-4 space-y-6 max-w-6xl mx-auto">
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-dark-100">ATS Dashboard</h1>
+          {/* 2026-05-18: data-scope badge. The API auto-scopes by role
+              (admin → all; team lead → team; recruiter → self). Surface
+              that scope explicitly so a recruiter doesn't think their
+              numbers represent the whole org. */}
+          {data?.scope && (
+            <p className="text-[11px] text-dark-500 mt-0.5">
+              {data.scope.mode === 'all' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Showing everything (admin view)
+                </span>
+              )}
+              {data.scope.mode === 'team' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  Showing your team ({data.scope.employeeCount} recruiter{data.scope.employeeCount === 1 ? '' : 's'})
+                </span>
+              )}
+              {data.scope.mode === 'self' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Showing your own data only
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="ats-reporting-range" className="sr-only">Time range</label>
+          <select
+            id="ats-reporting-range"
+            value={rangeKey}
+            onChange={(e) => {
+              const next = e.target.value;
+              setRangeKey(next);
+              writeStoredRange(next);
+            }}
+            className="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+          >
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => fetchDashboard({ silent: true })}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-900 border border-dark-700 text-xs text-dark-200 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-50"
+            title="Refresh"
+            aria-label="Refresh reporting data"
+          >
+            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const rangeLabel = TIME_RANGE_OPTIONS.find((o) => o.key === rangeKey)?.label || rangeKey;
+              const dateStamp = new Date().toISOString().slice(0, 10);
+              downloadCsv(buildReportingCsv(data, rangeLabel), `ats-reporting-${dateStamp}.csv`);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-900 border border-dark-700 text-xs text-dark-200 hover:text-white hover:border-dark-600 transition-colors"
+            title="Export to CSV"
+            aria-label="Export reporting data as CSV"
+          >
+            <Download size={12} />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Stats Cards (2026-05-16 redesign) ──────────────────────────────
+          Action-oriented headline KPIs:
+            1. Active Pipeline — work in flight (not refused/archived/hired)
+            2. Hired — windowed by the range picker, with avgTimeToHire
+            3. Offer Active — proposal + signed split out as subtitle
+            4. Open Jobs — what we're actively recruiting for
+          Each tile is clickable and routes to the matching filtered list
+          on the Applications / Jobs page.
+
+          2026-05-19: dashboard tiles must deep-link with the same scope
+          the dashboard is rendering (admin / team / self). Without this,
+          a recruiter seeing "L1: 1" (self scope) clicks through and lands
+          on the org-wide list of 9 — confusing and a data-leak across
+          team boundaries. scopeQuery resolves to '' for admin, '&team=1'
+          for team-lead, '&mine=1' for member. The list endpoint
+          interprets these per backend ats.js. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiTile
+          label="Active Pipeline"
+          value={activePipelineCount}
+          subtitle={`${totalApplications} total apps in range`}
+          icon={BarChart3}
+          color="blue"
+          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`}
+        />
+        <KpiTile
+          label="Hired"
+          value={hiredCount}
+          subtitle={
+            Number.isFinite(Number(avgTimeToHire)) && Number(avgTimeToHire) > 0
+              ? `avg ${avgTimeToHire} days to hire`
+              : 'avg time to hire —'
+          }
+          icon={UserCheck}
+          color="emerald"
+          to={`/org/${orgSlug}/ats/applications?hiredOnly=1${scopeQuery}`}
+        />
+        <KpiTile
+          label="Offer Proposal"
+          value={offerActive.proposal}
+          subtitle="currently at this stage"
+          icon={Clock}
+          color="amber"
+          to={(() => {
+            // 2026-05-20: card narrowed from the Proposal+Signed rollup
+            // to just Offer Proposal. Offer Signed has its own tile in
+            // the per-stage row below, and the rollup was confusing
+            // (`Proposal 0 · Signed 1` displaying total=1 read as "1
+            // offer in proposal stage"). Deep-link to just Offer Proposal.
+            // Match by structural stageKind (rename-proof; server-derived),
+            // falling back to the display name for older API responses.
+            const id = (applicationsByStage.find((s) => s.stageKind === 'offer_proposal')
+              || applicationsByStage.find((s) => s.stageName === 'Offer Proposal'))?.stageId;
+            const stageQ = id ? `&stageId=${id}` : '';
+            return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}${scopeQuery}`;
+          })()}
+        />
+        <KpiTile
+          label="Open Jobs"
+          value={openJobsCount}
+          subtitle={`${totalCandidates} candidates in pool`}
+          icon={Users}
+          color="purple"
+          to={`/org/${orgSlug}/ats/jobs?status=open`}
+        />
+      </div>
+
+      {/* ── Per-stage KPI tiles (2026-05-19) ─────────────────────────────────
+          Mid-funnel snapshot — count of applications currently sitting at
+          each of these 5 stages, filtered by the same createdAt date range
+          as the headline tiles above. Sourced from applicationsByStageActive
+          (server-windowed, hired/refused/archived already excluded).
+          Each tile deep-links to the Applications list filtered by stage +
+          ongoing status, so a recruiter clicking "L1 Interview" sees just
+          those 9 candidates. */}
+      {applicationsByStageActive.length > 0 && (() => {
+        // Stages are matched by server-derived structural `stageKind`
+        // (rename-proof), with a display-name fallback for older API
+        // responses that don't carry it yet. The tile label prefers the
+        // stage's ACTUAL name so renames show up instead of zeroing out.
+        const findByKind = (kind, fallbackName) =>
+          applicationsByStageActive.find((x) => x.stageKind === kind)
+          || applicationsByStageActive.find((x) => x.stageName === fallbackName);
+        const stageTile = (kind, fallbackName) => {
+          const s = findByKind(kind, fallbackName);
+          const ids = (s?.stageIds && s.stageIds.length) ? s.stageIds : (s?.stageId ? [s.stageId] : []);
+          return {
+            count: s?.count || 0,
+            stageIds: ids,
+            label: s?.stageName || fallbackName,
+          };
+        };
+        // 2026-06-26: dynamic extra interview rounds (L3, L4 … Ln) — surface
+        // a tile for every extra round present in the data, ordered by
+        // pipeline sequence, inserted right after L2.
+        const extraRoundTiles = applicationsByStageActive
+          .filter((s) => {
+            const km = /^interview:l(\d+)$/.exec(s.stageKind || '');
+            if (km) return parseInt(km[1], 10) >= 3;
+            const m = /^L(\d+)\s+Interview$/i.exec(s.stageName || '');
+            return m && parseInt(m[1], 10) >= 3;
+          })
+          .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+          .map((s) => ({ kind: s.stageKind, name: s.stageName, color: 'blue', icon: BarChart3 }));
+        const tiles = [
+          { kind: 'interview:l1', name: 'L1 Interview',         color: 'blue',    icon: BarChart3 },
+          { kind: 'interview:l2', name: 'L2 Interview',         color: 'blue',    icon: BarChart3 },
+          ...extraRoundTiles,
+          { kind: 'documents',    name: 'Documents Collection', color: 'purple',  icon: Users },
+          { kind: 'interview:hr', name: 'HR Discussion',        color: 'amber',   icon: Clock },
+          { kind: 'offer_signed', name: 'Offer Signed',         color: 'emerald', icon: UserCheck },
+        ];
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {tiles.map(({ kind, name, color, icon }) => {
+              const t = stageTile(kind, name);
+              const to = t.stageIds.length
+                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageIds.join(',')}&applicationStatus=ongoing${scopeQuery}`
+                : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`;
+              return (
+                <KpiTile
+                  key={kind || name}
+                  label={t.label}
+                  value={t.count}
+                  subtitle="currently at this stage"
+                  icon={icon}
+                  color={color}
+                  to={to}
+                />
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ── Funnel — active pipeline only (refused + archived excluded).
+          Bars navigate to Applications filtered by stage + ongoing-only. */}
+      <RecruitmentFunnel
+        data={applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage}
+        onStageClick={(s) => {
+          const ids = (s.stageIds && s.stageIds.length) ? s.stageIds.join(',') : s.stageId;
+          if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${scopeQuery}`);
+        }}
+      />
+
+      {/* ── Two-donut row: Apps by Recruiter + Jobs by Client ──────────────
+          Mirrors the Odoo Recruitment dashboard pair (large+small donut).
+          Slice click navigates to the matching filtered list. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BreakdownChart
+          title="Applications by Recruiter"
+          data={applicationsByRecruiter.slice(0, 12).map((r) => ({
+            label: r.recruiterName || r.recruiterId || 'Unknown',
+            value: r.count,
+            recruiterId: r.recruiterId,
+          }))}
+          centerLabel="apps in range"
+          onSliceClick={(d) => {
+            if (d.recruiterId) navigate(`/org/${orgSlug}/ats/applications?recruiter=${d.recruiterId}`);
+          }}
+        />
+        <BreakdownChart
+          title="Open Jobs by Client"
+          // 2026-07-18 audit D9: slice at the call site (same as the
+          // recruiter chart above). The donut this replaced drew arcs for
+          // EVERY row while its legend capped at 12, so an unsliced
+          // jobsByClient produced arcs with no matching legend entry. Bars
+          // cannot desync that way — every row carries its own label — but
+          // the cap is kept so the page shows exactly what it shows today.
+          data={jobsByClient.slice(0, 12).map((r) => ({ label: r.client, value: r.count }))}
+          centerLabel="open jobs"
+          onSliceClick={(d) => {
+            if (d.label && d.label !== 'Others' && d.label !== 'Internal / No Client') {
+              navigate(`/org/${orgSlug}/ats/jobs?status=open&clientName=${encodeURIComponent(d.label)}`);
+            } else {
+              navigate(`/org/${orgSlug}/ats/jobs?status=open`);
+            }
+          }}
+        />
+      </div>
+
+      {/* ── Time-in-Stage heatmap (full width on small screens) ─────────── */}
+      <TimeInStageCard data={timeInStage} />
+
+      {/* ── Job Aging / Delivery SLA (2026-08-20) ─────────────────────── */}
+      <JobAgingCard jobAging={jobAging} orgPath={orgPath} />
+
+      {/* ── Submissions tables: Today + Last Working Day ──────────────────
+          Two-column on lg+, stacked below. Each table groups rows by
+          recruitment team (Team-A / Team-B subheaders), matching the
+          Odoo Recruitment dashboard layout. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-dark-200">Submissions</h3>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-dark-400">
+            <Layers className="w-4 h-4" />
+            Group by
+          </span>
+          <div className="inline-flex rounded-lg border border-dark-600 overflow-hidden">
+            {[['team', 'Team'], ['source', 'Source']].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSubmissionsGroupBy(key)}
+                className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
+                  submissionsGroupBy === key
+                    ? 'bg-rivvra-500 text-white'
+                    : 'text-dark-300 hover:text-dark-100 hover:bg-dark-800'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SubmissionsTable
+          title="Today's Submissions"
+          subtitle={`New applications submitted today, grouped by ${submissionsGroupBy}`}
+          rows={todaySubmissions}
+          orgSlug={orgSlug}
+          groupBy={submissionsGroupBy}
+          emptyText="No new submissions today"
+        />
+        <SubmissionsTable
+          title="Last Working Day Submissions"
+          subtitle="Previous working day's submissions for follow-up"
+          rows={lastWorkingDaySubmissions}
+          orgSlug={orgSlug}
+          groupBy={submissionsGroupBy}
+          emptyText="No submissions on the last working day"
+        />
+      </div>
+
+      {/* ── Active Job Positions table (2026-05-16) ──────────────────────
+          Mirrors Odoo's bottom-right table. One row per open job, with
+          Client / Location / Budget / Target / Hires / Apps. Each row
+          links to the job detail page. */}
+      <div className="bg-dark-850 rounded-xl border border-dark-700 overflow-hidden">
+        <div className="flex items-center justify-between p-4 pb-2">
+          <div>
+            <h3 className="text-sm font-semibold text-dark-200">Active Job Positions</h3>
+            <p className="text-[11px] text-dark-500">Open jobs sorted by application volume</p>
+          </div>
+          <Link
+            to={`/org/${orgSlug}/ats/jobs?status=open`}
+            className="text-[11px] text-rivvra-400 hover:text-rivvra-300 flex items-center gap-0.5"
+          >
+            View all <ArrowRight size={11} />
+          </Link>
+        </div>
+        {openJobsList.length === 0 ? (
+          <p className="text-dark-600 text-xs text-center py-8">No open jobs</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead className="bg-dark-900/60 text-dark-400">
+                <tr>
+                  <th className="text-left font-medium px-3 py-2">Job</th>
+                  <th className="text-left font-medium px-3 py-2 hidden md:table-cell">Client</th>
+                  <th className="text-left font-medium px-3 py-2 hidden lg:table-cell">Location</th>
+                  <th className="text-right font-medium px-3 py-2 hidden md:table-cell">Budget</th>
+                  <th className="text-right font-medium px-3 py-2">Target</th>
+                  <th className="text-right font-medium px-3 py-2">Hires</th>
+                  <th className="text-right font-medium px-3 py-2">Apps</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {openJobsList.slice(0, 25).map((j) => (
+                  <tr key={j._id} className="hover:bg-dark-800/50">
+                    <td className="px-3 py-2 max-w-xs">
+                      <Link
+                        to={`/org/${orgSlug}/ats/jobs/${j._id}`}
+                        className="text-dark-100 hover:text-rivvra-300 truncate block"
+                        title={j.name}
+                      >
+                        {j.name}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 text-dark-300 truncate max-w-[200px] hidden md:table-cell" title={j.clientName}>{j.clientName || '—'}</td>
+                    <td className="px-3 py-2 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={j.clientJobLocation || j.location}>{j.clientJobLocation || j.location || '—'}</td>
+                    <td className="px-3 py-2 text-right text-dark-300 hidden md:table-cell">
+                      {/* 2026-05-17 health-check I.2: format with the
+                          company's currency to match AtsJobDetail; raw
+                          number had no symbol and made "1.8" ambiguous
+                          (LPA? thousands? actual rupees?).
+                          2026-07-18 audit D14: never hardcode INR — fall
+                          back company → org currency, else plain number. */}
+                      {Number.isFinite(Number(j.clientBudget)) && Number(j.clientBudget) > 0
+                        ? ((currentCompany?.currency || currentOrg?.currency)
+                          ? formatCurrency(j.clientBudget, currentCompany?.currency || currentOrg?.currency)
+                          : Number(j.clientBudget).toLocaleString())
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right text-dark-300">{j.expectedHires || 1}</td>
+                    <td className="px-3 py-2 text-right">
+                      <span className={(j.hiredCount || 0) >= (j.expectedHires || 1) ? 'text-emerald-400 font-medium' : 'text-dark-300'}>
+                        {j.hiredCount || 0}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right text-dark-100 font-medium">{j.applicationCount || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── My Recruitment Team (lead-only; hides for admins/members) ────
+          2026-05-18: range-aware — "Hired in …" column updates when the
+          dashboard picker changes. */}
+      <MyTeamWidget
+        type="ats"
+        dateFrom={rangeDates.dateFrom}
+        dateTo={rangeDates.dateTo}
+        rangeLabel={TIME_RANGE_OPTIONS.find(o => o.key === rangeKey)?.label}
+      />
+
+      {/* ── Pipeline health alerts (Phase 2) ─────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <AlertCard
+          title="Stale applications"
+          icon={Hourglass}
+          iconColor="bg-amber-500/15 text-amber-400"
+          thresholdLabel={`> ${alerts.stale?.threshold ?? 14} days in same stage`}
+          items={alerts.stale?.items || []}
+          emptyMessage="No stale applications."
+          viewAllPath={orgPath(`/ats/applications?applicationStatus=ongoing${scopeQuery}`)}
+          renderItem={(item) => (
+            <li key={item.applicationId}>
+              <Link
+                to={orgPath(`/ats/applications/${item.applicationId}`)}
+                className="flex items-baseline justify-between gap-2 text-xs py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+              >
+                <span className="text-dark-200 truncate min-w-0" title={item.candidateName}>
+                  <span className="text-white">{item.candidateName}</span>
+                  {item.jobName && <span className="text-dark-500"> · {item.jobName}</span>}
+                </span>
+                <span className="text-xs text-amber-400 shrink-0">
+                  {item.daysSinceLastMove != null ? `${item.daysSinceLastMove}d` : '—'} · {item.stageName}
+                </span>
+              </Link>
+            </li>
+          )}
+        />
+        <AlertCard
+          title="Awaiting interview result"
+          icon={MessageSquareWarning}
+          iconColor="bg-orange-500/15 text-orange-400"
+          thresholdLabel={`> ${alerts.awaiting?.threshold ?? 3} days since interview`}
+          items={alerts.awaiting?.items || []}
+          emptyMessage="No outstanding results."
+          viewAllPath={orgPath(`/ats/applications?applicationStatus=ongoing${scopeQuery}`)}
+          renderItem={(item) => (
+            <li key={item.applicationId}>
+              <Link
+                to={orgPath(`/ats/applications/${item.applicationId}`)}
+                className="flex items-baseline justify-between gap-2 text-xs py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+              >
+                <span className="text-dark-200 truncate min-w-0" title={item.candidateName}>
+                  <span className="text-white">{item.candidateName}</span>
+                  {item.jobName && <span className="text-dark-500"> · {item.jobName}</span>}
+                </span>
+                <span className="text-xs text-orange-400 shrink-0">
+                  {(item.overdue || []).map((o) => o.label.replace(' Interview', '').replace(' Discussion', '')).join(', ')}
+                </span>
+              </Link>
+            </li>
+          )}
+        />
+        <AlertCard
+          title="Pending approvals"
+          icon={AlertTriangle}
+          iconColor="bg-red-500/15 text-red-400"
+          thresholdLabel={`> ${alerts.pendingApprovals?.threshold ?? 24}h awaiting approval`}
+          items={alerts.pendingApprovals?.items || []}
+          emptyMessage="No jobs waiting for approval."
+          viewAllPath={orgPath('/ats/jobs?approvalStatus=pending')}
+          renderItem={(item) => (
+            <li key={item.jobId}>
+              <Link
+                to={orgPath(`/ats/jobs/${item.jobId}`)}
+                className="flex items-baseline justify-between gap-2 text-xs py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+              >
+                <span className="text-dark-200 truncate min-w-0" title={item.jobName}>
+                  <span className="text-white">{item.jobName}</span>
+                  {item.department && <span className="text-dark-500"> · {item.department}</span>}
+                </span>
+                <span className="text-xs text-red-400 shrink-0">
+                  {item.hoursSinceCreated != null ? `${item.hoursSinceCreated}h` : '—'}
+                </span>
+              </Link>
+            </li>
+          )}
+        />
+      </div>
+
+      {/* ── Source breakdown + Refusal reasons (Phase 3 right slot) ──── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <HorizontalBarChart
+          title="Applications by Source"
+          data={applicationsBySource}
+          labelKey="source"
+          valueKey="count"
+          barColor="var(--info)"
+        />
+        <HorizontalBarChart
+          title="Refusal Reasons"
+          data={refusalReasons}
+          labelKey="reasonName"
+          valueKey="count"
+          barColor="var(--danger)"
+        />
+      </div>
+
+      {/* ── Offer Acceptance card (Phase 3) ─────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <OfferAcceptanceCard data={offerAcceptance} />
+        {/* Right slot reserved for a future "Time-to-fill by job" or
+            similar — left empty rather than crammed with filler. */}
+      </div>
+
+      {/* ── Recruitment Teams Performance ──────────────────────────────── */}
+      <TeamPerformanceTable data={applicationsByTeam} totalApplications={totalApplications} />
+
+      {/* ── Recruiter Table ─────────────────────────────────────────────── */}
+      <RecruiterTable data={applicationsByRecruiter} totalApplications={totalApplications} />
+
+      {/* ── Job Positions Summary ───────────────────────────────────────── */}
+      <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+        <h3 className="text-sm font-semibold text-dark-200 mb-3">Job Positions Summary</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-dark-800/50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-white">{totalJobs}</p>
+            <p className="text-xs text-dark-400 mt-1">Total Jobs</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-white">{hiredCount}</p>
+            <p className="text-xs text-dark-400 mt-1">Hired</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-amber-400">{avgTimeToHire}</p>
+            <p className="text-xs text-dark-400 mt-1">Avg Days to Hire</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

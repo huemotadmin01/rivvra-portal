@@ -62,7 +62,7 @@ function KpiCard({ label, amount, currency, tone }) {
   };
   return (
     <div className={`rounded-xl border p-5 ${toneMap[tone] || toneMap.revenue}`}>
-      <span className="text-xs font-medium opacity-70 uppercase tracking-wider">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
       <p className="text-2xl font-bold mt-2">{formatCurrency(amount, currency)}</p>
     </div>
   );

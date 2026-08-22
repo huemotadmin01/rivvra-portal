@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import { Linkedin, StickyNote, Users } from 'lucide-react';
 import api from '../../../utils/api';
 import ManageDropdown from '../../ManageDropdown';
-import { DataTable, EmptyState, Chip, Avatar } from '../../ds';
-import { InlineSelect } from '../../../pages/timesheet/LeaveBalancesV2';
+import { DataTable, EmptyState, Chip, Avatar, InlineSelect } from '../../ds';
 
-/* Shared v2 composition for the four Outreach lead lists (Slice 3 Wave C):
+/* DESIGN-SYSTEM BOUNDARY (settled in phase 1): LeadsTableV2 and ListsRailV2
+   deliberately stay here rather than moving into ds/. Both encode Outreach
+   domain knowledge — the lead row shape (profile picture, outreach status,
+   contact owner, LinkedIn), the ManageDropdown action contract, and the
+   list-rail semantics of saved lead lists. A ds component that knows what a
+   "lead" is would be the same drift phase 1 exists to repair, just pointed
+   the other way. The generic parts they build on (DataTable, Chip, Avatar,
+   InlineSelect, EmptyState) all live in ds/. Don't re-litigate.
+
+   Shared v2 composition for the four Outreach lead lists (Slice 3 Wave C):
    MyLists / TeamLists / Leads / TeamContacts. Pages own data loading,
    modals and bulk verbs (they differ semantically); this file owns the
    table, filter strip and the lead-detail-panel URL sync. Search/filters
@@ -67,10 +75,31 @@ export function ReplyIntentChip({ lead }) {
   );
 }
 
+// ICP fit badge (2026-08-21, growth-plan A2). Score 0-100 stamped nightly by
+// cron/icpScoring.js against the org's mined ICP profile.
+//
+// The gate is spliced verbatim from the legacy `IcpScoreBadge`: only high and
+// medium bands render, because "low fit stays quiet rather than shaming every
+// row" — that is a product decision about what a rep sees on every line, not
+// styling, so it is copied rather than re-derived. `Number.isFinite` (not a
+// truthiness check) is deliberate too: a genuine score of 0 is data, and
+// `if (!lead.icpScore)` would silently hide it.
+export function IcpScoreChip({ lead }) {
+  if (!Number.isFinite(lead?.icpScore) || lead.icpBand === 'low') return null;
+  return (
+    <span
+      title={lead.icpReason || 'ICP fit score from your win/loss history'}
+      style={{ marginLeft: 6, display: 'inline-block' }}
+    >
+      <Chip tone={lead.icpBand === 'high' ? 'brand' : 'warn'}>ICP {lead.icpScore}</Chip>
+    </span>
+  );
+}
+
 export function ProfileTypeChip({ type }) {
   if (type === 'client') return <Chip tone="info">Client</Chip>;
   if (type === 'candidate') return <Chip tone="info" style={{ color: 'var(--a-ats, #8b5cf6)', background: 'color-mix(in srgb, var(--a-ats, #8b5cf6) 14%, transparent)' }}>Candidate</Chip>;
-  return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+  return <span style={{ color: 'var(--fg-4)' }}>—</span>;
 }
 
 const missingEmail = (email) => !email || email === 'noemail@domain.com';
@@ -321,18 +350,18 @@ export function LeadsTableV2({
               </td>
             )}
             <td style={td()}><ProfileTypeChip type={lead.profileType} /></td>
-            <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /><ReplyIntentChip lead={lead} /></td>
-            <td style={td({ color: 'var(--fg-3)' })}>{lead.companyName || lead.company || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
-            <td style={td({ color: 'var(--fg-3)' })}>{lead.location || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
+            <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /><ReplyIntentChip lead={lead} /><IcpScoreChip lead={lead} /></td>
+            <td style={td({ color: 'var(--fg-3)' })}>{lead.companyName || lead.company || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
+            <td style={td({ color: 'var(--fg-3)' })}>{lead.location || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
             <td style={td({ color: 'var(--fg-3)' })}>
-              {missingEmail(lead.email) ? <span style={{ color: 'var(--fg-faint)' }}>Not found</span> : lead.email}
+              {missingEmail(lead.email) ? <span style={{ color: 'var(--fg-4)' }}>Not found</span> : lead.email}
             </td>
             <td style={td()}>
               {lead.notes?.length ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--fg-3)' }}>
                   <StickyNote size={12} style={{ color: 'var(--fg-4)' }} /> {lead.notes.length}
                 </span>
-              ) : <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+              ) : <span style={{ color: 'var(--fg-4)' }}>—</span>}
             </td>
           </tr>
         );

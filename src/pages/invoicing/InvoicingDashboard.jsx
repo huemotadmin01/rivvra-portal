@@ -71,8 +71,12 @@ function InvoicingGetStarted({ orgPath, companyDetailsDone, companyId, invoicesT
             )}
           </div>
         ))}
+        {/* /invoicing/journals has never had a route — it fell through to the
+            `*` catch-all and bounced the user to `/`. The declared route is
+            /invoicing/config/journals, which PageSwitches to JournalsConfig
+            for legacy and JournalsConfigV2 for uiV2 orgs. */}
         <Link
-          to={orgPath('/invoicing/journals')}
+          to={orgPath('/invoicing/config/journals')}
           className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-dark-700 text-dark-400 hover:text-white hover:border-dark-500 transition-colors"
         >
           <Settings2 className="w-4 h-4 flex-shrink-0" />

@@ -1,5 +1,8 @@
-/** Surface container with an optional header row. The default content shell. */
-export function Panel({ title, actions, flush = false, children, style, ...rest }) {
+/** Surface container with an optional header row. The default content
+ *  shell, and the detail-page section card: `icon` + `title` on the left,
+ *  `actions` on the right. (Phase 3 chose to extend Panel rather than add a
+ *  separate SectionCard — the shapes were the same modulo the icon slot.) */
+export function Panel({ icon, title, actions, flush = false, children, style, ...rest }) {
   return (
     <section
       style={{
@@ -19,9 +22,14 @@ export function Panel({ title, actions, flush = false, children, style, ...rest 
             borderBottom: '1px solid var(--line, rgba(255,255,255,.07))',
           }}
         >
-          {title && (
-            <span style={{ font: "650 13.5px/1 'Inter', system-ui, sans-serif", letterSpacing: '-0.01em', color: 'var(--fg, #eef2f6)' }}>
-              {title}
+          {(icon || title) && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              {icon && <span style={{ display: 'grid', placeItems: 'center', color: 'var(--fg-4, #828e9f)', flexShrink: 0 }}>{icon}</span>}
+              {title && (
+                <span style={{ font: "650 13.5px/1 'Inter', system-ui, sans-serif", letterSpacing: '-0.01em', color: 'var(--fg, #eef2f6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {title}
+                </span>
+              )}
             </span>
           )}
           {actions}

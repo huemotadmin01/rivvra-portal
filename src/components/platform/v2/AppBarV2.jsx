@@ -10,8 +10,11 @@ import { ThemeToggle, useTheme } from '../../ds';
 import KbHelpButton from '../../KbHelpButton';
 import PeriodPicker from '../PeriodPicker';
 import NotificationBell from '../NotificationBell';
+import { usePolicyAck } from '../../../context/PolicyAckContext';
+import MyActivitiesV2 from './MyActivitiesV2';
 import {
   Menu, ChevronDown, Check, Building2, UserCircle, CreditCard, LogOut, LayoutGrid,
+  ShieldCheck, FolderDown, Settings,
 } from 'lucide-react';
 
 /* v2 appbar — prototype AppBar composition (crumbs left, actions right)
@@ -23,7 +26,8 @@ function AppBarV2({ onMenu }) {
   const { user, logout } = useAuth();
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
-  const { isOrgAdmin } = useOrg();
+  const { isOrgAdmin, currentOrg } = useOrg();
+  const { pendingCount: policyPending } = usePolicyAck();
   useFromEntity();
   const crumbs = useBreadcrumbs() || [];
   const [theme, setTheme] = useTheme();
@@ -65,9 +69,11 @@ function AppBarV2({ onMenu }) {
       {/* Company switcher — only when the org has multiple legal entities */}
       {hasMultipleCompanies && (
         <div ref={companyRef} style={{ position: 'relative' }}>
+          {/* Layout lives in .company-btn, not an inline style: an inline
+              `display: flex` outranks the stylesheet, so `desktop-only` could
+              never hide this button and it overflowed the bar on phones. */}
           <button
-            className="icon-btn desktop-only"
-            style={{ width: 'auto', padding: '0 10px', gap: 6, display: 'flex', alignItems: 'center', font: '500 12.5px/1 var(--font)' }}
+            className="icon-btn company-btn desktop-only"
             onClick={() => setCompanyOpen((o) => !o)}
             disabled={switching}
           >
@@ -96,6 +102,7 @@ function AppBarV2({ onMenu }) {
       {currentApp?.id && <KbHelpButton appId={currentApp.id} />}
       <ThemeToggle theme={theme} onChange={setTheme} />
       <NotificationBell />
+      <MyActivitiesV2 orgSlug={currentOrg?.slug} orgPath={orgPath} />
 
       <div ref={userRef} style={{ position: 'relative' }}>
         <button onClick={() => setUserOpen((o) => !o)} style={{ display: 'grid', placeItems: 'center' }} aria-label="Account menu">
@@ -111,18 +118,46 @@ function AppBarV2({ onMenu }) {
               <span style={{ display: 'block', color: 'var(--fg)', fontWeight: 600 }}>{user?.name || 'User'}</span>
               <span style={{ display: 'block', color: 'var(--fg-4)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email}</span>
             </div>
-            <button className="pop-item" onClick={() => { navigate(orgPath('/employee/profile')); setUserOpen(false); }}>
+            {/* Paths below match the routes in App.jsx, which are the ones the
+                legacy TopBar uses. Two earlier guesses did not exist as routes:
+                `/employee/profile` fell through to the Employee app layout and
+                rendered a blank page, and `/settings/billing` hit the `*`
+                catch-all and silently bounced the user to `/`. */}
+            <button className="pop-item" onClick={() => { navigate(orgPath('/my-profile')); setUserOpen(false); }}>
               <UserCircle style={{ width: 15, height: 15, color: 'var(--fg-3)' }} />
               <span className="grow">My profile</span>
+            </button>
+            <button className="pop-item" onClick={() => { navigate(orgPath('/my-policies')); setUserOpen(false); }}>
+              <ShieldCheck style={{ width: 15, height: 15, color: 'var(--fg-3)' }} />
+              <span className="grow">Company policies</span>
+              {policyPending > 0 && (
+                <span style={{
+                  minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center',
+                  borderRadius: 999, background: 'var(--acc-amber)', color: 'var(--bg)',
+                  font: '700 11px/1 var(--font)',
+                }}>
+                  {policyPending}
+                </span>
+              )}
+            </button>
+            <button className="pop-item" onClick={() => { navigate(orgPath('/my-documents')); setUserOpen(false); }}>
+              <FolderDown style={{ width: 15, height: 15, color: 'var(--fg-3)' }} />
+              <span className="grow">My documents</span>
             </button>
             <button className="pop-item" onClick={() => { navigate(orgPath('/home')); setUserOpen(false); }}>
               <LayoutGrid style={{ width: 15, height: 15, color: 'var(--fg-3)' }} />
               <span className="grow">App launcher</span>
             </button>
             {isOrgAdmin && (
-              <button className="pop-item" onClick={() => { navigate(orgPath('/settings/billing')); setUserOpen(false); }}>
+              <button className="pop-item" onClick={() => { navigate(orgPath('/upgrade')); setUserOpen(false); }}>
                 <CreditCard style={{ width: 15, height: 15, color: 'var(--fg-3)' }} />
-                <span className="grow">Billing &amp; settings</span>
+                <span className="grow">Billing</span>
+              </button>
+            )}
+            {isOrgAdmin && (
+              <button className="pop-item" onClick={() => { navigate(orgPath('/settings/general')); setUserOpen(false); }}>
+                <Settings style={{ width: 15, height: 15, color: 'var(--fg-3)' }} />
+                <span className="grow">Settings</span>
               </button>
             )}
             <button className="pop-item" onClick={handleLogout}>

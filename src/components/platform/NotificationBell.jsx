@@ -101,8 +101,18 @@ export default function NotificationBell() {
         aria-label="Notifications"
       >
         <Bell className="w-5 h-5" />
+        {/* Badge below uses tokens, not bg-rivvra-500 + text-white. Two
+            separate problems: the fill is NOT bridge-mapped, so it stayed the
+            dark-theme green in light theme; and text-white maps to --fg,
+            which on that green measures 2.05 in dark. --brand + --brand-fg is
+            the pairing ds/Button already uses for its primary fill: 8.36
+            dark, 5.02 light. The fallbacks keep it correct in the legacy
+            shell, which renders this same component outside .ds-shell. */}
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-4 h-4 bg-rivvra-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+          <span
+            className="absolute top-1 right-1 w-4 h-4 text-[9px] font-bold rounded-full flex items-center justify-center"
+            style={{ background: 'var(--brand, #22c55e)', color: 'var(--brand-fg, #041209)' }}
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

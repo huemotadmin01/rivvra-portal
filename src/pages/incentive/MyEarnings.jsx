@@ -38,8 +38,23 @@ function formatINR(amount) {
   }).format(amount);
 }
 
-// Format an arbitrary currency amount. Falls back to INR formatter for INR
-// (cleaner glyph) and a generic ISO-aware formatter otherwise.
+// Format an arbitrary currency amount. Falls back to the INR formatter for
+// INR (cleaner glyph) and a generic ISO-aware formatter otherwise. For INR this
+// IS formatINR, so nothing about the existing INR rendering changes.
+//
+// Two things deliberately left alone, both beyond a currency fix:
+//
+//  1. The `isForeignCcy` caption below tests `r.currency !== 'INR'` and labels
+//     the result "inv {currency}". But rows come from listRecords, where
+//     `currency` is the REPORTING currency and `nativeCurrency` is the invoice
+//     currency — so the caption is reading the wrong field and never fires
+//     (staging: 41 records carry nativeCurrency USD, 0 carry a non-INR
+//     `currency`). Pointing it at `nativeCurrency` would newly surface a badge
+//     on those rows; that is a visible change to a commission surface and
+//     wants a decision, not a drive-by.
+//  2. Its tooltip asserts "commission is paid in INR after FX conversion" —
+//     a DOMAIN claim. If a non-INR company ever pays commission in its own
+//     currency, that copy needs a product decision, not a code change.
 function formatCurrency(amount, currency) {
   if (amount == null || !Number.isFinite(Number(amount))) return '—';
   const ccy = String(currency || 'INR').toUpperCase();
@@ -149,6 +164,10 @@ export default function MyEarnings() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
+  // Aggregates have no per-record currency to read, so they take the active
+  // company's — same call as the Incentive dashboards. The per-record rows
+  // below use `r.currency` instead, which is the more precise source.
+  const money = (amount) => formatCurrency(amount, currentCompany?.currency || 'INR');
   const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
@@ -367,7 +386,7 @@ export default function MyEarnings() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Paid (YTD)"
-          value={formatINR(stats.ytd.amount)}
+          value={money(stats.ytd.amount)}
           sub={`${stats.ytd.count} record${stats.ytd.count === 1 ? '' : 's'} this year`}
           icon={TrendingUp}
           tone="text-emerald-400"
@@ -375,7 +394,7 @@ export default function MyEarnings() {
         />
         <StatCard
           label={monthFilter ? `Paid (${formatMonth(monthFilter)})` : 'Paid (this period)'}
-          value={formatINR(stats.paid.amount)}
+          value={money(stats.paid.amount)}
           sub={`${stats.paid.count} record${stats.paid.count === 1 ? '' : 's'}`}
           icon={CheckCircle2}
           tone="text-emerald-400"
@@ -385,7 +404,7 @@ export default function MyEarnings() {
         />
         <StatCard
           label="Partially paid"
-          value={formatINR(stats.partially_paid.amount)}
+          value={money(stats.partially_paid.amount)}
           sub={`${stats.partially_paid.count} record${stats.partially_paid.count === 1 ? '' : 's'}`}
           icon={Hourglass}
           tone="text-amber-400"
@@ -395,7 +414,7 @@ export default function MyEarnings() {
         />
         <StatCard
           label="Approved (awaiting payslip)"
-          value={formatINR(stats.approved.amount)}
+          value={money(stats.approved.amount)}
           sub={`${stats.approved.count} record${stats.approved.count === 1 ? '' : 's'}`}
           icon={Clock}
           tone="text-blue-400"
@@ -405,7 +424,7 @@ export default function MyEarnings() {
         />
         <StatCard
           label="In draft"
-          value={formatINR(stats.draft.amount)}
+          value={money(stats.draft.amount)}
           sub={`${stats.draft.count} record${stats.draft.count === 1 ? '' : 's'}`}
           icon={FileText}
           tone="text-dark-300"
@@ -575,11 +594,11 @@ export default function MyEarnings() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="font-semibold text-white">
-                          {formatCurrency(r.yourIncentive, 'INR')}
+                          {formatCurrency(r.yourIncentive, r.currency)}
                         </div>
                         {r.alsoIncentive ? (
                           <div className="text-[11px] text-dark-500" title="Your second-role incentive on the same record.">
-                            + {formatCurrency(r.alsoIncentive, 'INR')}
+                            + {formatCurrency(r.alsoIncentive, r.currency)}
                           </div>
                         ) : null}
                         {isForeignCcy && (

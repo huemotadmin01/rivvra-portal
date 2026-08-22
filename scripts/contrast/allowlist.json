@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "Known contrast failures that are ACCEPTED, each with a reason. Every entry",
+    "is a decision someone made on purpose \u2014 not a way to quiet the gate.",
+    "",
+    "Entries fall into two kinds, and the reason must say which: an accepted",
+    "design decision, or a REAL DEFECT parked with a named next step. The second",
+    "kind is debt, not absolution \u2014 it should shrink.",
+    "Match is on route + exact text + a selector fragment. Deliberately narrow:",
+    "if the element is restyled or the copy changes, the entry stops matching",
+    "and the gate speaks up again.",
+    "",
+    "An entry without a `reason` is rejected by the runner."
+  ],
+  "allow": []
+}

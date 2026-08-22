@@ -6,31 +6,10 @@ import { useCompany } from '../../context/CompanyContext';
 import { getAllLeaveBalances } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
 import { CalendarDays, ChevronDown, ChevronUp, History } from 'lucide-react';
-import { DataTable, FilterBar, EmptyState, Button, Chip } from '../../components/ds';
+import { DataTable, FilterBar, EmptyState, Button, Chip, InlineSelect } from '../../components/ds';
 import { PageHeaderV2 } from '../../components/platform/v2/listkit';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 1 });
-
-// Token-styled native select for local (non-URL) filters.
-export function InlineSelect({ value, onChange, children, ...rest }) {
-  return (
-    <select
-      value={value}
-      onChange={onChange}
-      style={{
-        appearance: 'none', padding: '5px 24px 5px 10px', borderRadius: 'var(--r-1, 7px)',
-        background: 'var(--surface-2)', color: 'var(--fg-2)', border: 'none',
-        boxShadow: 'inset 0 0 0 1px var(--line)', cursor: 'pointer',
-        font: "500 12.5px/1.2 'Inter', system-ui, sans-serif",
-        backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23828e9f' stroke-width='3' stroke-linecap='round'><path d='m6 9 6 6 6-6'/></svg>\")",
-        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-  );
-}
 
 /* v2 Leave Balances (Slice 3 Wave A) — same data + expansion behaviour as
    LeaveBalances.jsx; dynamic per-leave-type columns rendered through
@@ -180,20 +159,20 @@ export default function LeaveBalancesV2() {
                   <span style={{ display: 'block', font: '450 10px/1.4 var(--font)', color: 'var(--warn)' }}>as of FY {item.financialYear}</span>
                 )}
                 {item.employeeStatus && item.employeeStatus !== 'active' && !item.financialYear && (
-                  <span style={{ display: 'block', font: '450 10px/1.4 var(--font)', color: 'var(--fg-faint)' }}>no balance record</span>
+                  <span style={{ display: 'block', font: '450 10px/1.4 var(--font)', color: 'var(--fg-4)' }}>no balance record</span>
                 )}
               </td>
-              <td style={td({ fontSize: 12, color: 'var(--fg-3)' })}>{item.departmentName || item.department || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
+              <td style={td({ fontSize: 12, color: 'var(--fg-3)' })}>{item.departmentName || item.department || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
               {visibleTypes.map(lt => {
                 const b = balances[lt.code];
-                if (!b) return <td key={lt.code} style={td({ textAlign: 'center', color: 'var(--fg-faint)', fontSize: 12 })}>—</td>;
+                if (!b) return <td key={lt.code} style={td({ textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 })}>—</td>;
                 const available = b.available ?? 0;
                 const entitled = b.entitled ?? b.accrued ?? 0;
                 if (item.fnfEncashed) {
                   return (
                     <td key={lt.code} style={td({ textAlign: 'center', fontSize: 12 })}>
                       <span style={{ color: 'var(--fg-4)' }}>0</span>
-                      <span style={{ fontSize: 10, color: 'var(--fg-faint)' }}>/{fmt(entitled)}</span>
+                      <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>/{fmt(entitled)}</span>
                     </td>
                   );
                 }
@@ -202,7 +181,7 @@ export default function LeaveBalancesV2() {
                     <span style={{ fontWeight: 550, color: available <= 0 ? 'var(--danger)' : available <= 2 ? 'var(--warn)' : 'var(--brand)' }}>
                       {fmt(available)}
                     </span>
-                    <span style={{ fontSize: 10, color: 'var(--fg-faint)' }}>/{fmt(entitled)}</span>
+                    <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>/{fmt(entitled)}</span>
                   </td>
                 );
               })}
@@ -228,7 +207,7 @@ export default function LeaveBalancesV2() {
                       </Button>
                     </div>
                     {item.fnfEncashed && (
-                      <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--r-2)', background: 'var(--brand-soft)', color: 'var(--brand)', font: '450 12px/1.5 var(--font)' }}>
+                      <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--r-2)', background: 'var(--brand-soft)', color: 'var(--brand-ink)', font: '450 12px/1.5 var(--font)' }}>
                         ✓ Leave balance encashed in Full &amp; Final settlement
                         {item.fnfEncashmentAmount ? ` — ₹${Number(item.fnfEncashmentAmount).toLocaleString('en-IN')}` : ''}
                       </div>

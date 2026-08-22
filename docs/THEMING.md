@@ -1,0 +1,510 @@
+# Theming — how light/dark actually works
+
+Written because the answer surprised us, and because it changes what the
+redesign has to finish before dark mode counts as shipped.
+
+---
+
+## The one thing to know
+
+**Light/dark is a property of the v2 shell, not of migrated pages.**
+
+Two facts establish it:
+
+- The theme switch exists in exactly one place: `components/platform/v2/AppBarV2.jsx`.
+  The legacy shell has no toggle and is always dark.
+- Every one of the ~1,070 rules in `components/platform/v2/legacy-bridge.css`
+  is scoped under `.ds-shell`. The bridge remaps the legacy fixed-value
+  Tailwind scale (`dark-800`, `text-white`, `text-emerald-400`) onto semantic
+  tokens.
+
+Put those together: **turn `uiV2` on and the whole app themes — migrated or
+not** — because any legacy page rendered inside the v2 shell has its palette
+translated on the way through.
+
+This is why an unmigrated page like `expenses/ExpenseDetail`, 1,323 lines that
+this project has never touched, renders correctly in light theme today.
+
+### What follows from it
+
+Migrating a page to `ds/` is a consistency and maintainability decision. It is
+**not** what buys you dark mode. The two goals were bundled and are separable:
+the theming work is essentially done, while the design-system migration is
+roughly a sixth complete and its remaining pages need new archetypes designed
+before they can start.
+
+---
+
+## The failure modes the bridge cannot fix by itself
+
+A class-remapping bridge has exactly two blind spots. Both are now closed, and
+both are worth recognising if a new one appears.
+
+### 1. Colours set inline
+
+An inline `style` outranks any stylesheet rule short of `!important`, so the
+bridge cannot reach it.
+
+`components/ResizableTable.jsx` pinned its sticky columns with a hardcoded
+near-black background — a sticky cell must paint something opaque or the
+scrolling columns show through it. In light theme those columns stayed black.
+On Customer Invoices, the invoice numbers inside them measured a **1.00
+contrast ratio**: text exactly the same colour as its background, invisible.
+
+Fixed with a variable-with-fallback: the component reads
+`var(--rt-sticky-head, rgb(31 31 35))`, and the bridge defines the variable
+under `.ds-shell`. The variable is deliberately **not** defined at `:root`, so
+the legacy shell falls through to the original colour and production renders
+byte-identically. That pattern is the escape hatch for any future inline
+colour.
+
+### 2. An accent that is readable but not readable *enough*
+
+Accent text was originally left unbridged on the theory that "emerald, red,
+amber and blue read acceptably in both themes". Measurement disproved it — a
+`text-emerald-400` chip on its own tint came in at 1.64:1 — and an earlier pass
+remapped accent text by meaning (emerald/green/teal → brand, red/rose → danger,
+amber/orange/yellow → warn, blue/sky/cyan/indigo/purple → info).
+
+That got the chips to ~4.35, which is *nearly* the 4.5 floor and easy to
+declare done. It wasn't. On paper a 10% tint barely darkens the surface, so an
+accent sitting on its own tint has almost no background to contrast against.
+
+Fixed by splitting the role: `--brand-ink` and `--warn-ink` are the colours for
+text **on** a soft tint, separate from `--brand`/`--warn`, which remain the
+button fill and the active-tab underline where the existing values are already
+correct. In dark theme the ink tokens alias the accent — nothing changes.
+Danger (5.63) and info (5.77) already cleared the floor and got no override.
+
+| token | light value | on its tint |
+|---|---|---|
+| `--brand-ink` | `#12652F` | 4.37 → **6.25** |
+| `--warn-ink` | `#9A4708` | 4.35 → **5.55** |
+
+Both `ds/Chip` and the bridge's accent-text rules read the ink tokens, so the
+one change covers migrated and legacy chips alike.
+
+#### The sweep, and what it actually found (phase 11)
+
+`--brand`-as-text got swept across **27 v2 routes**, measured in light theme.
+The measured answer is much narrower than the grep:
+
+- A grep for `color: 'var(--brand)'` returns **32 sites**.
+- Only **one route** produced brand-coloured contrast failures.
+
+The reason is that the failing pairing is not "brand as text" in general:
+
+| `--brand` text on… | ratio | verdict |
+|---|---|---|
+| `--surface-1` (white) | **5.02** | passes |
+| `--surface-2` (`#F6F3EE`) | **4.53** | passes, barely |
+| `--brand-soft` (its own tint) | **4.37** | **fails** |
+
+So only accent-on-its-own-tint fails — exactly what `--brand-ink` exists for.
+Most of the 32 grep hits are icons on a tint, and icons are graphics judged at
+3:1 (WCAG 1.4.11), which 4.37 clears.
+
+Four sites carried brand *text* on a brand tint and were fixed:
+`ds/StageBar` (the current-stage pill, which fixes every stage pipeline at
+once), `AtsApplicationsV2` and `AtsJobPositionsV2` initial badges, and a
+`LeaveBalancesV2` callout. In dark `--brand-ink` aliases `--brand`, so all
+four are provably no-ops there.
+
+**The lesson, again: count what fails, not what matches.** 32 → 4.
+
+---
+
+### 3. `opacity-*` on top of an already-correct colour — FIXED
+
+The bridge remaps colours; it cannot remap opacity, and opacity is what
+failed here. **Fixed** — and the scope turned out to be far smaller than the
+first estimate, which is the lesson worth keeping.
+
+The statutory report pages carry explanatory copy in `text-[11px] opacity-60`
+and similar. The colour underneath is already the right token — the extra
+dimming is a habit from the dark theme, where a muted colour on near-black
+still had headroom. On paper it does not:
+
+| page | worst | text |
+|---|---|---|
+| `invoicing/reports/tax` | 2.67 | "Output GST − ITC (books)" |
+| `invoicing/reports/tds` | 2.67 | "owed to govt by the 7th" |
+| `invoicing/reports/receivables` | 3.17 | "31-60 Days" |
+| `invoicing/reports/payables` | 3.17 | "31-60 Days" |
+| `invoicing/reports/profitability` | 3.23 | "Total Costs" |
+
+**The 518-occurrences-across-192-files figure was misleading.** It counted
+every `opacity-*` utility, most of which sit on icons and decorative glyphs
+that never fail. Measuring what *actually* fell below AA reduced it to **one
+class pattern** — `text-xs|text-[11px] … opacity-60|70 … uppercase` on a KPI
+tile label — in **8 places across 7 files**.
+
+Three of those seven already had a V2 that supersedes them, and since light
+theme only exists inside the v2 shell, the legacy file is never rendered in
+light. **Real scope: 6 files.** The `opacity` was redundant anyway — the
+labels are already subordinate via `text-xs` + `uppercase` +
+`tracking-wider` — so it was removed rather than floored, leaving icon and
+`disabled:` opacity untouched.
+
+Measured after: `reports/tax` 10 → **0**, `tds` 10 → **0**, `receivables`
+12 → **0**, `payables` 6 → **0**, `profitability` 3 → **0**.
+
+**The lesson: count what fails, not what matches.** A grep for the mechanism
+over-counts by ~60× against a measurement of the symptom, and that gap is
+the difference between "a 192-file sweep" and an afternoon.
+
+Worth noting the failures are concentrated in the tax/GST report explanatory
+copy — text added by the July readability pass specifically so people could
+understand the numbers.
+
+---
+
+## Auditing
+
+The recipe lives in `REDESIGN-QA.md` (added on the phase-6a group-1 branch).
+Four things produce false failures; the last two were found here.
+
+1. **Sampling during the theme cross-fade returns interpolated colours.** It
+   reproduced twice doing this work — once reporting a perfectly legible
+   sidebar at 1.67, once a 3.04 on a button that settles at 7.11. Let the
+   transition finish before you believe a number.
+2. **Ancestor visibility.** Use `el.checkVisibility({ checkOpacity: true,
+   checkVisibilityCSS: true })`; checking only the element's own
+   `display`/`visibility`/`opacity` misses text inside a hidden wrapper.
+3. **Disabled controls are WCAG-exempt** but `ds/Button` dims them to
+   `opacity: .45`, so a locked primary button reports about 2.2 every time.
+4. **Gradients read as transparent.** `getComputedStyle(el).backgroundColor`
+   returns `rgba(0,0,0,0)` when the background is a `linear-gradient`, so a
+   naive audit composites the text onto whatever is *behind* the element and
+   reports nonsense. `ds/Avatar` paints
+   `linear-gradient(140deg, var(--brand-hi), var(--brand-lo))` with
+   `--brand-fg` text: every avatar on every list page reports a 1.00 ratio and
+   every one is fine. Skip any element with a non-`none` `backgroundImage`
+   anywhere in its ancestor chain, or resolve it by sampling the rendered
+   pixel instead.
+
+A practical note: the naive audit is O(elements × depth) canvas reads and
+takes tens of seconds on a 300-element page. Memoising the effective
+background per element — each element's is its own background composited over
+its parent's — brings a full page to about 40ms.
+
+
+---
+
+## `--fg-faint` was carrying content (phase 11) — FIXED
+
+`--fg-faint` is documented at the top of `ds-tokens.css` as **decoration
+ONLY** — separator dots, disabled glyphs. It had drifted into carrying the
+one thing a reader most needs to resolve: the answer "there is no value here".
+
+Empty cells, empty inline fields and empty detail rows all rendered their
+em-dash in `--fg-faint`, which measures **2.52 in light and 2.46 in dark**
+against a 4.5 floor. An em-dash standing in for a value is the cell's content,
+not its ornament.
+
+Repointed to `--fg-4`, the lowest **text** tier (~5.66 light, ~5.61 dark):
+
+| where | note |
+|---|---|
+| `ds/Table/DataTable` | the empty-cell fallback — the single biggest source |
+| `ds/Form/InlineField` | the empty-value em-dash |
+| `ds/Navigation/Tabs` | the count badge on an inactive tab |
+| 9 v2 pages | their own em-dash and "no value" placeholders |
+
+Decoration keeps `--fg-faint` and is correct there: breadcrumb separators,
+drag handles, empty rating stars, `ConfigDot`, the `RecordMeta` clock icon,
+and the disabled-lock glyphs. Icons are graphics, judged at 3:1.
+
+**Rule of thumb:** if removing it would leave the reader unsure what the value
+is, it is content — use `--fg-4` at the faintest. `--fg-faint` is for marks
+that carry no information on their own.
+
+### The follow-up, and a correction — FIXED
+
+That count was recorded here as `FilterBar`'s `resultCount`. **It was not.**
+`FilterBar` sits on `--surface-1`, where `--fg-4` measures 5.66 and is fine.
+
+Measuring the actual element found the count inside the **active segment of a
+lifecycle strip** — "Ongoing 598", "Open 28". The strip's selected pill is
+`--surface-4`, the darkest surface token, and the count was pinned to
+`--fg-4`:
+
+| count on… | ratio |
+|---|---|
+| `--fg-4` on `--surface-2` (inactive segment) | 5.12 — fine |
+| `--fg-4` on `--surface-4` (**active** pill) | **4.01–4.31** — fails |
+| `--fg-2` on `--surface-4` | **8.50** |
+
+The segment's *label* already switched with state (`on ? --fg : --fg-4`); only
+the count was left behind on a fixed tier. Now it follows the segment too, in
+both strips that use the pattern — `AtsApplicationsV2` and
+`CrmOpportunitiesV2`.
+
+**The generalisable bit:** when a control swaps its background by state, every
+piece of text inside it has to swap with it. A child pinned to one tier will
+be correct in one state and wrong in the other, and the wrong state is the
+selected one — the state the user is most likely looking at.
+
+Outreach's counts were checked and pass: they never sit on `--surface-4`.
+
+### The Ask AI widget renders OUTSIDE the shell — FIXED (the hints)
+
+Chasing the `⌘K` hint turned up something structural. In `App.jsx`,
+`<ChatbotWidget />` is a **sibling of `<ShellSwitch />`**, not a child:
+
+```jsx
+<ShellSwitch />
+<ChatbotWidget />        {/* outside .ds-shell */}
+```
+
+The palette bridge is `.ds-shell`-scoped, so it never reaches this widget.
+Every class in it — `bg-dark-900/95`, `text-dark-500`, `border-dark-700` —
+stays on the **raw Tailwind dark scale** whatever the theme, even though the
+bridge has mappings for all of them. Confirmed at runtime:
+`kbd.closest('.ds-shell')` is `null`.
+
+That is the same category as `PublicSigningPage`: a surface the bridge cannot
+see. It is the only *in-app* one.
+
+**Why it was not "fixed" by moving it inside the shell.** The widget is
+deliberately a dark glassy pill — gradient star, glow, backdrop blur. Inside
+the shell the bridge would map `bg-dark-900/95` to `--surface-1`, turning it
+white in light theme. That is a design change, not a bug fix. It is left
+outside, and its own colours were made legible on the pill it actually has:
+
+| hint | was | now |
+|---|---|---|
+| launcher `⌘K` | `dark-500`, 3.76 light / 3.99 dark | `dark-300` |
+| composer "Press Enter to send…" | `dark-500`, 3.75 | `dark-400` |
+
+The launcher is translucent, so its worst case is a **light** page showing
+through and lifting the backdrop — which is why the light reading was the
+lower of the two. Test that state, not the dark one.
+
+Both verified with the panel open and closed, in both themes.
+
+
+---
+
+## The app-bar notification badge — FIXED
+
+The last standing entry in every audit, at **2.03**. It needed two fixes, not
+one, and the second is the interesting half.
+
+`NotificationBell` drew the badge as `bg-rivvra-500 text-white`:
+
+- `text-white` **is** bridge-mapped — to `--fg`. On the green fill that is
+  `#EEF2F6` on `#22C55E` = **2.05** in dark. (In light `--fg` goes near-black,
+  which is why this only ever showed up in dark audits.)
+- `bg-rivvra-500` is **not** bridge-mapped. It stayed the dark-theme green
+  `#22C55E` in light theme too — a second, quieter bug: the badge never
+  followed the theme at all.
+
+Changing only the text would have swapped one failure for another, because
+`--brand-fg` is white in light and that on the unmapped `#22C55E` is 2.30. So
+both halves move to tokens — `--brand` + `--brand-fg`, the pairing `ds/Button`
+already uses for its primary fill:
+
+| theme | fill | text | ratio |
+|---|---|---|---|
+| dark | `#22C55E` | `#041209` | **8.36** |
+| light | `#15803D` | `#FFFFFF` | **5.02** |
+
+The literal fallbacks (`var(--brand, #22c55e)`) matter: `NotificationBell` is
+shared with the legacy `TopBar`, which renders outside `.ds-shell`. Tokens
+still resolve there — `ds-tokens.css` defines them on `:root` — so the legacy
+shell gets the fix too.
+
+**The lesson:** when a fill and its text come from different sources, check
+whether *both* are themed. A bridge-mapped foreground over an unmapped
+background is the pairing most likely to be wrong, because the two halves move
+independently.
+
+### Status
+
+`todo/dashboard`, `ats/applications`, `crm/opportunities`, `sign/requests` and
+`expenses/all` now report **zero** contrast failures in both themes —
+app-bar included.
+
+Still outside the audit's reach: `PublicSigningPage`, which renders in the
+public/no-auth route block outside `.ds-shell`. `TopBar`'s own activities
+badge (`bg-red-500` / `bg-rivvra-500` + `text-white`, legacy shell only) has
+the same shape as this one and was left alone.
+
+---
+
+## `--attn`: adding a status tone (phase 14)
+
+The aging reports (aged AR/AP, and follow-ups when it migrates) need **four**
+severity steps, not three. The legacy pages ran emerald → amber → orange → red,
+and collapsing orange into amber would erase the 31-60 bucket's distinction
+from 1-30 — on a report whose entire point is that ramp.
+
+So `--attn` / `--attn-soft` / `--attn-ink` joined `warn` and `danger`. It is a
+**status** tone. Do not reach for `--a-employee` because the dark hue happens
+to match: that is an app accent, and app accents are scoped to identity, not
+severity.
+
+**The light value was measured, not picked.** On paper the whole
+warn→attn→danger stretch compresses, so the number that governs legibility is
+the *weakest adjacent gap*, not the average:
+
+| light `--attn-ink` | ΔE to `--warn-ink` | ΔE to `--danger` | weakest link |
+|---|---|---|---|
+| `#9A3412` (first try) | 11.9 | 18.5 | **11.9** |
+| `#9C2B06` (shipped) | 14.8 | 15.0 | **14.8** |
+| `#A81E05` | 22.3 | 8.8 | 8.8 |
+
+Pushing away from warn pulls toward danger; the balanced value wins because a
+ramp is only as readable as its closest pair. `#9C2B06` measures 6.58 on its
+own tint and 7.17 on the page background — both AAA.
+
+Dark needed no tuning: `#FBBF24` → `#FB923C` → `#F87171` sits at ΔE 31.4 and
+39.7, which is the luxury of having the full range above the surface rather
+than below it.
+
+**Generalisable:** when adding a tone to an ordered scale, measure every
+adjacent pair and optimise the minimum. Optimising "distance from the one it
+looked like" just moves the collision along the scale.
+
+---
+
+## App-card accents: a whole palette outside the token system (phase 15)
+
+`AppBentoCard`'s `colorConfig` carried thirteen hard-coded **dark-theme** hexes
+(`#4ade80`, `#60a5fa`, `#fb923c`, …) used as `iconColor` — which paints the
+eyebrow label, the CTA text and the icon tint on every card of the app
+launcher. On a white card in light theme they measured **1.67–2.98:1**. Every
+app label on the first page a user sees failed AA.
+
+Fixed by moving them into tokens (`--acc-<family>`), dark keeping the existing
+value and light taking the first Tailwind step that clears 4.5:1 on white —
+measured, not chosen:
+
+| family | dark | light | on white |
+|---|---|---|---|
+| rivvra | `#4ADE80` | `#15803D` | 5.02 |
+| blue | `#60A5FA` | `#2563EB` | 5.17 |
+| purple | `#C084FC` | `#9333EA` | 5.38 |
+| orange | `#FB923C` | `#C2410C` | 5.18 |
+| cyan | `#22D3EE` | `#0E7490` | 5.36 |
+| amber | `#FBBF24` | `#B45309` | 5.02 |
+| emerald | `#34D399` | `#047857` | 5.48 |
+| indigo | `#818CF8` | `#4F46E5` | 6.29 |
+| teal | `#2DD4BF` | `#0F766E` | 5.47 |
+| fuchsia | `#E879F9` | `#C026D3` | 4.71 |
+| slate | `#CBD5E1` | `#475569` | 7.58 |
+| sky | `#38BDF8` | `#0369A1` | 5.93 |
+| rose | `#FB7185` | `#E11D48` | 4.70 |
+
+Only the **text** colour moved. Each family keeps its `rgb` triple for the
+card tint and glow, which work at 10–18% alpha on either theme.
+
+Two smaller fixes in the same file: the card border was a hard-coded
+`rgb(30, 41, 59)` (now `--line-2`), and the hovered CTA label was `#0a0f0d`
+(now `--brand-fg`).
+
+**`var()` works in inline `style` objects** — unlike SVG presentation
+attributes, where it silently does nothing (see the recharts note in
+`REDESIGN-QA.md`). That difference is why this fix is a one-line-per-entry
+change and the chart one needed a stylesheet.
+
+**The pattern, third time now:** a palette defined outside the token system is
+invisible to the theme and to the audit until something renders it on the
+other background. Charts (`recharts`), the bridge's `text-white`, and now the
+app-card accents. Worth grepping for hex literals in any component that paints
+text before assuming a page is theme-clean.
+
+---
+
+## `.ds-shell button { background: none }` ate every legacy button fill
+
+Found in phase 16 on ESS → Holiday Calendar. `shell.css` carried:
+
+```css
+.ds-shell button { cursor: pointer; background: none; … }
+```
+
+`.ds-shell button` is specificity **0-1-1**; a Tailwind utility like
+`.bg-rivvra-500` is **0-1-0**. So the shell won, and **every legacy `<button>`
+with a Tailwind background lost its fill inside the v2 shell.**
+
+This is the *same bug* as the `border: none` in that rule, which was already
+found and removed. The `background` half survived. Tailwind preflight resets
+`background-color: transparent` on buttons at element specificity (0-0-1),
+which is the intended reset and still lets utilities win — so the shell
+declaration was pure loss.
+
+**Why it stayed hidden:** with no fill, `text-white` mapped to `--fg` and the
+button read as a plain text button — degraded, but legible. The phase-14
+bridge rule then correctly forced those labels white, and white-on-nothing is
+1.06:1. The earlier fix did not cause this; it *exposed* it.
+
+### And `bg-rivvra-*` was never bridged at all
+
+Even with the fill restored it measured 2.28: raw `#22C55E` with white text,
+in both themes. `bg-rivvra-*` — the most common coloured button in the app,
+~650 uses — had no bridge rule.
+
+Now mapped to the brand tokens, paired with `--brand-fg` rather than white,
+which is the inversion this document already established for the notification
+badge:
+
+| theme | fill | text | ratio |
+|---|---|---|---|
+| dark | `#22C55E` | `#041209` | **8.41** |
+| light | `#15803D` | `#FFFFFF` | **5.02** |
+
+**Generalisable:** a shell reset written as `element` + `class` outranks every
+utility. Reset with the framework's own preflight, or scope resets to a class
+the utilities can beat. And when you fix a foreground, check the background
+it sits on is still being painted — a "fix" that makes text white is only
+correct if the fill survived.
+
+## Accent ink — the accent used as text (2026-08-22)
+
+`--acc-*` is one colour doing two jobs: a **fill** (icon marks, tinted panels,
+glows) and **text**. Those have different contrast floors, and the palette was
+tuned for the fill.
+
+Measured against three backdrops — the accent's own 15% tint (the
+`AppBentoCard` pill), `--surface-1`, and `--surface-2` — taking the worst:
+
+| theme | result |
+|---|---|
+| dark | **13 of 13 pass** (4.64 – 8.12). No change needed. |
+| light | **11 of 13 FAIL** (3.37 – 4.56 against a 4.5 floor). Only `indigo` and `slate` passed. |
+
+The accents were chosen for dark and reused in light without re-checking. The
+tell was already in the file: `--acc-purple-ink` existed alone, which is this
+same bug found once and fixed for one accent.
+
+### The fix
+
+`--acc-<name>-ink` now exists for all 13 in both themes.
+
+- **In dark it equals the accent** — they already passed. The pair exists so a
+  caller can always write `-ink` for text without knowing the theme.
+- **In light it is the accent darkened along the same hue** (channels scaled
+  toward black) to the first value clearing **~4.62** — headroom, so a future
+  surface tweak does not silently drop it under 4.5.
+- **The accents themselves are unchanged.** Fills, icon marks and glows keep
+  the colour they always had; only text moves.
+- `--acc-purple-ink` keeps its existing `#6B21A8` rather than being recomputed.
+  It already cleared, and churning a shipped decision buys nothing.
+
+### The rule
+
+**Use `--acc-<name>-ink` whenever an accent is the `color` of text. Use
+`--acc-<name>` for everything else.** Icons are not text — the 3.0 non-text
+floor applies there, and the plain accent clears it.
+
+Verified by computation (all 26 tokens re-measured from the file after editing)
+and by the contrast gate, which is what found the original defect:
+`AppBentoCard`'s CTA pill at 4.4:1 in light. It now passes with **nothing
+allow-listed** — the parked entry was deleted rather than left to rot.
+
+⚠️ One combination is still below AA and simply is not currently used as text:
+`--acc-fuchsia` (4.25) and `--acc-rose` (4.24) on `--surface-2` in light. The
+gate covers 16 routes and none of them render those as text today. If you ever
+do, use the ink token.

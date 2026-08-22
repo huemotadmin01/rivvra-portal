@@ -1,0 +1,1380 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Legacy palette bridge — TEMPORARY, and scoped to the v2 shell only.
+
+   The legacy UI is painted with a fixed dark Tailwind scale (`dark-50` …
+   `dark-950`, plus `text-white`). Those names encode a *value*, not a role,
+   so a legacy component rendered inside the v2 shell stays dark no matter
+   which theme the viewer picked — the "dark island in a light page" seam
+   that shows up wherever a not-yet-migrated component is still mounted
+   (SignRequestWidget, AttachmentsPanel, AiResumeInsights, SkillsPicker, and
+   the ATS hire/offer modals).
+
+   Rather than hand-editing hundreds of class attributes across components
+   that are going to be rewritten anyway, this maps the legacy scale onto the
+   semantic tokens, so those islands follow the theme while they wait their
+   turn. The mapping is by role, matched to how each shade is actually used:
+
+     dark-950/900  page + sunken backgrounds  → --bg / --surface-1
+     dark-850/800  cards and raised surfaces  → --surface-1 / --surface-2
+     dark-700/600  borders and dividers       → --line / --line-2
+     dark-500/400  muted and secondary text   → --fg-4 / --fg-3
+     dark-300/200  body text                  → --fg-2
+     dark-100/50   near-white text            → --fg
+     white         primary text               → --fg
+
+   Rules for touching this file:
+     - Scoped under `.ds-shell` on purpose. The legacy shell must keep its
+       original palette exactly — this file must never affect it.
+     - Accent TEXT is bridged too, by meaning rather than hue — see the
+       "Semantic accents" block below for why the original "accents read
+       acceptably in both themes" assumption did not survive measurement.
+       Accent *backgrounds* are still left alone: a 10% wash works over
+       either surface.
+     - A colour set inline cannot be reached from here at all. Those go
+       through the variable-with-fallback pattern in the next block.
+     - Delete a block the moment its last legacy consumer is migrated. This
+       file shrinking to nothing is the migration finishing.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Inline-style escape hatches ──────────────────────────────────────────
+   Class remapping cannot reach a colour set as an inline `style`, because an
+   inline style outranks any stylesheet rule short of `!important`. Where a
+   legacy component has to set a colour inline — a sticky table cell must
+   paint an opaque background or the scrolling columns show through it — the
+   component reads a variable with its original colour as the fallback, and
+   the real value is defined here.
+
+   That keeps the contract intact in both directions: the legacy shell never
+   sees these declarations and renders exactly as before, while inside the v2
+   shell the colour follows the theme.
+
+   `ResizableTable` (Customer Invoices, Vendor Bills): the pinned Number and
+   Status columns held a hardcoded near-black, so in light theme they stayed
+   black islands and the invoice numbers inside them measured a 1.00 contrast
+   ratio — the same colour as their background, literally invisible.
+   Cells match the table's own `bg-dark-850` surface so the pinned column
+   blends with its row; the header keeps the one-step lift it always had. */
+.ds-shell {
+  --rt-sticky-head: var(--surface-3);
+  --rt-sticky-cell: var(--surface-2);
+}
+
+/* Text — muted → body only; see note in the generator about 700/950 */
+.ds-shell .text-dark-50 { color: var(--fg); }
+.ds-shell .text-dark-100 { color: var(--fg); }
+.ds-shell .text-dark-200 { color: var(--fg-2); }
+.ds-shell .text-dark-300 { color: var(--fg-2); }
+.ds-shell .text-dark-400 { color: var(--fg-3); }
+.ds-shell .text-dark-500 { color: var(--fg-4); }
+/* dark-600 is muted TEXT in the legacy UI (empty states, captions), not
+   decoration — mapping it to --fg-faint rendered "No documents uploaded"
+   at 2.52:1. It belongs on the muted-text tier with dark-500. */
+.ds-shell .text-dark-600 { color: var(--fg-4); }
+.ds-shell .text-white { color: var(--fg); }
+.ds-shell .hover\:text-white:hover { color: var(--fg); }
+
+/* …EXCEPT when text-white sits on a SATURATED FILL.
+   `text-white` means two different things in the legacy UI: "the bright text
+   tier" (on a dark surface — themed above, correctly), and "the label on a
+   coloured button/pill" (on blue-600, rivvra-500, red-500…), which must stay
+   white in BOTH themes because the fill underneath does not change.
+
+   Mapping both to --fg turns the second kind near-black on light. Found on
+   InvoiceDetail's status stepper: white-on-blue-600 became #16191D on
+   #2563EB — 3.36:1, below AA. 259 places in the codebase pair `text-white`
+   with a saturated `bg-*` utility, so this was not one page's problem.
+
+   Same shape as the NotificationBell badge fix in THEMING.md: when a fill and
+   its text come from different sources, a bridge-mapped foreground over an
+   unmapped background is the pairing most likely to be wrong. */
+/* The BRAND fill is a special case of the rule below. `bg-rivvra-*` is the
+   most common coloured button in the app (~650 uses) and it was never bridged
+   at all — it stayed raw #22C55E, on which white measures 2.28:1 in either
+   theme. Map the fill to the brand token and pair it with --brand-fg, which
+   is the inversion THEMING.md already established for the notification badge:
+   dark #22C55E + #041209 = 8.36, light #15803D + #FFFFFF = 5.02. */
+.ds-shell .bg-rivvra-400 { background-color: var(--brand-hi); }
+.ds-shell .bg-rivvra-500 { background-color: var(--brand); }
+.ds-shell .bg-rivvra-600 { background-color: var(--brand-lo); }
+.ds-shell .bg-rivvra-700 { background-color: var(--brand-lo); }
+.ds-shell .hover\:bg-rivvra-400:hover { background-color: var(--brand-hi); }
+.ds-shell .hover\:bg-rivvra-600:hover { background-color: var(--brand-lo); }
+.ds-shell [class*="bg-rivvra-"].text-white { color: var(--brand-fg); }
+
+/* …and the brand button's ink is usually NOT text-white. The legacy brand
+   fill is bright green (#22C55E), so the label was written as `text-dark-950`
+   — correct against that fill, and the most common button in the app: 128
+   call sites. In light theme --brand resolves to #15803D, on which a
+   near-black ink measures 3.52:1. The ink has to follow the fill, so both
+   spellings resolve to --brand-fg.
+   Only the 900/950 ink tiers: text-dark-400/500 on a brand fill (6 sites) are
+   muted-text utilities that happen to share the class attribute, not the
+   button's label. */
+.ds-shell [class*="bg-rivvra-"].text-dark-900,
+.ds-shell [class*="bg-rivvra-"].text-dark-950 { color: var(--brand-fg); }
+
+/* …and the ink is chosen PER FILL, not per family.
+   The first version of this rule matched families with [class*="bg-blue-"],
+   which also catches the 400/500 steps. Those are light: white on emerald-500
+   is 2.54:1, on amber-500 2.15:1 — worse than the --fg mapping it replaced.
+   Measured across the 35 family/step pairs the codebase actually pairs with
+   `text-white`, white wins on 17 and loses on 18, so a blanket constant is
+   wrong whichever constant you pick.
+
+   Both lists are LITERALS, not tokens, and that is the point: the fill does
+   not change with the theme, so its ink must not either. Mapping these to
+   --fg is what produced the original bug — it flips the ink under a fixed
+   background. (That also repairs the dark theme, where --fg is near-white and
+   every fill in the second list was failing at ~2.5:1 before this rule
+   existed at all.)
+
+   Regenerate with scripts/ink-for-fill.js if new fills appear. */
+/* The dark fills. Generated — do not hand-edit.
+   indigo-500 is 4.47 and stays here as best-available; see the note below. */
+.ds-shell .bg-amber-700.text-white,
+.ds-shell .bg-amber-950.text-white,
+.ds-shell .bg-blue-600.text-white,
+.ds-shell .bg-blue-700.text-white,
+.ds-shell .bg-blue-950.text-white,
+.ds-shell .bg-emerald-700.text-white,
+.ds-shell .bg-emerald-950.text-white,
+.ds-shell .bg-fuchsia-600.text-white,
+.ds-shell .bg-fuchsia-700.text-white,
+.ds-shell .bg-fuchsia-950.text-white,
+.ds-shell .bg-green-700.text-white,
+.ds-shell .bg-indigo-500.text-white,
+.ds-shell .bg-indigo-600.text-white,
+.ds-shell .bg-indigo-700.text-white,
+.ds-shell .bg-orange-700.text-white,
+.ds-shell .bg-purple-600.text-white,
+.ds-shell .bg-purple-700.text-white,
+.ds-shell .bg-red-600.text-white,
+.ds-shell .bg-red-700.text-white,
+.ds-shell .bg-red-900.text-white,
+.ds-shell .bg-red-950.text-white,
+.ds-shell .bg-teal-700.text-white,
+.ds-shell .bg-zinc-900.text-white { color: #FFFFFF; }
+
+/* The light fills. White is unreadable on these; a near-black ink measures
+   4.5–10.6 on every one, in both themes.
+   purple-500 is 4.46 and stays here as best-available; see the note below. */
+.ds-shell .bg-amber-400.text-white,
+.ds-shell .bg-amber-500.text-white,
+.ds-shell .bg-amber-600.text-white,
+.ds-shell .bg-blue-400.text-white,
+.ds-shell .bg-blue-500.text-white,
+.ds-shell .bg-emerald-400.text-white,
+.ds-shell .bg-emerald-500.text-white,
+.ds-shell .bg-emerald-600.text-white,
+.ds-shell .bg-green-500.text-white,
+.ds-shell .bg-green-600.text-white,
+.ds-shell .bg-indigo-200.text-white,
+.ds-shell .bg-indigo-400.text-white,
+.ds-shell .bg-orange-400.text-white,
+.ds-shell .bg-orange-500.text-white,
+.ds-shell .bg-orange-600.text-white,
+.ds-shell .bg-purple-400.text-white,
+.ds-shell .bg-purple-500.text-white,
+.ds-shell .bg-red-400.text-white,
+.ds-shell .bg-red-500.text-white,
+.ds-shell .bg-teal-500.text-white,
+.ds-shell .bg-teal-600.text-white,
+.ds-shell .bg-zinc-100.text-white { color: #16191D; }
+
+/* Two fills (indigo-500 at 4.47, purple-500 at 4.46 — 39 sites between them)
+   land just under AA with EITHER ink, because the fill itself is the problem.
+   Fixing them means darkening the fill, which is a visible change across
+   already-merged pages, so it is proposed in REDESIGN-QA.md rather than done
+   here. Both are within rounding of the threshold and neither is a regression
+   from this rule. */
+.ds-shell .hover\:text-dark-200:hover,
+.ds-shell .hover\:text-dark-300:hover { color: var(--fg-2); }
+
+/* Surfaces — every shade x every Tailwind opacity step */
+.ds-shell .bg-dark-950\/85,
+.ds-shell .bg-dark-950,
+.ds-shell .bg-dark-950\/5,
+.ds-shell .bg-dark-950\/10,
+.ds-shell .bg-dark-950\/20,
+.ds-shell .bg-dark-950\/25,
+.ds-shell .bg-dark-950\/30,
+.ds-shell .bg-dark-950\/40,
+.ds-shell .bg-dark-950\/50,
+.ds-shell .bg-dark-950\/60,
+.ds-shell .bg-dark-950\/70,
+.ds-shell .bg-dark-950\/75,
+.ds-shell .bg-dark-950\/80,
+.ds-shell .bg-dark-950\/90,
+.ds-shell .bg-dark-950\/95 { background-color: var(--bg); }
+.ds-shell .bg-dark-900,
+.ds-shell .bg-dark-900\/5,
+.ds-shell .bg-dark-900\/10,
+.ds-shell .bg-dark-900\/20,
+.ds-shell .bg-dark-900\/25,
+.ds-shell .bg-dark-900\/30,
+.ds-shell .bg-dark-900\/40,
+.ds-shell .bg-dark-900\/50,
+.ds-shell .bg-dark-900\/60,
+.ds-shell .bg-dark-900\/70,
+.ds-shell .bg-dark-900\/75,
+.ds-shell .bg-dark-900\/80,
+.ds-shell .bg-dark-900\/90,
+.ds-shell .bg-dark-900\/95 { background-color: var(--surface-1); }
+.ds-shell .bg-dark-850,
+.ds-shell .bg-dark-850\/5,
+.ds-shell .bg-dark-850\/10,
+.ds-shell .bg-dark-850\/20,
+.ds-shell .bg-dark-850\/25,
+.ds-shell .bg-dark-850\/30,
+.ds-shell .bg-dark-850\/40,
+.ds-shell .bg-dark-850\/50,
+.ds-shell .bg-dark-850\/60,
+.ds-shell .bg-dark-850\/70,
+.ds-shell .bg-dark-850\/75,
+.ds-shell .bg-dark-850\/80,
+.ds-shell .bg-dark-850\/90,
+.ds-shell .bg-dark-850\/95 { background-color: var(--surface-2); }
+.ds-shell .bg-dark-800,
+.ds-shell .bg-dark-800\/5,
+.ds-shell .bg-dark-800\/10,
+.ds-shell .bg-dark-800\/20,
+.ds-shell .bg-dark-800\/25,
+.ds-shell .bg-dark-800\/30,
+.ds-shell .bg-dark-800\/40,
+.ds-shell .bg-dark-800\/50,
+.ds-shell .bg-dark-800\/60,
+.ds-shell .bg-dark-800\/70,
+.ds-shell .bg-dark-800\/75,
+.ds-shell .bg-dark-800\/80,
+.ds-shell .bg-dark-800\/90,
+.ds-shell .bg-dark-800\/95 { background-color: var(--surface-2); }
+.ds-shell .bg-dark-750,
+.ds-shell .bg-dark-750\/5,
+.ds-shell .bg-dark-750\/10,
+.ds-shell .bg-dark-750\/20,
+.ds-shell .bg-dark-750\/25,
+.ds-shell .bg-dark-750\/30,
+.ds-shell .bg-dark-750\/40,
+.ds-shell .bg-dark-750\/50,
+.ds-shell .bg-dark-750\/60,
+.ds-shell .bg-dark-750\/70,
+.ds-shell .bg-dark-750\/75,
+.ds-shell .bg-dark-750\/80,
+.ds-shell .bg-dark-750\/90,
+.ds-shell .bg-dark-750\/95 { background-color: var(--surface-3); }
+.ds-shell .bg-dark-700,
+.ds-shell .bg-dark-700\/5,
+.ds-shell .bg-dark-700\/10,
+.ds-shell .bg-dark-700\/20,
+.ds-shell .bg-dark-700\/25,
+.ds-shell .bg-dark-700\/30,
+.ds-shell .bg-dark-700\/40,
+.ds-shell .bg-dark-700\/50,
+.ds-shell .bg-dark-700\/60,
+.ds-shell .bg-dark-700\/70,
+.ds-shell .bg-dark-700\/75,
+.ds-shell .bg-dark-700\/80,
+.ds-shell .bg-dark-700\/90,
+.ds-shell .bg-dark-700\/95 { background-color: var(--surface-3); }
+.ds-shell .bg-dark-600,
+.ds-shell .bg-dark-600\/5,
+.ds-shell .bg-dark-600\/10,
+.ds-shell .bg-dark-600\/20,
+.ds-shell .bg-dark-600\/25,
+.ds-shell .bg-dark-600\/30,
+.ds-shell .bg-dark-600\/40,
+.ds-shell .bg-dark-600\/50,
+.ds-shell .bg-dark-600\/60,
+.ds-shell .bg-dark-600\/70,
+.ds-shell .bg-dark-600\/75,
+.ds-shell .bg-dark-600\/80,
+.ds-shell .bg-dark-600\/90,
+.ds-shell .bg-dark-600\/95 { background-color: var(--surface-4); }
+
+/* Lines and dividers */
+.ds-shell .border-dark-900,
+.ds-shell .border-dark-900\/5,
+.ds-shell .border-dark-900\/10,
+.ds-shell .border-dark-900\/20,
+.ds-shell .border-dark-900\/25,
+.ds-shell .border-dark-900\/30,
+.ds-shell .border-dark-900\/40,
+.ds-shell .border-dark-900\/50,
+.ds-shell .border-dark-900\/60,
+.ds-shell .border-dark-900\/70,
+.ds-shell .border-dark-900\/75,
+.ds-shell .border-dark-900\/80,
+.ds-shell .border-dark-900\/90,
+.ds-shell .border-dark-900\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-900 > * + *,
+.ds-shell .divide-dark-900\/5 > * + *,
+.ds-shell .divide-dark-900\/10 > * + *,
+.ds-shell .divide-dark-900\/20 > * + *,
+.ds-shell .divide-dark-900\/25 > * + *,
+.ds-shell .divide-dark-900\/30 > * + *,
+.ds-shell .divide-dark-900\/40 > * + *,
+.ds-shell .divide-dark-900\/50 > * + *,
+.ds-shell .divide-dark-900\/60 > * + *,
+.ds-shell .divide-dark-900\/70 > * + *,
+.ds-shell .divide-dark-900\/75 > * + *,
+.ds-shell .divide-dark-900\/80 > * + *,
+.ds-shell .divide-dark-900\/90 > * + *,
+.ds-shell .divide-dark-900\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-850,
+.ds-shell .border-dark-850\/5,
+.ds-shell .border-dark-850\/10,
+.ds-shell .border-dark-850\/20,
+.ds-shell .border-dark-850\/25,
+.ds-shell .border-dark-850\/30,
+.ds-shell .border-dark-850\/40,
+.ds-shell .border-dark-850\/50,
+.ds-shell .border-dark-850\/60,
+.ds-shell .border-dark-850\/70,
+.ds-shell .border-dark-850\/75,
+.ds-shell .border-dark-850\/80,
+.ds-shell .border-dark-850\/90,
+.ds-shell .border-dark-850\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-850 > * + *,
+.ds-shell .divide-dark-850\/5 > * + *,
+.ds-shell .divide-dark-850\/10 > * + *,
+.ds-shell .divide-dark-850\/20 > * + *,
+.ds-shell .divide-dark-850\/25 > * + *,
+.ds-shell .divide-dark-850\/30 > * + *,
+.ds-shell .divide-dark-850\/40 > * + *,
+.ds-shell .divide-dark-850\/50 > * + *,
+.ds-shell .divide-dark-850\/60 > * + *,
+.ds-shell .divide-dark-850\/70 > * + *,
+.ds-shell .divide-dark-850\/75 > * + *,
+.ds-shell .divide-dark-850\/80 > * + *,
+.ds-shell .divide-dark-850\/90 > * + *,
+.ds-shell .divide-dark-850\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-800,
+.ds-shell .border-dark-800\/5,
+.ds-shell .border-dark-800\/10,
+.ds-shell .border-dark-800\/20,
+.ds-shell .border-dark-800\/25,
+.ds-shell .border-dark-800\/30,
+.ds-shell .border-dark-800\/40,
+.ds-shell .border-dark-800\/50,
+.ds-shell .border-dark-800\/60,
+.ds-shell .border-dark-800\/70,
+.ds-shell .border-dark-800\/75,
+.ds-shell .border-dark-800\/80,
+.ds-shell .border-dark-800\/90,
+.ds-shell .border-dark-800\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-800 > * + *,
+.ds-shell .divide-dark-800\/5 > * + *,
+.ds-shell .divide-dark-800\/10 > * + *,
+.ds-shell .divide-dark-800\/20 > * + *,
+.ds-shell .divide-dark-800\/25 > * + *,
+.ds-shell .divide-dark-800\/30 > * + *,
+.ds-shell .divide-dark-800\/40 > * + *,
+.ds-shell .divide-dark-800\/50 > * + *,
+.ds-shell .divide-dark-800\/60 > * + *,
+.ds-shell .divide-dark-800\/70 > * + *,
+.ds-shell .divide-dark-800\/75 > * + *,
+.ds-shell .divide-dark-800\/80 > * + *,
+.ds-shell .divide-dark-800\/90 > * + *,
+.ds-shell .divide-dark-800\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-750,
+.ds-shell .border-dark-750\/5,
+.ds-shell .border-dark-750\/10,
+.ds-shell .border-dark-750\/20,
+.ds-shell .border-dark-750\/25,
+.ds-shell .border-dark-750\/30,
+.ds-shell .border-dark-750\/40,
+.ds-shell .border-dark-750\/50,
+.ds-shell .border-dark-750\/60,
+.ds-shell .border-dark-750\/70,
+.ds-shell .border-dark-750\/75,
+.ds-shell .border-dark-750\/80,
+.ds-shell .border-dark-750\/90,
+.ds-shell .border-dark-750\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-750 > * + *,
+.ds-shell .divide-dark-750\/5 > * + *,
+.ds-shell .divide-dark-750\/10 > * + *,
+.ds-shell .divide-dark-750\/20 > * + *,
+.ds-shell .divide-dark-750\/25 > * + *,
+.ds-shell .divide-dark-750\/30 > * + *,
+.ds-shell .divide-dark-750\/40 > * + *,
+.ds-shell .divide-dark-750\/50 > * + *,
+.ds-shell .divide-dark-750\/60 > * + *,
+.ds-shell .divide-dark-750\/70 > * + *,
+.ds-shell .divide-dark-750\/75 > * + *,
+.ds-shell .divide-dark-750\/80 > * + *,
+.ds-shell .divide-dark-750\/90 > * + *,
+.ds-shell .divide-dark-750\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-700\/15,
+.ds-shell .border-dark-700,
+.ds-shell .border-dark-700\/5,
+.ds-shell .border-dark-700\/10,
+.ds-shell .border-dark-700\/20,
+.ds-shell .border-dark-700\/25,
+.ds-shell .border-dark-700\/30,
+.ds-shell .border-dark-700\/40,
+.ds-shell .border-dark-700\/50,
+.ds-shell .border-dark-700\/60,
+.ds-shell .border-dark-700\/70,
+.ds-shell .border-dark-700\/75,
+.ds-shell .border-dark-700\/80,
+.ds-shell .border-dark-700\/90,
+.ds-shell .border-dark-700\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-700 > * + *,
+.ds-shell .divide-dark-700\/5 > * + *,
+.ds-shell .divide-dark-700\/10 > * + *,
+.ds-shell .divide-dark-700\/20 > * + *,
+.ds-shell .divide-dark-700\/25 > * + *,
+.ds-shell .divide-dark-700\/30 > * + *,
+.ds-shell .divide-dark-700\/40 > * + *,
+.ds-shell .divide-dark-700\/50 > * + *,
+.ds-shell .divide-dark-700\/60 > * + *,
+.ds-shell .divide-dark-700\/70 > * + *,
+.ds-shell .divide-dark-700\/75 > * + *,
+.ds-shell .divide-dark-700\/80 > * + *,
+.ds-shell .divide-dark-700\/90 > * + *,
+.ds-shell .divide-dark-700\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-600,
+.ds-shell .border-dark-600\/5,
+.ds-shell .border-dark-600\/10,
+.ds-shell .border-dark-600\/20,
+.ds-shell .border-dark-600\/25,
+.ds-shell .border-dark-600\/30,
+.ds-shell .border-dark-600\/40,
+.ds-shell .border-dark-600\/50,
+.ds-shell .border-dark-600\/60,
+.ds-shell .border-dark-600\/70,
+.ds-shell .border-dark-600\/75,
+.ds-shell .border-dark-600\/80,
+.ds-shell .border-dark-600\/90,
+.ds-shell .border-dark-600\/95 { border-color: var(--line-2); }
+.ds-shell .divide-dark-600 > * + *,
+.ds-shell .divide-dark-600\/5 > * + *,
+.ds-shell .divide-dark-600\/10 > * + *,
+.ds-shell .divide-dark-600\/20 > * + *,
+.ds-shell .divide-dark-600\/25 > * + *,
+.ds-shell .divide-dark-600\/30 > * + *,
+.ds-shell .divide-dark-600\/40 > * + *,
+.ds-shell .divide-dark-600\/50 > * + *,
+.ds-shell .divide-dark-600\/60 > * + *,
+.ds-shell .divide-dark-600\/70 > * + *,
+.ds-shell .divide-dark-600\/75 > * + *,
+.ds-shell .divide-dark-600\/80 > * + *,
+.ds-shell .divide-dark-600\/90 > * + *,
+.ds-shell .divide-dark-600\/95 > * + * { border-color: var(--line-2); }
+.ds-shell .border-dark-500,
+.ds-shell .border-dark-500\/5,
+.ds-shell .border-dark-500\/10,
+.ds-shell .border-dark-500\/20,
+.ds-shell .border-dark-500\/25,
+.ds-shell .border-dark-500\/30,
+.ds-shell .border-dark-500\/40,
+.ds-shell .border-dark-500\/50,
+.ds-shell .border-dark-500\/60,
+.ds-shell .border-dark-500\/70,
+.ds-shell .border-dark-500\/75,
+.ds-shell .border-dark-500\/80,
+.ds-shell .border-dark-500\/90,
+.ds-shell .border-dark-500\/95 { border-color: var(--line-2); }
+.ds-shell .divide-dark-500 > * + *,
+.ds-shell .divide-dark-500\/5 > * + *,
+.ds-shell .divide-dark-500\/10 > * + *,
+.ds-shell .divide-dark-500\/20 > * + *,
+.ds-shell .divide-dark-500\/25 > * + *,
+.ds-shell .divide-dark-500\/30 > * + *,
+.ds-shell .divide-dark-500\/40 > * + *,
+.ds-shell .divide-dark-500\/50 > * + *,
+.ds-shell .divide-dark-500\/60 > * + *,
+.ds-shell .divide-dark-500\/70 > * + *,
+.ds-shell .divide-dark-500\/75 > * + *,
+.ds-shell .divide-dark-500\/80 > * + *,
+.ds-shell .divide-dark-500\/90 > * + *,
+.ds-shell .divide-dark-500\/95 > * + * { border-color: var(--line-2); }
+
+/* Gradient stops — flattened; see note below */
+.ds-shell .from-dark-950,
+.ds-shell .from-dark-950\/5,
+.ds-shell .from-dark-950\/10,
+.ds-shell .from-dark-950\/20,
+.ds-shell .from-dark-950\/25,
+.ds-shell .from-dark-950\/30,
+.ds-shell .from-dark-950\/40,
+.ds-shell .from-dark-950\/50,
+.ds-shell .from-dark-950\/60,
+.ds-shell .from-dark-950\/70,
+.ds-shell .from-dark-950\/75,
+.ds-shell .from-dark-950\/80,
+.ds-shell .from-dark-950\/90,
+.ds-shell .from-dark-950\/95,
+.ds-shell .from-dark-900,
+.ds-shell .from-dark-900\/5,
+.ds-shell .from-dark-900\/10,
+.ds-shell .from-dark-900\/20,
+.ds-shell .from-dark-900\/25,
+.ds-shell .from-dark-900\/30,
+.ds-shell .from-dark-900\/40,
+.ds-shell .from-dark-900\/50,
+.ds-shell .from-dark-900\/60,
+.ds-shell .from-dark-900\/70,
+.ds-shell .from-dark-900\/75,
+.ds-shell .from-dark-900\/80,
+.ds-shell .from-dark-900\/90,
+.ds-shell .from-dark-900\/95,
+.ds-shell .from-dark-850,
+.ds-shell .from-dark-850\/5,
+.ds-shell .from-dark-850\/10,
+.ds-shell .from-dark-850\/20,
+.ds-shell .from-dark-850\/25,
+.ds-shell .from-dark-850\/30,
+.ds-shell .from-dark-850\/40,
+.ds-shell .from-dark-850\/50,
+.ds-shell .from-dark-850\/60,
+.ds-shell .from-dark-850\/70,
+.ds-shell .from-dark-850\/75,
+.ds-shell .from-dark-850\/80,
+.ds-shell .from-dark-850\/90,
+.ds-shell .from-dark-850\/95,
+.ds-shell .from-dark-800,
+.ds-shell .from-dark-800\/5,
+.ds-shell .from-dark-800\/10,
+.ds-shell .from-dark-800\/20,
+.ds-shell .from-dark-800\/25,
+.ds-shell .from-dark-800\/30,
+.ds-shell .from-dark-800\/40,
+.ds-shell .from-dark-800\/50,
+.ds-shell .from-dark-800\/60,
+.ds-shell .from-dark-800\/70,
+.ds-shell .from-dark-800\/75,
+.ds-shell .from-dark-800\/80,
+.ds-shell .from-dark-800\/90,
+.ds-shell .from-dark-800\/95,
+.ds-shell .from-dark-750,
+.ds-shell .from-dark-750\/5,
+.ds-shell .from-dark-750\/10,
+.ds-shell .from-dark-750\/20,
+.ds-shell .from-dark-750\/25,
+.ds-shell .from-dark-750\/30,
+.ds-shell .from-dark-750\/40,
+.ds-shell .from-dark-750\/50,
+.ds-shell .from-dark-750\/60,
+.ds-shell .from-dark-750\/70,
+.ds-shell .from-dark-750\/75,
+.ds-shell .from-dark-750\/80,
+.ds-shell .from-dark-750\/90,
+.ds-shell .from-dark-750\/95,
+.ds-shell .from-dark-700,
+.ds-shell .from-dark-700\/5,
+.ds-shell .from-dark-700\/10,
+.ds-shell .from-dark-700\/20,
+.ds-shell .from-dark-700\/25,
+.ds-shell .from-dark-700\/30,
+.ds-shell .from-dark-700\/40,
+.ds-shell .from-dark-700\/50,
+.ds-shell .from-dark-700\/60,
+.ds-shell .from-dark-700\/70,
+.ds-shell .from-dark-700\/75,
+.ds-shell .from-dark-700\/80,
+.ds-shell .from-dark-700\/90,
+.ds-shell .from-dark-700\/95,
+.ds-shell .from-dark-600,
+.ds-shell .from-dark-600\/5,
+.ds-shell .from-dark-600\/10,
+.ds-shell .from-dark-600\/20,
+.ds-shell .from-dark-600\/25,
+.ds-shell .from-dark-600\/30,
+.ds-shell .from-dark-600\/40,
+.ds-shell .from-dark-600\/50,
+.ds-shell .from-dark-600\/60,
+.ds-shell .from-dark-600\/70,
+.ds-shell .from-dark-600\/75,
+.ds-shell .from-dark-600\/80,
+.ds-shell .from-dark-600\/90,
+.ds-shell .from-dark-600\/95 { --tw-gradient-from: var(--surface-2); }
+.ds-shell [class*="bg-gradient-to-"][class*="from-dark-"],
+.ds-shell [class*="bg-gradient-to-"][class*="to-dark-"] {
+  background-image: none;
+  background-color: var(--surface-2);
+}
+
+/* ── Composite legacy classes ───────────────────────────────────────────── */
+/* The atomic-utility mappings above miss these entirely: `src/index.css`
+   defines component classes with @apply, which bakes the dark palette into a
+   single class name. `.input-field` is the one that bites — white text on a
+   dark translucent fill, i.e. invisible in a light-theme modal — and the ATS
+   hire/offer flow uses it 24 times.
+
+   Opacity-modified utilities (`bg-dark-800/50`, `bg-dark-900/95`) have the
+   same problem and can't be selected generically without also catching
+   `hover:` variants, so the ones actually in use are listed explicitly. */
+
+.ds-shell .input-field {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+.ds-shell .input-field:focus { border-color: var(--brand-ink); }
+.ds-shell .input-field::placeholder { color: var(--fg-faint); }
+
+.ds-shell .card {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+
+.ds-shell .btn-secondary,
+.ds-shell .btn-oauth {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+
+.ds-shell .glass {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+
+
+
+
+/* ── Semantic accents ───────────────────────────────────────────────────── */
+/* Originally left alone on the theory that accents "read acceptably in both
+   themes". The light-theme contrast sweep disproved that: a `text-emerald-400`
+   chip on an `emerald-500/10` tint measured 1.64:1, and `text-amber-400` on
+   its tint 1.45:1 — both far below the 3:1 floor. Those values are picked to
+   glow on a dark surface, and there is no dark surface any more.
+
+   Mapped by MEANING rather than hue, so nothing changes what a colour says:
+   emerald/green/teal → brand, red/rose → danger, amber/orange/yellow → warn,
+   blue/sky/cyan/indigo/purple → info. The 200-500 steps of a family are the
+   same role at different emphasis, so they collapse onto one token; the
+   tokens already carry a light-theme value with adequate contrast.
+
+   Opacity modifiers are included: `text-rivvra-300/70` on the AI badges
+   measured 1.18:1, and the un-suffixed rule alone does not reach it.
+
+   Backgrounds are NOT remapped — an `emerald-500/10` tint is a 10% wash that
+   works over either surface. Only the text on top of it was failing. */
+.ds-shell .text-amber-200,
+.ds-shell .text-amber-300,
+.ds-shell .text-amber-400,
+.ds-shell .text-amber-500 { color: var(--warn-ink); }
+.ds-shell .text-blue-200,
+.ds-shell .text-blue-300,
+.ds-shell .text-blue-400,
+.ds-shell .text-blue-500 { color: var(--info); }
+.ds-shell .text-cyan-200,
+.ds-shell .text-cyan-300,
+.ds-shell .text-cyan-400,
+.ds-shell .text-cyan-500 { color: var(--info); }
+.ds-shell .text-amber-200,
+.ds-shell .text-amber-200\/40,
+.ds-shell .text-amber-200\/50,
+.ds-shell .text-amber-200\/60,
+.ds-shell .text-amber-200\/70,
+.ds-shell .text-amber-200\/75,
+.ds-shell .text-amber-200\/80,
+.ds-shell .text-amber-200\/90,
+.ds-shell .text-amber-300,
+.ds-shell .text-amber-300\/40,
+.ds-shell .text-amber-300\/50,
+.ds-shell .text-amber-300\/60,
+.ds-shell .text-amber-300\/70,
+.ds-shell .text-amber-300\/75,
+.ds-shell .text-amber-300\/80,
+.ds-shell .text-amber-300\/90,
+.ds-shell .text-amber-400,
+.ds-shell .text-amber-400\/40,
+.ds-shell .text-amber-400\/50,
+.ds-shell .text-amber-400\/60,
+.ds-shell .text-amber-400\/70,
+.ds-shell .text-amber-400\/75,
+.ds-shell .text-amber-400\/80,
+.ds-shell .text-amber-400\/90,
+.ds-shell .text-amber-500,
+.ds-shell .text-amber-500\/40,
+.ds-shell .text-amber-500\/50,
+.ds-shell .text-amber-500\/60,
+.ds-shell .text-amber-500\/70,
+.ds-shell .text-amber-500\/75,
+.ds-shell .text-amber-500\/80,
+.ds-shell .text-amber-500\/90 { color: var(--warn-ink); }
+.ds-shell .text-blue-200,
+.ds-shell .text-blue-200\/40,
+.ds-shell .text-blue-200\/50,
+.ds-shell .text-blue-200\/60,
+.ds-shell .text-blue-200\/70,
+.ds-shell .text-blue-200\/75,
+.ds-shell .text-blue-200\/80,
+.ds-shell .text-blue-200\/90,
+.ds-shell .text-blue-300,
+.ds-shell .text-blue-300\/40,
+.ds-shell .text-blue-300\/50,
+.ds-shell .text-blue-300\/60,
+.ds-shell .text-blue-300\/70,
+.ds-shell .text-blue-300\/75,
+.ds-shell .text-blue-300\/80,
+.ds-shell .text-blue-300\/90,
+.ds-shell .text-blue-400,
+.ds-shell .text-blue-400\/40,
+.ds-shell .text-blue-400\/50,
+.ds-shell .text-blue-400\/60,
+.ds-shell .text-blue-400\/70,
+.ds-shell .text-blue-400\/75,
+.ds-shell .text-blue-400\/80,
+.ds-shell .text-blue-400\/90,
+.ds-shell .text-blue-500,
+.ds-shell .text-blue-500\/40,
+.ds-shell .text-blue-500\/50,
+.ds-shell .text-blue-500\/60,
+.ds-shell .text-blue-500\/70,
+.ds-shell .text-blue-500\/75,
+.ds-shell .text-blue-500\/80,
+.ds-shell .text-blue-500\/90 { color: var(--info); }
+.ds-shell .text-cyan-200,
+.ds-shell .text-cyan-200\/40,
+.ds-shell .text-cyan-200\/50,
+.ds-shell .text-cyan-200\/60,
+.ds-shell .text-cyan-200\/70,
+.ds-shell .text-cyan-200\/75,
+.ds-shell .text-cyan-200\/80,
+.ds-shell .text-cyan-200\/90,
+.ds-shell .text-cyan-300,
+.ds-shell .text-cyan-300\/40,
+.ds-shell .text-cyan-300\/50,
+.ds-shell .text-cyan-300\/60,
+.ds-shell .text-cyan-300\/70,
+.ds-shell .text-cyan-300\/75,
+.ds-shell .text-cyan-300\/80,
+.ds-shell .text-cyan-300\/90,
+.ds-shell .text-cyan-400,
+.ds-shell .text-cyan-400\/40,
+.ds-shell .text-cyan-400\/50,
+.ds-shell .text-cyan-400\/60,
+.ds-shell .text-cyan-400\/70,
+.ds-shell .text-cyan-400\/75,
+.ds-shell .text-cyan-400\/80,
+.ds-shell .text-cyan-400\/90,
+.ds-shell .text-cyan-500,
+.ds-shell .text-cyan-500\/40,
+.ds-shell .text-cyan-500\/50,
+.ds-shell .text-cyan-500\/60,
+.ds-shell .text-cyan-500\/70,
+.ds-shell .text-cyan-500\/75,
+.ds-shell .text-cyan-500\/80,
+.ds-shell .text-cyan-500\/90 { color: var(--info); }
+.ds-shell .text-emerald-200,
+.ds-shell .text-emerald-200\/40,
+.ds-shell .text-emerald-200\/50,
+.ds-shell .text-emerald-200\/60,
+.ds-shell .text-emerald-200\/70,
+.ds-shell .text-emerald-200\/75,
+.ds-shell .text-emerald-200\/80,
+.ds-shell .text-emerald-200\/90,
+.ds-shell .text-emerald-300,
+.ds-shell .text-emerald-300\/40,
+.ds-shell .text-emerald-300\/50,
+.ds-shell .text-emerald-300\/60,
+.ds-shell .text-emerald-300\/70,
+.ds-shell .text-emerald-300\/75,
+.ds-shell .text-emerald-300\/80,
+.ds-shell .text-emerald-300\/90,
+.ds-shell .text-emerald-400,
+.ds-shell .text-emerald-400\/40,
+.ds-shell .text-emerald-400\/50,
+.ds-shell .text-emerald-400\/60,
+.ds-shell .text-emerald-400\/70,
+.ds-shell .text-emerald-400\/75,
+.ds-shell .text-emerald-400\/80,
+.ds-shell .text-emerald-400\/90,
+.ds-shell .text-emerald-500,
+.ds-shell .text-emerald-500\/40,
+.ds-shell .text-emerald-500\/50,
+.ds-shell .text-emerald-500\/60,
+.ds-shell .text-emerald-500\/70,
+.ds-shell .text-emerald-500\/75,
+.ds-shell .text-emerald-500\/80,
+.ds-shell .text-emerald-500\/90 { color: var(--brand-ink); }
+.ds-shell .text-fuchsia-200,
+.ds-shell .text-fuchsia-200\/40,
+.ds-shell .text-fuchsia-200\/50,
+.ds-shell .text-fuchsia-200\/60,
+.ds-shell .text-fuchsia-200\/70,
+.ds-shell .text-fuchsia-200\/75,
+.ds-shell .text-fuchsia-200\/80,
+.ds-shell .text-fuchsia-200\/90,
+.ds-shell .text-fuchsia-300,
+.ds-shell .text-fuchsia-300\/40,
+.ds-shell .text-fuchsia-300\/50,
+.ds-shell .text-fuchsia-300\/60,
+.ds-shell .text-fuchsia-300\/70,
+.ds-shell .text-fuchsia-300\/75,
+.ds-shell .text-fuchsia-300\/80,
+.ds-shell .text-fuchsia-300\/90,
+.ds-shell .text-fuchsia-400,
+.ds-shell .text-fuchsia-400\/40,
+.ds-shell .text-fuchsia-400\/50,
+.ds-shell .text-fuchsia-400\/60,
+.ds-shell .text-fuchsia-400\/70,
+.ds-shell .text-fuchsia-400\/75,
+.ds-shell .text-fuchsia-400\/80,
+.ds-shell .text-fuchsia-400\/90,
+.ds-shell .text-fuchsia-500,
+.ds-shell .text-fuchsia-500\/40,
+.ds-shell .text-fuchsia-500\/50,
+.ds-shell .text-fuchsia-500\/60,
+.ds-shell .text-fuchsia-500\/70,
+.ds-shell .text-fuchsia-500\/75,
+.ds-shell .text-fuchsia-500\/80,
+.ds-shell .text-fuchsia-500\/90 { color: var(--info); }
+.ds-shell .text-green-200,
+.ds-shell .text-green-200\/40,
+.ds-shell .text-green-200\/50,
+.ds-shell .text-green-200\/60,
+.ds-shell .text-green-200\/70,
+.ds-shell .text-green-200\/75,
+.ds-shell .text-green-200\/80,
+.ds-shell .text-green-200\/90,
+.ds-shell .text-green-300,
+.ds-shell .text-green-300\/40,
+.ds-shell .text-green-300\/50,
+.ds-shell .text-green-300\/60,
+.ds-shell .text-green-300\/70,
+.ds-shell .text-green-300\/75,
+.ds-shell .text-green-300\/80,
+.ds-shell .text-green-300\/90,
+.ds-shell .text-green-400,
+.ds-shell .text-green-400\/40,
+.ds-shell .text-green-400\/50,
+.ds-shell .text-green-400\/60,
+.ds-shell .text-green-400\/70,
+.ds-shell .text-green-400\/75,
+.ds-shell .text-green-400\/80,
+.ds-shell .text-green-400\/90,
+.ds-shell .text-green-500,
+.ds-shell .text-green-500\/40,
+.ds-shell .text-green-500\/50,
+.ds-shell .text-green-500\/60,
+.ds-shell .text-green-500\/70,
+.ds-shell .text-green-500\/75,
+.ds-shell .text-green-500\/80,
+.ds-shell .text-green-500\/90 { color: var(--brand-ink); }
+.ds-shell .text-indigo-200,
+.ds-shell .text-indigo-200\/40,
+.ds-shell .text-indigo-200\/50,
+.ds-shell .text-indigo-200\/60,
+.ds-shell .text-indigo-200\/70,
+.ds-shell .text-indigo-200\/75,
+.ds-shell .text-indigo-200\/80,
+.ds-shell .text-indigo-200\/90,
+.ds-shell .text-indigo-300,
+.ds-shell .text-indigo-300\/40,
+.ds-shell .text-indigo-300\/50,
+.ds-shell .text-indigo-300\/60,
+.ds-shell .text-indigo-300\/70,
+.ds-shell .text-indigo-300\/75,
+.ds-shell .text-indigo-300\/80,
+.ds-shell .text-indigo-300\/90,
+.ds-shell .text-indigo-400,
+.ds-shell .text-indigo-400\/40,
+.ds-shell .text-indigo-400\/50,
+.ds-shell .text-indigo-400\/60,
+.ds-shell .text-indigo-400\/70,
+.ds-shell .text-indigo-400\/75,
+.ds-shell .text-indigo-400\/80,
+.ds-shell .text-indigo-400\/90,
+.ds-shell .text-indigo-500,
+.ds-shell .text-indigo-500\/40,
+.ds-shell .text-indigo-500\/50,
+.ds-shell .text-indigo-500\/60,
+.ds-shell .text-indigo-500\/70,
+.ds-shell .text-indigo-500\/75,
+.ds-shell .text-indigo-500\/80,
+.ds-shell .text-indigo-500\/90 { color: var(--info); }
+.ds-shell .text-orange-200,
+.ds-shell .text-orange-200\/40,
+.ds-shell .text-orange-200\/50,
+.ds-shell .text-orange-200\/60,
+.ds-shell .text-orange-200\/70,
+.ds-shell .text-orange-200\/75,
+.ds-shell .text-orange-200\/80,
+.ds-shell .text-orange-200\/90,
+.ds-shell .text-orange-300,
+.ds-shell .text-orange-300\/40,
+.ds-shell .text-orange-300\/50,
+.ds-shell .text-orange-300\/60,
+.ds-shell .text-orange-300\/70,
+.ds-shell .text-orange-300\/75,
+.ds-shell .text-orange-300\/80,
+.ds-shell .text-orange-300\/90,
+.ds-shell .text-orange-400,
+.ds-shell .text-orange-400\/40,
+.ds-shell .text-orange-400\/50,
+.ds-shell .text-orange-400\/60,
+.ds-shell .text-orange-400\/70,
+.ds-shell .text-orange-400\/75,
+.ds-shell .text-orange-400\/80,
+.ds-shell .text-orange-400\/90,
+.ds-shell .text-orange-500,
+.ds-shell .text-orange-500\/40,
+.ds-shell .text-orange-500\/50,
+.ds-shell .text-orange-500\/60,
+.ds-shell .text-orange-500\/70,
+.ds-shell .text-orange-500\/75,
+.ds-shell .text-orange-500\/80,
+.ds-shell .text-orange-500\/90 { color: var(--warn-ink); }
+.ds-shell .text-purple-200,
+.ds-shell .text-purple-200\/40,
+.ds-shell .text-purple-200\/50,
+.ds-shell .text-purple-200\/60,
+.ds-shell .text-purple-200\/70,
+.ds-shell .text-purple-200\/75,
+.ds-shell .text-purple-200\/80,
+.ds-shell .text-purple-200\/90,
+.ds-shell .text-purple-300,
+.ds-shell .text-purple-300\/40,
+.ds-shell .text-purple-300\/50,
+.ds-shell .text-purple-300\/60,
+.ds-shell .text-purple-300\/70,
+.ds-shell .text-purple-300\/75,
+.ds-shell .text-purple-300\/80,
+.ds-shell .text-purple-300\/90,
+.ds-shell .text-purple-400,
+.ds-shell .text-purple-400\/40,
+.ds-shell .text-purple-400\/50,
+.ds-shell .text-purple-400\/60,
+.ds-shell .text-purple-400\/70,
+.ds-shell .text-purple-400\/75,
+.ds-shell .text-purple-400\/80,
+.ds-shell .text-purple-400\/90,
+.ds-shell .text-purple-500,
+.ds-shell .text-purple-500\/40,
+.ds-shell .text-purple-500\/50,
+.ds-shell .text-purple-500\/60,
+.ds-shell .text-purple-500\/70,
+.ds-shell .text-purple-500\/75,
+.ds-shell .text-purple-500\/80,
+.ds-shell .text-purple-500\/90 { color: var(--info); }
+.ds-shell .text-red-200,
+.ds-shell .text-red-200\/40,
+.ds-shell .text-red-200\/50,
+.ds-shell .text-red-200\/60,
+.ds-shell .text-red-200\/70,
+.ds-shell .text-red-200\/75,
+.ds-shell .text-red-200\/80,
+.ds-shell .text-red-200\/90,
+.ds-shell .text-red-300,
+.ds-shell .text-red-300\/40,
+.ds-shell .text-red-300\/50,
+.ds-shell .text-red-300\/60,
+.ds-shell .text-red-300\/70,
+.ds-shell .text-red-300\/75,
+.ds-shell .text-red-300\/80,
+.ds-shell .text-red-300\/90,
+.ds-shell .text-red-400,
+.ds-shell .text-red-400\/40,
+.ds-shell .text-red-400\/50,
+.ds-shell .text-red-400\/60,
+.ds-shell .text-red-400\/70,
+.ds-shell .text-red-400\/75,
+.ds-shell .text-red-400\/80,
+.ds-shell .text-red-400\/90,
+.ds-shell .text-red-500,
+.ds-shell .text-red-500\/40,
+.ds-shell .text-red-500\/50,
+.ds-shell .text-red-500\/60,
+.ds-shell .text-red-500\/70,
+.ds-shell .text-red-500\/75,
+.ds-shell .text-red-500\/80,
+.ds-shell .text-red-500\/90 { color: var(--danger); }
+.ds-shell .text-rivvra-200,
+.ds-shell .text-rivvra-200\/40,
+.ds-shell .text-rivvra-200\/50,
+.ds-shell .text-rivvra-200\/60,
+.ds-shell .text-rivvra-200\/70,
+.ds-shell .text-rivvra-200\/75,
+.ds-shell .text-rivvra-200\/80,
+.ds-shell .text-rivvra-200\/90,
+.ds-shell .text-rivvra-300,
+.ds-shell .text-rivvra-300\/40,
+.ds-shell .text-rivvra-300\/50,
+.ds-shell .text-rivvra-300\/60,
+.ds-shell .text-rivvra-300\/70,
+.ds-shell .text-rivvra-300\/75,
+.ds-shell .text-rivvra-300\/80,
+.ds-shell .text-rivvra-300\/90,
+.ds-shell .text-rivvra-400,
+.ds-shell .text-rivvra-400\/40,
+.ds-shell .text-rivvra-400\/50,
+.ds-shell .text-rivvra-400\/60,
+.ds-shell .text-rivvra-400\/70,
+.ds-shell .text-rivvra-400\/75,
+.ds-shell .text-rivvra-400\/80,
+.ds-shell .text-rivvra-400\/90,
+.ds-shell .text-rivvra-500,
+.ds-shell .text-rivvra-500\/40,
+.ds-shell .text-rivvra-500\/50,
+.ds-shell .text-rivvra-500\/60,
+.ds-shell .text-rivvra-500\/70,
+.ds-shell .text-rivvra-500\/75,
+.ds-shell .text-rivvra-500\/80,
+.ds-shell .text-rivvra-500\/90 { color: var(--brand-ink); }
+.ds-shell .text-rose-200,
+.ds-shell .text-rose-200\/40,
+.ds-shell .text-rose-200\/50,
+.ds-shell .text-rose-200\/60,
+.ds-shell .text-rose-200\/70,
+.ds-shell .text-rose-200\/75,
+.ds-shell .text-rose-200\/80,
+.ds-shell .text-rose-200\/90,
+.ds-shell .text-rose-300,
+.ds-shell .text-rose-300\/40,
+.ds-shell .text-rose-300\/50,
+.ds-shell .text-rose-300\/60,
+.ds-shell .text-rose-300\/70,
+.ds-shell .text-rose-300\/75,
+.ds-shell .text-rose-300\/80,
+.ds-shell .text-rose-300\/90,
+.ds-shell .text-rose-400,
+.ds-shell .text-rose-400\/40,
+.ds-shell .text-rose-400\/50,
+.ds-shell .text-rose-400\/60,
+.ds-shell .text-rose-400\/70,
+.ds-shell .text-rose-400\/75,
+.ds-shell .text-rose-400\/80,
+.ds-shell .text-rose-400\/90,
+.ds-shell .text-rose-500,
+.ds-shell .text-rose-500\/40,
+.ds-shell .text-rose-500\/50,
+.ds-shell .text-rose-500\/60,
+.ds-shell .text-rose-500\/70,
+.ds-shell .text-rose-500\/75,
+.ds-shell .text-rose-500\/80,
+.ds-shell .text-rose-500\/90 { color: var(--danger); }
+.ds-shell .text-sky-200,
+.ds-shell .text-sky-200\/40,
+.ds-shell .text-sky-200\/50,
+.ds-shell .text-sky-200\/60,
+.ds-shell .text-sky-200\/70,
+.ds-shell .text-sky-200\/75,
+.ds-shell .text-sky-200\/80,
+.ds-shell .text-sky-200\/90,
+.ds-shell .text-sky-300,
+.ds-shell .text-sky-300\/40,
+.ds-shell .text-sky-300\/50,
+.ds-shell .text-sky-300\/60,
+.ds-shell .text-sky-300\/70,
+.ds-shell .text-sky-300\/75,
+.ds-shell .text-sky-300\/80,
+.ds-shell .text-sky-300\/90,
+.ds-shell .text-sky-400,
+.ds-shell .text-sky-400\/40,
+.ds-shell .text-sky-400\/50,
+.ds-shell .text-sky-400\/60,
+.ds-shell .text-sky-400\/70,
+.ds-shell .text-sky-400\/75,
+.ds-shell .text-sky-400\/80,
+.ds-shell .text-sky-400\/90,
+.ds-shell .text-sky-500,
+.ds-shell .text-sky-500\/40,
+.ds-shell .text-sky-500\/50,
+.ds-shell .text-sky-500\/60,
+.ds-shell .text-sky-500\/70,
+.ds-shell .text-sky-500\/75,
+.ds-shell .text-sky-500\/80,
+.ds-shell .text-sky-500\/90 { color: var(--info); }
+.ds-shell .text-teal-200,
+.ds-shell .text-teal-200\/40,
+.ds-shell .text-teal-200\/50,
+.ds-shell .text-teal-200\/60,
+.ds-shell .text-teal-200\/70,
+.ds-shell .text-teal-200\/75,
+.ds-shell .text-teal-200\/80,
+.ds-shell .text-teal-200\/90,
+.ds-shell .text-teal-300,
+.ds-shell .text-teal-300\/40,
+.ds-shell .text-teal-300\/50,
+.ds-shell .text-teal-300\/60,
+.ds-shell .text-teal-300\/70,
+.ds-shell .text-teal-300\/75,
+.ds-shell .text-teal-300\/80,
+.ds-shell .text-teal-300\/90,
+.ds-shell .text-teal-400,
+.ds-shell .text-teal-400\/40,
+.ds-shell .text-teal-400\/50,
+.ds-shell .text-teal-400\/60,
+.ds-shell .text-teal-400\/70,
+.ds-shell .text-teal-400\/75,
+.ds-shell .text-teal-400\/80,
+.ds-shell .text-teal-400\/90,
+.ds-shell .text-teal-500,
+.ds-shell .text-teal-500\/40,
+.ds-shell .text-teal-500\/50,
+.ds-shell .text-teal-500\/60,
+.ds-shell .text-teal-500\/70,
+.ds-shell .text-teal-500\/75,
+.ds-shell .text-teal-500\/80,
+.ds-shell .text-teal-500\/90 { color: var(--brand-ink); }
+.ds-shell .text-violet-200,
+.ds-shell .text-violet-200\/40,
+.ds-shell .text-violet-200\/50,
+.ds-shell .text-violet-200\/60,
+.ds-shell .text-violet-200\/70,
+.ds-shell .text-violet-200\/75,
+.ds-shell .text-violet-200\/80,
+.ds-shell .text-violet-200\/90,
+.ds-shell .text-violet-300,
+.ds-shell .text-violet-300\/40,
+.ds-shell .text-violet-300\/50,
+.ds-shell .text-violet-300\/60,
+.ds-shell .text-violet-300\/70,
+.ds-shell .text-violet-300\/75,
+.ds-shell .text-violet-300\/80,
+.ds-shell .text-violet-300\/90,
+.ds-shell .text-violet-400,
+.ds-shell .text-violet-400\/40,
+.ds-shell .text-violet-400\/50,
+.ds-shell .text-violet-400\/60,
+.ds-shell .text-violet-400\/70,
+.ds-shell .text-violet-400\/75,
+.ds-shell .text-violet-400\/80,
+.ds-shell .text-violet-400\/90,
+.ds-shell .text-violet-500,
+.ds-shell .text-violet-500\/40,
+.ds-shell .text-violet-500\/50,
+.ds-shell .text-violet-500\/60,
+.ds-shell .text-violet-500\/70,
+.ds-shell .text-violet-500\/75,
+.ds-shell .text-violet-500\/80,
+.ds-shell .text-violet-500\/90 { color: var(--info); }
+.ds-shell .text-yellow-200,
+.ds-shell .text-yellow-200\/40,
+.ds-shell .text-yellow-200\/50,
+.ds-shell .text-yellow-200\/60,
+.ds-shell .text-yellow-200\/70,
+.ds-shell .text-yellow-200\/75,
+.ds-shell .text-yellow-200\/80,
+.ds-shell .text-yellow-200\/90,
+.ds-shell .text-yellow-300,
+.ds-shell .text-yellow-300\/40,
+.ds-shell .text-yellow-300\/50,
+.ds-shell .text-yellow-300\/60,
+.ds-shell .text-yellow-300\/70,
+.ds-shell .text-yellow-300\/75,
+.ds-shell .text-yellow-300\/80,
+.ds-shell .text-yellow-300\/90,
+.ds-shell .text-yellow-400,
+.ds-shell .text-yellow-400\/40,
+.ds-shell .text-yellow-400\/50,
+.ds-shell .text-yellow-400\/60,
+.ds-shell .text-yellow-400\/70,
+.ds-shell .text-yellow-400\/75,
+.ds-shell .text-yellow-400\/80,
+.ds-shell .text-yellow-400\/90,
+.ds-shell .text-yellow-500,
+.ds-shell .text-yellow-500\/40,
+.ds-shell .text-yellow-500\/50,
+.ds-shell .text-yellow-500\/60,
+.ds-shell .text-yellow-500\/70,
+.ds-shell .text-yellow-500\/75,
+.ds-shell .text-yellow-500\/80,
+.ds-shell .text-yellow-500\/90 { color: var(--warn-ink); }
+
+
+/* Neutral ramps wearing accent names. gray/zinc/slate are used across the
+   legacy UI as a second grey scale — 128 and 116 occurrences of gray-* and
+   zinc-* respectively — so they map onto the text ramp rather than a role
+   colour. pink is a genuine accent (the "New" job badge, measured 2.76:1)
+   and maps to danger like rose. */
+.ds-shell .text-pink-200,
+.ds-shell .text-pink-200\/40,
+.ds-shell .text-pink-200\/50,
+.ds-shell .text-pink-200\/60,
+.ds-shell .text-pink-200\/70,
+.ds-shell .text-pink-200\/75,
+.ds-shell .text-pink-200\/80,
+.ds-shell .text-pink-200\/90,
+.ds-shell .text-pink-300,
+.ds-shell .text-pink-300\/40,
+.ds-shell .text-pink-300\/50,
+.ds-shell .text-pink-300\/60,
+.ds-shell .text-pink-300\/70,
+.ds-shell .text-pink-300\/75,
+.ds-shell .text-pink-300\/80,
+.ds-shell .text-pink-300\/90,
+.ds-shell .text-pink-400,
+.ds-shell .text-pink-400\/40,
+.ds-shell .text-pink-400\/50,
+.ds-shell .text-pink-400\/60,
+.ds-shell .text-pink-400\/70,
+.ds-shell .text-pink-400\/75,
+.ds-shell .text-pink-400\/80,
+.ds-shell .text-pink-400\/90,
+.ds-shell .text-pink-500,
+.ds-shell .text-pink-500\/40,
+.ds-shell .text-pink-500\/50,
+.ds-shell .text-pink-500\/60,
+.ds-shell .text-pink-500\/70,
+.ds-shell .text-pink-500\/75,
+.ds-shell .text-pink-500\/80,
+.ds-shell .text-pink-500\/90 { color: var(--danger); }
+.ds-shell .text-gray-300,
+.ds-shell .text-gray-300\/40,
+.ds-shell .text-gray-300\/50,
+.ds-shell .text-gray-300\/60,
+.ds-shell .text-gray-300\/70,
+.ds-shell .text-gray-300\/75,
+.ds-shell .text-gray-300\/80,
+.ds-shell .text-gray-300\/90 { color: var(--fg-2); }
+.ds-shell .text-gray-400,
+.ds-shell .text-gray-400\/40,
+.ds-shell .text-gray-400\/50,
+.ds-shell .text-gray-400\/60,
+.ds-shell .text-gray-400\/70,
+.ds-shell .text-gray-400\/75,
+.ds-shell .text-gray-400\/80,
+.ds-shell .text-gray-400\/90 { color: var(--fg-3); }
+.ds-shell .text-gray-500,
+.ds-shell .text-gray-500\/40,
+.ds-shell .text-gray-500\/50,
+.ds-shell .text-gray-500\/60,
+.ds-shell .text-gray-500\/70,
+.ds-shell .text-gray-500\/75,
+.ds-shell .text-gray-500\/80,
+.ds-shell .text-gray-500\/90 { color: var(--fg-4); }
+.ds-shell .text-gray-600,
+.ds-shell .text-gray-600\/40,
+.ds-shell .text-gray-600\/50,
+.ds-shell .text-gray-600\/60,
+.ds-shell .text-gray-600\/70,
+.ds-shell .text-gray-600\/75,
+.ds-shell .text-gray-600\/80,
+.ds-shell .text-gray-600\/90 { color: var(--fg-faint); }
+.ds-shell .text-zinc-300,
+.ds-shell .text-zinc-300\/40,
+.ds-shell .text-zinc-300\/50,
+.ds-shell .text-zinc-300\/60,
+.ds-shell .text-zinc-300\/70,
+.ds-shell .text-zinc-300\/75,
+.ds-shell .text-zinc-300\/80,
+.ds-shell .text-zinc-300\/90 { color: var(--fg-2); }
+.ds-shell .text-zinc-400,
+.ds-shell .text-zinc-400\/40,
+.ds-shell .text-zinc-400\/50,
+.ds-shell .text-zinc-400\/60,
+.ds-shell .text-zinc-400\/70,
+.ds-shell .text-zinc-400\/75,
+.ds-shell .text-zinc-400\/80,
+.ds-shell .text-zinc-400\/90 { color: var(--fg-3); }
+.ds-shell .text-zinc-500,
+.ds-shell .text-zinc-500\/40,
+.ds-shell .text-zinc-500\/50,
+.ds-shell .text-zinc-500\/60,
+.ds-shell .text-zinc-500\/70,
+.ds-shell .text-zinc-500\/75,
+.ds-shell .text-zinc-500\/80,
+.ds-shell .text-zinc-500\/90 { color: var(--fg-4); }
+.ds-shell .text-zinc-600,
+.ds-shell .text-zinc-600\/40,
+.ds-shell .text-zinc-600\/50,
+.ds-shell .text-zinc-600\/60,
+.ds-shell .text-zinc-600\/70,
+.ds-shell .text-zinc-600\/75,
+.ds-shell .text-zinc-600\/80,
+.ds-shell .text-zinc-600\/90 { color: var(--fg-faint); }
+.ds-shell .text-slate-300,
+.ds-shell .text-slate-300\/40,
+.ds-shell .text-slate-300\/50,
+.ds-shell .text-slate-300\/60,
+.ds-shell .text-slate-300\/70,
+.ds-shell .text-slate-300\/75,
+.ds-shell .text-slate-300\/80,
+.ds-shell .text-slate-300\/90 { color: var(--fg-2); }
+.ds-shell .text-slate-400,
+.ds-shell .text-slate-400\/40,
+.ds-shell .text-slate-400\/50,
+.ds-shell .text-slate-400\/60,
+.ds-shell .text-slate-400\/70,
+.ds-shell .text-slate-400\/75,
+.ds-shell .text-slate-400\/80,
+.ds-shell .text-slate-400\/90 { color: var(--fg-3); }
+.ds-shell .text-slate-500,
+.ds-shell .text-slate-500\/40,
+.ds-shell .text-slate-500\/50,
+.ds-shell .text-slate-500\/60,
+.ds-shell .text-slate-500\/70,
+.ds-shell .text-slate-500\/75,
+.ds-shell .text-slate-500\/80,
+.ds-shell .text-slate-500\/90 { color: var(--fg-4); }
+.ds-shell .text-slate-600,
+.ds-shell .text-slate-600\/40,
+.ds-shell .text-slate-600\/50,
+.ds-shell .text-slate-600\/60,
+.ds-shell .text-slate-600\/70,
+.ds-shell .text-slate-600\/75,
+.ds-shell .text-slate-600\/80,
+.ds-shell .text-slate-600\/90 { color: var(--fg-faint); }
+
+/* Deliberately NOT bridged, so the next person doesn't "fix" them:
+     text-dark-950, text-dark-700  — dark text sitting ON a bright fill
+       (btn-primary is `text-dark-950` on green). Mapping these to --fg
+       would put light text on a light button in dark theme.
+     bg-dark-400, bg-dark-500      — decorative mid-grey fills (kanban
+       dots, meter tracks). They read on either surface.
+     border-dark-300/30            — a light hairline, already fine.
+*/
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HOVER variants (2026-08-22)
+
+   The block above bridged 1121 resting-state rules and only SIX hover ones,
+   with a note saying the hover variants "actually in use are listed
+   explicitly". They were not: `hover:bg-dark-700` alone appears 365 times,
+   `hover:bg-dark-800` 155 times, and none of them were mapped.
+
+   The result was a bug you could only see by pointing at something. Resting
+   colours themed correctly, then hover fell back to the raw fixed-dark
+   Tailwind value — so on a LIGHT theme a row turned into a dark slab under
+   the cursor. Reported on the invoicing dashboard's Statutory dues list,
+   whose rows are `hover:bg-dark-800/60`; it was never specific to that page.
+
+   ── Why hover is mapped one surface UP, not to the same token ──────────────
+   Mapping each hover shade to whatever its resting shade maps to would make
+   hover INVISIBLE wherever the two shades are one step apart — which is the
+   normal way this codebase writes it. `StatutoryDuesCard` is exactly that:
+   the card is `bg-dark-850` (→ surface-2) and its rows are
+   `hover:bg-dark-800/60`, which would also land on surface-2. So hover maps
+   one step up, matching how ds components do it themselves (DataTable hovers
+   a row to `--surface-2` from transparent).
+
+   Attribute selectors catch the alpha variants (`/50`, `/60`, `/[0.04]`) the
+   same way the resting rules enumerate them. Full three-digit shades are used
+   so `800` cannot also match `850`.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Surfaces — one step up from the resting mapping */
+.ds-shell [class*="hover:bg-dark-900"]:hover { background-color: var(--surface-2); }
+.ds-shell [class*="hover:bg-dark-850"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-800"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-750"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-700"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-600"]:hover { background-color: var(--surface-4); }
+
+/* Lines */
+.ds-shell [class*="hover:border-dark-700"]:hover,
+.ds-shell [class*="hover:border-dark-600"]:hover,
+.ds-shell [class*="hover:border-dark-500"]:hover { border-color: var(--line-2); }
+
+/* Text — hovering brightens, so these go one tier warmer than resting */
+.ds-shell [class*="hover:text-dark-100"]:hover,
+.ds-shell [class*="hover:text-dark-200"]:hover,
+.ds-shell [class*="hover:text-dark-300"]:hover { color: var(--fg); }
+.ds-shell [class*="hover:text-dark-400"]:hover { color: var(--fg-2); }
+.ds-shell [class*="hover:text-dark-500"]:hover { color: var(--fg-3); }
+
+/* Brand text on hover — all shades resolve to the AA-safe brand ink */
+.ds-shell [class*="hover:text-rivvra-"]:hover { color: var(--brand-ink); }
+
+/* Brand fills on hover. --brand-hi / --brand-lo already exist for the two
+   directions the codebase uses (400 = lighter, 600/700 = darker). */
+.ds-shell [class*="hover:bg-rivvra-400"]:hover { background-color: var(--brand-hi); }
+.ds-shell [class*="hover:bg-rivvra-500"]:hover { background-color: var(--brand); }
+.ds-shell [class*="hover:bg-rivvra-600"]:hover,
+.ds-shell [class*="hover:bg-rivvra-700"]:hover { background-color: var(--brand-lo); }

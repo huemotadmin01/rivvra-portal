@@ -7,28 +7,67 @@
  *  - Values (colors, px, motion) are spec — components read the semantic
  *    tokens in src/styles/ds-tokens.css. Do not fork values.
  *  - Naming collisions, resolved: ds `Switch` supersedes legacy
- *    `ToggleSwitch`; ds `Panel` supersedes legacy `SectionCard`; for
- *    confirmations keep legacy shared/ConfirmDialog until the ds one
- *    exists. Legacy components stay until their last call site migrates.
+ *    `ToggleSwitch`; ds `Panel` supersedes legacy `SectionCard`; ds
+ *    `ConfirmDialog` supersedes legacy `shared/ConfirmDialog` (same props,
+ *    except Enter no longer confirms a `danger` dialog); ds `EntityLookup`
+ *    supersedes `shared/ContactLookup` and `shared/EmployeeLookup`.
+ *    Legacy components stay until their last call site migrates.
  *
  * The .d.ts files beside each component are the API contract — read them
  * before using a component.
  */
 export { BrandMark, BRAND_MARK_IDS } from './BrandMark/BrandMark';
+export {
+  Skeleton, SkeletonPage, SkeletonHeader, SkeletonCardGrid, SkeletonTabs,
+  SkeletonTable, SkeletonCardList, SkeletonTwoCard, SkeletonSearchBar,
+  SkeletonPendingList, SkeletonConfig, SkeletonInline, SkeletonEditor,
+} from './Feedback/Skeleton';
+export { Spinner, PageSpinner } from './Feedback/Spinner';
+export { Callout } from './Feedback/Callout';
 export { Button } from './Button/Button';
 export { Avatar } from './Data/Avatar';
 export { Chip } from './Data/Chip';
+export { Meter } from './Data/Meter';
+export { RatingStars } from './Data/RatingStars';
+export { RecordMeta } from './Data/RecordMeta';
 export { Stat } from './Data/Stat';
+export { ArchivedToggle } from './Filter/ArchivedToggle';
+export { BooleanChip } from './Filter/BooleanChip';
 export { FilterBar } from './Filter/FilterBar';
+export { GroupByChip } from './Filter/GroupByChip';
+export { MoreFilters } from './Filter/MoreFilters';
+export { RangeFilter } from './Filter/RangeFilter';
+export { SelectChip } from './Filter/SelectChip';
 export { FilterChip } from './Filter/FilterChip';
 export { SavedViews } from './Filter/SavedViews';
 export { SearchInput } from './Filter/SearchInput';
+export { Checkbox } from './Form/Checkbox';
+export { ComboBox } from './Form/ComboBox';
+export { EditableHeading } from './Form/EditableHeading';
+export { EntityLookup } from './Form/EntityLookup';
 export { Field, Input } from './Form/Field';
+export { InlineComboField } from './Form/InlineComboField';
+export { InlineField } from './Form/InlineField';
+export { InlineSelect } from './Form/InlineSelect';
+export { RadioCards } from './Form/RadioCards';
+export { Select } from './Form/Select';
+export { Textarea } from './Form/Textarea';
+export { FileDrop } from './Form/FileDrop';
 export { Switch, SettingRow } from './Form/Switch';
+export { TagPicker } from './Form/TagPicker';
+export { useUnsavedGuard } from './Form/useUnsavedGuard';
 export { Logo, LogoLockup } from './Logo/Logo';
+export { StageBar } from './Navigation/StageBar';
+export { Stepper } from './Navigation/Stepper';
+export { Tabs } from './Navigation/Tabs';
+export { ConfirmDialog } from './Overlay/ConfirmDialog';
 export { Modal, Drawer } from './Overlay/Modal';
 export { Toast, ToastStack } from './Overlay/Toast';
+export { ConfigList, ConfigDot } from './Surface/ConfigList';
+export { Accordion } from './Surface/Accordion';
 export { EmptyState } from './Surface/EmptyState';
+export { PageHeader } from './Surface/PageHeader';
+export { KanbanBoard, KanbanColumn, KanbanCard, KanbanCardOverlay } from './Surface/Kanban';
 export { Panel } from './Surface/Panel';
 export { BulkActionBar } from './Table/BulkActionBar';
 export { DataTable } from './Table/DataTable';

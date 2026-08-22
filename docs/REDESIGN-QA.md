@@ -1,0 +1,2722 @@
+# Redesign QA — phase 4
+
+Run against **staging data** (`api-staging.rivvra.com`, org `huemot-technology`,
+`uiV2 = true`) with the portal served from the `redesign` branch. Driven in a
+real browser, not by reading code.
+
+Re-run this before any widening of the rollout — the point is that "the pages
+still render" stops being an assumption.
+
+---
+
+## How to re-run
+
+```bash
+VITE_API_URL=https://api-staging.rivvra.com npm run dev -- --port 5173
+```
+
+Then, with a seeded session, sweep every v2 route and record what breaks. The
+sweep drives React Router directly rather than reloading each time:
+
+```js
+history.pushState({}, '', path);
+window.dispatchEvent(new PopStateEvent('popstate'));
+```
+
+Two things that will mislead you if you don't know them:
+
+- **Allow ≥4s per route.** At 2.5s several lists still showed zero rows purely
+  because the fetch hadn't landed. Every one of those was a false alarm.
+- **`innerText` returns `''` when the browser pane is hidden** (it needs
+  layout). Use `textContent`. There is also **no `<main>` element** in the v2
+  shell, so query `document.body`.
+
+---
+
+## The contrast audit
+
+`REDESIGN.md` step 6 points here for the recipe; here it is. Run it in the
+console on each migrated route, **in light theme** — light is where a dark-only
+legacy colour that survived the migration shows up as near-invisible text.
+
+The method that matters: resolve every colour by **painting it onto a 1×1
+canvas and reading the pixel back**, never by parsing the computed-style
+string. `getComputedStyle` hands back `rgb()`, `rgba()`, `color(…)` and
+sometimes an unresolved `color-mix()`; painting normalises all of them, and it
+is the only way to get the true alpha. Then composite each ancestor's
+background down to the document canvas — a translucent chip on a translucent
+panel is not the colour either one declares.
+
+```js
+const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+const ctx = cv.getContext('2d', { willReadFrequently: true });
+const rgba = s => { ctx.clearRect(0,0,1,1); ctx.fillStyle = '#000';
+  try { ctx.fillStyle = s } catch { return null }
+  ctx.fillRect(0,0,1,1); const d = ctx.getImageData(0,0,1,1).data;
+  return [d[0], d[1], d[2], d[3]/255]; };
+const over = (f,b) => [0,1,2].map(i => f[i]*f[3] + b[i]*(1-f[3]));
+// walk ancestors, composite each non-transparent background down, then
+// composite the text colour (times element opacity) onto the result;
+// WCAG ratio, threshold 4.5 (3.0 for ≥24px, or ≥18.66px bold).
+```
+
+Four things that will give you false failures:
+
+- **The browser pane returns stale computed styles while it is hidden.**
+  Found during the phase-11 sweep: after a theme toggle the sidebar kept
+  reporting the *dark* `--fg` (`#EEF2F6`) for 15+ seconds, long past any
+  transition, while `--fg` at the same node correctly resolved to the light
+  value. A screenshot — which forces a paint — made the next read correct
+  (`rgb(22,25,29)`, and the audit went clean). If a "failure" survives a long
+  settle, take a screenshot and re-read before believing it.
+
+- **Let the theme transition finish.** Sampling right after the theme toggle
+  returns *interpolated* colours mid-transition. A first pass read the To-Do
+  sidebar at 1.67 and the active tab at 1.12; both were fully legible, and a
+  re-run once settled reported neither. Wait a beat, then sample.
+- **Test ancestor visibility, not just the element's.** `el.checkVisibility({
+  checkOpacity: true, checkVisibilityCSS: true })` catches text inside a
+  hidden wrapper; checking only the element's own `display`/`visibility`/
+  `opacity` does not.
+- **A gradient ANCESTOR, not just the element.** `getComputedStyle`
+  returns `transparent` for a `linear-gradient`, so a text node sitting on a
+  gradient composites against whatever is behind it and can report 1.00.
+  Guarding only the element itself is not enough — `ds/Avatar` paints a
+  gradient and puts its initials in a child, which is why every candidate
+  list reports ~26 phantom failures at exactly 1.00. Walk up: if any ancestor
+  between the text and its first opaque background has a `backgroundImage`
+  other than `none`, skip the node rather than trusting the composite.
+
+- **Ignore disabled controls.** WCAG 1.4.3 exempts them, and ds `Button`
+  dims to `opacity: .45` when disabled, so a locked primary button reports
+  around 2.2 every time. A disabled "I acknowledge" on the policy reader is
+  the expected reading, not a defect.
+
+### Standing result (phase 6a)
+
+Every migrated route reports the same two ds-level failures and nothing else:
+
+| where | ratio | needs |
+|---|---|---|
+| `Chip` tinted text on its own soft background (`warn`, `brand`) | 4.35–4.37 | 4.5 |
+| App-bar notification badge count (white on `--brand`) | 2.03 | 4.5 |
+
+Both are token pairings in `ds/`, not page code — `MyPoliciesV2` has shipped
+with the `Chip` one since phase 6a's first batch. Fixing them means moving a
+shared token, which changes every migrated page at once, so it wants its own
+change rather than a per-page workaround. Pages should keep reporting zero
+failures *beyond* these two.
+
+## Route sweep — 23 v2 routes
+
+All rendered. **Zero console errors, zero unhandled rejections** across the
+whole sweep.
+
+| Route | Result |
+|---|---|
+| `contacts/list` · `companies` · `individuals` | 25 / 27 / 27 rows |
+| `contacts/config` | 7 rows |
+| `contacts/:id` (company) | renders; 8 panels, both toggles |
+| `crm/opportunities` | 25 rows, "1–25 of 28 deals" |
+| `crm/config/stages` · `tags` · `lost-reasons` | 7 / 23 / 6 rows |
+| `ats/candidates` | 25 rows of 3,334 |
+| `ats/jobs` | 50 rows (grouped) |
+| `ats/applications` | 25 rows of 598 |
+| `ats/my-approvals` | 10 rows |
+| `ats/config` | 50 rows across sections |
+| `documents` | card grid, 53 documents |
+| `expenses` | genuinely empty; correct empty state |
+| `employee/alumni` | 23 rows |
+| `timesheet/leave/balances` · `reports` | 6 / 15 rows |
+| `outreach/leads` · `team-lists` · `team-contacts` | 50 / 10 / 50 rows |
+| `outreach/lists` | genuinely empty; correct empty state |
+
+`crm/opportunities` showing 28 against an org-wide total of 1,080 is **correct** —
+the page is company-scoped and the raw API probe was not.
+
+## URL round-trip
+
+`ats/candidates?search=an&sort=name&dir=desc&page=2` loaded cold restores the
+search box, the sort and the page: "Showing 26–50 of 2,404", "Page 2 / 97".
+
+## Contact Detail (phases 3a/3b)
+
+- Inline save persists; **an unchanged commit writes nothing** (`updatedAt`
+  identical before and after).
+- Tag add/remove round-trips.
+- `?tab=` survives reload with the right tab selected.
+- Activity: note created; delete asks first; **Enter does not confirm a danger
+  dialog**; confirming removes the row.
+- `EntityLookup`: empty-query search on open, debounced re-query, "Create …"
+  offered on no match, create-and-link round-trips.
+
+---
+
+## Findings
+
+### 1. The v2 app bar overflows a 375px phone — every v2 page (open)
+
+`documentElement.scrollWidth` is **440 against a 375 viewport on every v2 route**,
+so the whole page scrolls sideways.
+
+The offenders are in `components/platform/v2/AppBarV2.jsx`, not in any page: the
+notification bell reaches `x=440` and the account avatar `x=440`. The right-hand
+cluster (help, theme, bell, avatar) has nothing that hides or wraps below `sm`,
+and the breadcrumb nav has no `min-width: 0`, so it refuses to shrink and pushes
+the cluster off-screen.
+
+This contradicts the house rule from the mobile pass: wide content scrolls inside
+its own `overflow-x` container, the page body never scrolls horizontally. Tables
+obey it — the app bar doesn't.
+
+Not fixed here: app-bar layout wants a visual review, not a blind `min-width: 0`.
+
+### 2. No `<main>` landmark in the v2 shell (open)
+
+`document.querySelectorAll('main').length === 0` on every v2 route. `nav` and a
+single `h1` are present, so this is the one missing landmark. Screen-reader users
+get no skip target. Legacy had the same gap, so it's not a regression — but the
+shell is the cheapest possible place to fix it.
+
+### 3. Inline fields are not keyboard reachable (open, carried from phase 2)
+
+`InlineField`'s read mode is a `div` with `onClick` — no `tabIndex`, no `role`,
+no key handler. Every field on every migrated detail page is mouse-only. The
+`type='toggle'` variant is a real `button` and is fine, and `ActivityPanelV2`'s
+done-checkbox got `role="checkbox"` plus Enter/Space in 3b, so the pattern is
+settled — `InlineField` and `InlineComboField` need the same treatment across
+all their consumers at once.
+
+### 4. Legacy shell flashes before the flag resolves (open)
+
+`ShellSwitch` reads `currentOrg?.uiV2 === true`, so while the org fetch is in
+flight the legacy shell renders and then swaps. Observed directly: a
+mid-navigation sample caught 14 legacy-classed elements on a v2 route. Cached
+org payloads make this invisible most of the time; a cold load or a slow org
+fetch makes it a visible flash — and a *failed* org fetch leaves the user on
+legacy with no indication anything is wrong.
+
+### 5. `SignRequestWidget` is dark-only (known, deferred)
+
+Renders correctly in dark, wrong in light, on Contact Detail's Activities tab.
+Belongs to the Sign surface and migrates with it.
+
+---
+
+## Fixed during this phase's own work
+
+Both found by using the components rather than reading them:
+
+- **`ds/Button` ignored a caller's `style`** — `{...rest}` spread after `style=`
+  replaced the computed object wholesale, so tinting a ghost button dropped its
+  display, padding and height. `DensityToggle` and `GroupedHeader` had the same
+  latent clobber with no caller yet. All three now merge.
+- **`ds/Tabs` reserved a scrollbar gutter** that rendered as a stray rule beside
+  the underline.
+- **`ds/ConfirmDialog` rendered a `danger` confirm as a brand-green primary
+  button** — "Delete permanently" looked exactly like "Save", with only the
+  icon tile hinting at the consequence. `ds/Button` gains a `danger` variant
+  (new `--danger-fg` / `--danger-glow` tokens) and the dialog uses it when
+  `danger` is set. Measured after the fix: white on `#B91C1C` at **6.47:1** in
+  light, `#1A0505` on `#F87171` at **7.11:1** in dark. Six existing call sites
+  pick it up. Note the CRM/ATS config pages still show the *legacy* dialog —
+  `ds/ConfigList` imports `shared/ConfirmDialog`, the deprecation already
+  tracked in `REDESIGN.md`.
+
+---
+
+## Money parity: two things the harness does that look like findings
+
+Both hit during the phase-14 invoicing pass. Neither is a defect.
+
+- **`<style>` content is in `textContent`.** `scripts/money-parity.js` reads
+  `document.body.textContent`, which includes the text of any `<style>`
+  element in the body. ds `DataTable` injects
+  `@keyframes rv-pulse{0%,100%{opacity:.5}50%{opacity:.85}}`, so a v2 capture
+  picks up three phantom values — `0%`, `100%`, `50%` — that the legacy page
+  never had. They appear because the regex matches percentages (deliberately:
+  a dashboard's rates drift like its money). Filter `x.endsWith('%')` before
+  diffing, or compare only the currency-prefixed values. Aged receivables went
+  114 → 120 purely from this.
+
+- **Regex greediness merges a figure with the next label's digits.** The
+  capture for a card reading `₹20,23,922.27` above a `1-30 Days` label comes
+  back as `₹20,23,922.271`. Harmless — the harness is a *string* comparator and
+  the same merge happens on both sides, so it still catches a real drift. Do
+  not "fix" it by trimming, or legacy and v2 stop being comparable.
+
+## Phase 14 result
+
+`invoicing/reports/{receivables,payables,analysis}` — **0 contrast failures
+across 634 text nodes**, light theme, all four false-failure guards applied.
+No `Chip` on these pages, so the standing ds-level `Chip` failure does not
+appear.
+
+Money parity against the legacy capture: **114 / 36 / 115 values, identical
+and in the same order.**
+
+## The import-drift check (phase 14 batch 2)
+
+Two of the four defects found in the invoicing pass were the same bug: an
+import list trimmed against the *migrated* chrome while a **retained** legacy
+block still used the icon. The build passes — Vite resolves the module fine —
+and the page crashes on mount with `X is not defined`.
+
+Cheaper than finding it by page load:
+
+```js
+const body = src.slice(src.indexOf("from 'lucide-react';"));   // after the import
+const imported = new Set(/import \{([^}]*)\} from 'lucide-react';/.exec(src)[1]
+  .split(',').map(s => s.trim()).filter(Boolean));
+const used = LUCIDE.filter(n => new RegExp(`<${n}[\\s/>]`).test(body));
+// require: used - imported === ∅   and   imported - used === ∅
+```
+
+Run it whenever a migration **keeps** part of the legacy render. If the whole
+body is rewritten the risk disappears, which is exactly why it is easy to
+forget on a partial migration.
+
+## Phase 14 batch 2 result
+
+`invoicing/{invoices,bills,employee-bills,payments}` — **0 contrast failures
+across 841 text nodes**, light theme. Money parity **44 / 26 / 22 / 20 values,
+identical and in order**.
+
+Not exercised, deliberately: the vendor-bill AI import
+(`extractVendorBill` → `createInvoice` → `uploadAttachment`). Running it would
+create a real financial record on staging.
+
+## Verifying a config page's write path (phase 14 batch 3)
+
+Config entities are org master data with real delete endpoints, so unlike the
+vendor-bill AI import these are safe to exercise end to end on staging. Do it —
+a rendered form proves nothing about what reaches the server.
+
+**Check the payload at the wire, not in the UI.** `curl` the list endpoint
+after each step. The create above returned `days: 7` as a **Number**; a form
+that posted `"7"` would look identical on screen.
+
+Two rules for the test row:
+
+- Name it so it is unmistakable — `ZZ TEST … (delete me)` — and delete it in
+  the same session.
+- **Never set a "default" flag.** Creating a payment term or journal with
+  `isDefault: true` changes what future invoices inherit. Leave it false and
+  confirm afterwards that the real default is untouched.
+
+**Driving a ds modal from the console:** `computer` clicks take
+screenshot-space coordinates and a stale screenshot will send them to the wrong
+control — during this batch that silently hit Cancel twice and looked like "the
+error never rendered". Prefer driving the DOM directly:
+
+```js
+const setNative = (el, v) => {                       // React-compatible
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+};
+[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Create').click();
+```
+
+Then assert on state (`aria-checked`, whether the submit button still exists)
+rather than on a screenshot.
+
+**Confirm a fetch-param filter reached the network.** `showInactive` looks like
+a client filter and is not. Wrap `window.fetch`, toggle once, and read the URL —
+`?includeInactive=1`. Staging had no inactive rows, so the list looked
+unchanged either way; without the wire check that is indistinguishable from a
+dead toggle.
+
+## Phase 14 batch 3 result
+
+`invoicing/config/{payment-terms,expense-categories,journals}` — **0 contrast
+failures** across 67 / 64 / 183 nodes, light theme. Full create → edit → delete
+verified on payment terms and cleaned up.
+
+## A sixth false-failure mode: SVG text measured by `color`
+
+The audit reads `getComputedStyle(el).color`. **SVG `<text>` is painted with
+`fill`, not `color`** — `color` is inherited, unused, and on a chart label it
+is whatever the surrounding panel set. Measuring it produced a 1.06 "failure"
+on a Y-axis tick that actually renders at 6.63.
+
+`<text>` and `<tspan>` therefore need the fill-based measurement, not the page
+sweep:
+
+```js
+const texts = [...document.querySelectorAll('text')]
+  .filter(t => t.closest('.recharts-responsive-container'));
+texts.map(t => rgba(getComputedStyle(t).fill));   // fill, never color
+```
+
+This cuts both ways, and the second direction is the dangerous one: the page
+sweep will also **miss real chart failures**, because it never reads the
+property that paints. That is exactly what happened here — see the
+`--fg-3` fix below, which the sweep did not flag at all.
+
+## Theming a recharts chart without touching its props (phase 14)
+
+`Profitability` hard-codes four dark-only chart colours: X tick `#9ca3af`,
+Y tick `#6b7280`, zero line `#374151`, hover cursor white @ 3%. In light theme
+the X ticks measured **2.29:1** — below AA — and the zero line and cursor were
+near-invisible.
+
+**A CSS declaration beats an SVG presentation attribute.** So the recharts
+props are left exactly as they are and a scoped stylesheet themes all four:
+
+```css
+.pf-chart .recharts-cartesian-axis-tick-value { fill: var(--fg-3); }
+.pf-chart .recharts-yAxis .recharts-cartesian-axis-tick-value { fill: var(--fg-4); }
+.pf-chart .recharts-reference-line line { stroke: var(--line-strong); }
+.pf-chart .recharts-tooltip-cursor { fill: var(--surface-3); opacity: .45; }
+```
+
+Component diff stays clean; result is 2.29 → **6.63** in light, 6.84 in dark,
+all 17 chart labels passing AA in both.
+
+Two traps, both hit:
+
+- **`var()` does not resolve inside a presentation attribute.** It has to be
+  CSS. Passing `var(--fg-3)` to recharts' `tick={{ fill }}` silently does
+  nothing.
+- **The wrapper must be `display: contents`.** A plain `<div>` around
+  `ResponsiveContainer` breaks its height chain and the chart renders at zero
+  height — it vanishes entirely.
+- The tick TEXT class is `recharts-cartesian-axis-tick-value`; the *group* is
+  `recharts-cartesian-axis-tick-label`. Targeting `…-tick text` matches
+  nothing. Verify the class on a live node before trusting a chart selector.
+
+---
+
+## my-timesheet — the ink on a fill depends on the fill, not the family
+
+`my-timesheet` opened with 13 failures, all on the "Working" day badges at
+**2.47:1**, and the cause was a rule added two batches earlier in this file.
+
+That rule fixed a real bug — the bridge mapped `text-white` to `--fg`, which
+turns the label on a coloured button near-black in light theme — but it
+matched with `[class*="bg-blue-"]`, i.e. per colour FAMILY. Family is the
+wrong unit. `bg-blue-700` and `bg-blue-400` want opposite inks.
+
+Measured over the 39 family/step pairs the codebase actually pairs with
+`text-white`: white wins on 17 and loses on 22. There is no single constant
+that is right, so `scripts/ink-for-fill.js` computes both lists and emits the
+CSS. Re-run it with `--css` whenever a new fill appears; it exits non-zero on
+a fill missing from its palette table.
+
+**The generalisable part:** both inks are *literals*, not tokens. The fill
+does not change with the theme, so the ink must not either. Mapping this class
+of pairing to `--fg` is what produced the original bug — it flips the ink
+under a fixed background. Anywhere a fill and its text come from different
+sources, that is the pairing to check.
+
+This also repaired the **dark** theme, where `--fg` is near-white and all 22
+light fills were sitting at ~2.5:1 — a pre-existing failure that predates the
+rule and had never been reported, because the audit only ever ran on the page
+being migrated.
+
+### A second finding, 128 call sites
+
+The last remaining failure was the **Submit** button at 3.52:1 — and it is the
+app's primary brand button. The brand ink rule only matched `.text-white`, but
+the legacy brand fill is bright green, so its label is written `text-dark-950`.
+In light theme `--brand` resolves to `#15803D`, on which a near-black ink is
+3.52. 128 elements pair `bg-rivvra-*` with `text-dark-950`. Both spellings now
+resolve to `--brand-fg` (→ 5.02).
+
+### Proposed, not done
+
+`indigo-500` (4.47, 22 sites) and `purple-500` (4.46, 17 sites) miss AA with
+*either* ink — the fill itself is too mid-tone. Fixing them means darkening the
+fill, a visible change across already-merged pages, so it is left alone here.
+Both are within rounding of the threshold and neither is a regression.
+
+### Harness: false-failure mode #5 is not just for hidden elements
+
+The dark-theme run reported 25 sidebar failures at 1.67:1. `--fg-2` resolved
+correctly to `#BAC4D0`, but `.sb-item`'s computed `color` was frozen at the
+*light* value in both themes — the pane was not painting, so the `color`
+transition never advanced. `getComputedStyle` returned a stale value on a
+fully visible element, 800 ms after the switch.
+
+**Force a paint (take a screenshot) between switching the theme and reading
+computed styles.** After the paint: `rgb(186, 196, 208)`, 0 failures. The
+audit itself is now `scripts/contrast-audit.browser.js`, with all six
+false-failure guards written down next to the bug each one hides.
+
+Final: **0 failures of 148 checked, both themes.** Guard diff PRESERVED —
+216 guard/logic occurrences identical, including all 9 `isDayDisabled` sites.
+
+---
+
+## my-attendance — an accent on a wash of itself, and opacity hiding the evidence
+
+This page is not a header-only migration: it is colour-coded end to end, and
+`statusConfig` — twelve statuses × six pre-baked Tailwind class strings on the
+fixed dark scale — is *why* it was dark-only. That table sits above `return (`.
+
+So the rule is stated more precisely here than "nothing above `return (`
+moves", because a blanket version would have blocked the migration entirely:
+
+> The **logic** above the return is spliced in verbatim and diffed byte-for-byte
+> (257 lines). `statusConfig` / `statusBanners` are **presentation** tables and
+> may be re-tokenised — but their **content** fields (label / short / emoji, and
+> every banner string) are asserted identical, because those are what the legend
+> and the mobile list actually render.
+
+Each status now names ONE `--acc-*` token and the render derives tint, border
+and dot from it, so a status can no longer be themed in one place and not
+another. Legacy's ½-variants used a lighter step of the same hue; there is one
+`--acc` step per family, so `half: true` takes a weaker tint of the parent hue
+instead of borrowing a different one.
+
+### The finding: don't let the ink carry the hue
+
+First audit: **31 failures in light** — P at 3.50, H at 3.96, muted — at 4.26.
+The cause was mine: I tinted the **cell** and then tinted the **pill** again on
+top, so the accent ink sat on a doubled wash of itself. Legacy got away with the
+same structure only because its ink was a light-400 on a dark ground; inverted,
+it collapses.
+
+This is the pairing `Chip` already documents ("the accent on its own tint
+measures ~4.35 against a 4.5 floor") — worse here because of the stacking.
+
+Tuning tint percentages per accent was whack-a-mole: 12% fixed emerald (4.69)
+and purple (4.50, on the line) but left amber at 4.29. The fix is structural,
+not numeric — **let the tint carry the status and keep the text near-black**:
+
+```js
+const cellInk   = (cfg) => (cfg.muted ? 'var(--fg-4)' : cfg.accent);  // legend dots, summary figures — neutral ground
+const statusInk = (cfg) => (cfg.muted ? 'var(--fg-3)' : 'var(--fg)'); // letter inside a TINTED cell
+```
+
+Every status clears AA by a wide margin in both themes, it stops depending on a
+per-accent constant, and it stops the page conveying status by hue alone.
+
+### `opacity` was hiding the problem, not solving it
+
+Legacy dimmed post-LWD and future cells with `opacity: .45/.55`. Opacity on a
+container blends the whole subtree toward the backdrop — it lowers real contrast
+while leaving `getComputedStyle(el).color` completely unchanged, so **the audit
+cannot see it**. Every measurement on a dimmed cell was optimistic.
+
+Muted days now get an explicit `--surface-2` and a muted ink, no opacity. The
+audit reports `dimmedByAncestorOpacity`, and a run is only trustworthy when that
+is **0** — otherwise the numbers are a floor, not a result. Treat a non-zero
+count as "unmeasured", not "passed".
+
+### New primitive
+
+`ds/Feedback/Callout` — tinted surface, icon, message, optional action. Four on
+this page alone, each previously hand-rolled with its own gradient and opacity
+stop. Tones follow Chip's table including its `-ink` correction. Already-merged
+pages still hand-roll this shape and could adopt it later; not retrofitted here.
+
+### Verification
+
+- **0 failures** across all four combinations — desktop and mobile × light and
+  dark (137 and 157 nodes), `dimmedByAncestorOpacity: 0` in every run
+- Logic block byte-identical (257 lines); 13 guard declarations identical across
+  both render paths; statusConfig key order and content fields identical
+- Toggle cycle exercised live: P → ½ → A → P, returning to its start
+- Guards exercised live: a future day, a weekend, and a future *holiday* all
+  refuse the click — the future guard correctly beats the holiday cycle
+- **Not exercised:** the holiday cycle (H → HW → ½HW → H). The only holiday in
+  the staging month is in the future, so the future guard shadows it. That code
+  is verbatim legacy.
+- No writes: nothing was saved or submitted; local edits discarded by reload
+
+---
+
+## timesheet/users — a money page, and two things wrong with it that aren't mine
+
+`TimesheetUsers` sets the daily/monthly pay rate and the client billing rate
+that the contractor pay chain reads, so it gets the full money treatment: the
+logic above `return (` is spliced in byte-identical (177 lines) and every money
+string is asserted present on both sides (10 probes — the two rate render
+expressions, both `(₹)` labels, all three `RATE_TYPE_LABELS` entries, the
+billing-rate fallback, the proration formula, the PL badge).
+
+### 🔴 Finding 1 — `RATE_TYPE_LABELS` mixes currencies
+
+```js
+const RATE_TYPE_LABELS = {
+  daily:   '₹/day',
+  hourly:  '$/hour',    // ← not a typo in this doc
+  monthly: '₹/month',
+};
+```
+
+The client-billing-rate field relabels itself from this table. Pick **hourly**
+and the field says the number is **dollars**; pick daily or monthly and the same
+field says rupees. Nothing converts — it is one `clientBillingRate` number
+either way. So the label is the only thing telling anyone what the figure means,
+and for one of three options it says something different from the other two.
+
+This is **carried across unchanged and deliberately not fixed.** Changing what a
+rate label says changes what the stored number means, and that is a decision to
+take on purpose. It also sits against the standing rule that billing currency
+comes from the record, not a hardcoded glyph — the whole table is hardcoded ₹,
+which is the more general version of the same bug.
+
+### 🔴 Finding 2 — the status pill is an unconfirmed destructive control
+
+The Status cell looks like a badge. It is a `<button>`, and one click runs:
+
+```js
+await employeeApi.update(orgSlug, user._id, { status: newStatus });  // 'resigned'
+```
+
+No confirmation, no undo in the UI, and it is directly adjacent to the Edit
+button in a 91-row table. Marking someone resigned is what drives alumni
+handling and stops their payroll.
+
+Behaviour is **preserved exactly** — adding a confirm is a behaviour change and
+belongs in its own commit, not smuggled into a theme migration. V2 adds a
+`title` naming the consequence, which is as far as it should go unasked.
+
+### Money parity: 0 real diffs, and two harness lessons
+
+Captured legacy and v2 against the same 91 rows by temporarily pointing the
+route at the legacy component, then restored it. **455 cells compared, 74 money
+cells, 52 distinct values, 0 real differences.**
+
+Getting there took two corrections, both worth keeping:
+
+1. **Never key a parity capture on a display name.** The first diff reported 29
+   mismatches. The data has **16 duplicate names in 91 rows**, so a `Map` keyed
+   by name silently collapsed rows and compared the wrong pairs. Key on a unique
+   id, or on row index when both sides render the same list in the same order.
+2. **`innerText` inserts a newline between inline-flex children.** Five cells
+   differed as `"Daily1 PL"` vs `"Daily\n1 PL"`. Not a layout change — both chips
+   measured the same `getBoundingClientRect().top`, i.e. the same line. When a
+   text diff looks like whitespace, check geometry before believing it.
+
+A third, milder one: the wait-for-load predicate `/\d+ of \d+ users/` matched
+**"0 of 0 users"**, because v2 renders `PageHeader` outside the loading gate
+where legacy rendered a full-page skeleton. Wait on a non-zero count, not on the
+shape of the string.
+
+### Smaller notes
+
+- Legacy dimmed inactive rows with `opacity-50` on the `<tr>`. Replaced with a
+  muted name ink, for the reason recorded under my-attendance — container
+  opacity lowers real contrast while hiding it from the audit. Verified on the
+  Resigned view: `dimmedByAncestorOpacity: 0`, rows still clearly distinct.
+- Badge hues move to `Chip`'s tone set (admin purple → `warn`, manager blue →
+  `info`, pay type indigo/amber → `info`/`warn`). Hand-rolling accent chips to
+  preserve the exact hue is the pairing that failed on my-attendance, and Chip's
+  tones already carry the measured `-ink` corrections. Hue here is decoration.
+- Lint: legacy has 2 errors, v2 has 1. The remaining one (`err` unused in
+  `toggleActive`'s catch) is inside the byte-identical slice and stays there.
+
+### Verification
+
+- **0 contrast failures** across six surfaces — list, modal, and the Resigned
+  view × light and dark (688 / 691 / 716 / 716 / 596 / 596 nodes),
+  `dimmedByAncestorOpacity: 0` throughout
+- Search exercised (`Gopor` → 2 of 169) and the Status chip (78 resigned + 91
+  active = 169)
+- **No writes**: no user created, no user updated, no status toggled. The modal
+  was opened and dismissed with Escape.
+
+---
+
+## leave/apply — proving a pay-affecting preview by driving it, not by reading it
+
+`LeaveApply` previews how many days a request costs and how many become **LOP —
+Loss of Pay**. That preview is pay-affecting, so the same rule as the other
+money pages: everything above `return (` is spliced in verbatim (**207 lines,
+byte-identical**), plus the two date helpers that live above the component and
+were checked separately.
+
+Seven pay-affecting expressions are asserted by exact text — `lopDays`,
+`available`, the half-day `0.5` branch, the weekend test, the business-day
+count, the half-day-on-non-working-day guard, and `halfDayAllowed`.
+
+**But expression equality is not behavioural equality**, and this page's output
+depends on fetched holidays, on which calendar years get fetched, and on
+singular/plural wording. So it was driven, in both renders, over the same six
+cases:
+
+| case | days | LOP |
+|---|---|---|
+| 24–28 Aug (28th is Raksha Bandhan) | 4 | — |
+| 29–30 Aug (weekend only) | *no working days* | — |
+| 24 Aug – 4 Sep | 9 | 5 days |
+| 28 Dec – 4 Jan (**cross-year**) | 5 | 1 day |
+| half-day on Sat 29 | *half-day warning* | — |
+| half-day on Mon 24 | 0.5 | — |
+
+**36 assertions, 0 differences.** The cross-year case is the one worth keeping:
+it confirms both 2026 and 2027 holiday fetches fire (the bug the `neededYears`
+comment describes), and it is the only case that exercises the singular
+`1 day` branch of `{lopDays} day{lopDays !== 1 ? 's' : ''}`.
+
+### Harness notes
+
+- **One case per `javascript_tool` call.** Three chained cases (~6 s of waits)
+  timed out; each case alone is fine. The first probe also hung on its own
+  toggle-reset loop — when a driver times out, suspect the driver before the page.
+- **Compare only the keys both captures carry.** The first diff showed 4
+  mismatches that were `undefined` vs `null` — the v2 and legacy probes had
+  drifted to different shapes. Same family as the duplicate-name artifact on
+  timesheet/users: *the comparison was wrong, not the code.*
+
+### `leaveTypeAccent`
+
+`config/leaveTypes.js` already existed to stop two pages disagreeing about leave
+type labels and colours. It gains `leaveTypeAccent(code)` — the same tone map
+resolved to `--acc-*` tokens instead of fixed-dark Tailwind classes, so v2 reads
+tokens without the mapping being duplicated into the page. Two tones have no
+`--acc` family: `red` → `--danger` (which is what it means), `pink` →
+`--acc-rose`. The accent is used as **text on a neutral card**, never as a fill
+under itself.
+
+### Verification
+
+- **0 contrast failures** in both themes (69 nodes each),
+  `dimmedByAncestorOpacity: 0`
+- Logic block byte-identical (207 lines); both date helpers identical; 7
+  pay-affecting expressions and 6 preview strings asserted
+- Build green, lint clean (legacy baseline also clean)
+- **No writes** — confirmed zero `leave-request` calls in resource timing. The
+  form was filled to a submittable state to render the LOP callout, and the
+  submit button was never clicked.
+
+---
+
+## timesheet/approvals — three pieces of dead or half-built code, found by lint
+
+Approve / reject / revert move a timesheet into the state payroll reads, and the
+page also sends reminder emails, so everything above `return (` is spliced in
+verbatim (**109 lines, byte-identical**) and ten mutating paths are asserted by
+exact text — the two `window.confirm` gates, the reason-required check, all four
+endpoints, the `!t.isAttendance` filter, and both derived lists. The
+payroll-lock guard lives in the render and is asserted separately.
+
+### What lint found that reading didn't
+
+Running eslint on the **legacy** file as a baseline turned up two unused
+declarations, and chasing them produced three findings:
+
+1. **`statusColors` is dead.** A five-entry map of status → Tailwind fill,
+   declared at module scope and referenced nowhere — the calendar builds its
+   classes inline instead. This is the one thing **not** carried into v2:
+   copying it would be copying a decoy.
+2. **`toggleSelectAll` is dead in both files.** The bulk-reminder feature has
+   per-row checkboxes and a "Send Reminder (n)" button, but the select-all
+   handler is never wired to any control. `draftFiltered` exists **only** to
+   feed it, so it is dead too. Either the select-all checkbox was lost in a
+   refactor or it was never finished; both are preserved verbatim so the answer
+   stays the maintainer's.
+3. **`controllerRef` is not a ref.**
+   ```js
+   const controllerRef = { current: null };   // plain object, rebuilt every render
+   ```
+   `load()` writes the new `AbortController` onto *this* render's object, while
+   the effect cleanup closes over the object from the render it ran in. So the
+   abort at the top of `load()` does not reliably cancel the previous in-flight
+   request. **`AttendanceApprovals.jsx` has the identical line**, so it is a
+   two-file issue and the next page in the queue inherits it.
+
+Net lint: legacy 2 errors, v2 1 — the delta is exactly the dead map.
+
+### Day cells: the my-attendance fix, applied again
+
+Legacy painted the expanded calendar as saturated fills with white text.
+`bg-emerald-500` + white is **2.54:1** and `bg-blue-500` + white is **3.68:1**,
+both below AA at the 9px these render at. Same fix as my-attendance — the tint
+carries the state, the digit stays near-black/near-white. Weekend-work keeps
+legacy's ring, since it is the one state the fill alone doesn't distinguish.
+
+### Not reachable on staging data
+
+**The payroll-lock branch never renders.** `Cannot revert — payroll is
+{status} for this month` requires a run in `processed` or `finalized`; every
+month Apr–Aug 2026 reports `open`. The unlocked branch (Revert button) was
+exercised on June's 36 approved rows. The guard expression is preserved verbatim
+and asserted by text, but it has **not** been seen on screen.
+
+This is the fourth surface blocked the same way (GSTR-2B, bank statement,
+my-fnf receipt, now this). All of them need one seeding exercise, not four
+migrations — see the note under the statutory batches.
+
+### Added copy
+
+The reject dialog gains a `sub`: *"The contractor sees this reason and can
+resubmit."* Legacy had a bare title. Modal's API asks for the consequence there,
+and the reason is in fact shown to the contractor.
+
+### Verification
+
+- **0 contrast failures** across four surfaces — list and reject modal × light
+  and dark (197 / 197 / 101 / 101 nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (109 lines); 10 mutating paths + the payroll-lock guard
+  asserted
+- Exercised live: tab counts across three periods (Aug/Jul/Jun), row expansion,
+  the calendar grid on a leave-heavy month, Approve/Reject rendering only for
+  `submitted`, Revert rendering only for `approved`, and the reject modal opened
+  and cancelled
+- **No writes** — confirmed **zero** calls to `/approve`, `/reject`, `/revert`
+  or `/reminders/send` in resource timing. No reminder email was sent.
+
+---
+
+## attendance/approvals — the same half-built feature, decayed differently
+
+Sibling of `timesheet/approvals`: same approve / reject / revert / remind
+surface over attendance. Logic spliced in verbatim (**104 lines,
+byte-identical**), eight mutating paths asserted by exact text, payroll-lock
+guard asserted separately, and the ten-branch colour ladder checked branch by
+branch.
+
+### The select-all residue is different in each file
+
+The sibling has a `toggleSelectAll` handler wired to no control. **This file has
+no `toggleSelectAll` at all — yet still computes `draftFiltered`**, the list
+that only ever existed to feed it. So the same half-built select-all left a
+different residue in each file: one kept the handler and lost the checkbox, the
+other lost both and kept the input. Preserved (it is inside the verbatim slice);
+lint parity is legacy 1 error, v2 1.
+
+`controllerRef` is the same plain-object-not-a-ref defect flagged on the
+sibling, carried across unchanged.
+
+### `entryColors.upcoming` is unreachable
+
+Legacy's map defines an `upcoming` style — dashed border, muted — but the colour
+ladder has **no `status === 'upcoming'` branch**, so a future day falls through
+to the default grey. `upcoming` is a real status elsewhere in the attendance
+model (my-attendance renders it), so this is a genuine gap, not a spare key.
+Mirrored exactly in v2's `ENTRY_ACCENT` (kept, unused) and flagged rather than
+fixed — adding a branch changes what a reviewer sees.
+
+### Day cells
+
+Every entry in legacy's `entryColors` was a saturated fill with `text-white` at
+9px: emerald-500 **2.54:1**, amber-500 **2.15:1**, blue-500 **3.68:1**. Same fix
+as my-attendance and the sibling — tint carries the state, digit stays
+near-black. ½ variants take a weaker tint of the parent hue.
+
+### ⚠️ Four branches unreachable on staging data
+
+This page has the **worst** coverage of the batch, and it is a data problem, not
+a code one. Across **ten months (Nov 2025 – Aug 2026)** attendance exists only
+in `draft`, `approved` and `no_entry`. There is **no `submitted` and no
+`rejected` record anywhere.** So:
+
+| branch | why unreachable |
+|---|---|
+| Approve / Reject buttons | need `status === 'submitted'` |
+| Reject modal | only opens from the Reject button |
+| Rejection-reason `Callout` | needs `rejected` **and** a `rejectionReason` |
+| Payroll-lock message | every month reports `open` |
+
+What that leaves: the modal and the reject flow are the *same composition* as
+the sibling page's, which **was** verified live in #74 — but that is inference
+from a sibling, not verification of this page. Stated plainly rather than
+counted as covered.
+
+Fixing this needs seeding, not migration — now five surfaces deep (GSTR-2B,
+bank statement, my-fnf receipt, timesheet-approvals lock, and these four).
+
+### Verification
+
+- **0 contrast failures** across four surfaces — draft and approved views ×
+  light and dark (116 / 116 / 179 / 179 nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (104 lines); 8 mutating paths, the payroll-lock guard and
+  all 10 colour-ladder branches asserted
+- Exercised live: tab counts across two periods, row expansion, the calendar on
+  both a present-only month and one with leave days, the 7-item legend, the
+  summary row, and Revert rendering only for `approved`
+- **No writes** — zero calls to `/approve`, `/reject`, `/revert` or
+  `/reminders/send`. No reminder email sent.
+
+---
+
+## leave/approvals — I walked into the exact pairing I'd documented twice
+
+Logic spliced in verbatim (**80 lines, byte-identical**), `formatDate` checked
+separately, eight mutating paths asserted by exact text.
+
+### The finding I caused, and the one I inherited
+
+**Caused.** The first audit came back with **20 failures** — LOP at **4.21**,
+Casual Leave at **4.24**. I had hand-rolled the leave-type pill as
+`background: accent 14%` with `color: accent`: an accent on a wash of itself.
+That is the pairing `Chip`'s own comment documents at ~4.35, that my-attendance
+failed on, and that I explicitly warned about in the timesheet/users notes
+before doing it anyway. Fixed the same way as the day cells — the tint and ring
+carry the hue, the label ink is `--fg`.
+
+The lesson is not "remember the rule". It is that **any time a page needs a hue
+`Chip` doesn't have, hand-rolling is the failure path**, and the answer is
+always tint-plus-neutral-ink.
+
+**Inherited: a third hand-rolled leave-type map.** `config/leaveTypes.js` exists
+specifically because "LeaveApply and LeaveMyRequests each carried their own
+hand-rolled label/colour map and the two disagreed". This page carries a
+**third**, and it is narrower — 4 types where the shared module has 10. So
+`earned_leave`, `privilege_leave`, `maternity_leave`, `paternity_leave`,
+`bereavement_leave` and `unpaid_leave` render with a neutral pill and their
+**raw snake_case code** as the label (`leaveTypeLabels[code] || code`), where
+every other leave page shows a proper title.
+
+The split taken here is deliberate and narrow:
+
+- **Colour** moves to the shared `leaveTypeAccent`. Verified first that the
+  shared tone map is **identical** for all four types legacy knows (sick=red,
+  casual=blue, comp_off=purple, lop=orange), so nothing that renders today
+  changes — and the six missing types stop falling through to neutral.
+- **Labels** stay legacy's map, verbatim. Switching to `formatLeaveType` would
+  render `lop` as "Loss of Pay" where this page says "LOP". That is a copy
+  change, not a theme change.
+
+### Two smaller inherited nits, both preserved
+
+- **The LOP count can overstate.** `req.lopDays || req.totalDays || 0` — the
+  block renders when `isLOP` is true, so a request flagged LOP with `lopDays`
+  absent or `0` displays its **total** days as LOP days. LOP days are unpaid
+  days, so this is money-adjacent display. Preserved and flagged.
+- **Doubled warning marker.** The text begins with `⚠️` and the callout already
+  carries an `AlertTriangle` — legacy had both too. Visible in the screenshots
+  as "⚠ ⚠️1 LOP day". One-line copy fix, not taken here.
+
+### Harness: the Avatar gradient is a blind spot
+
+The audit skipped **50 nodes** as `gradient` — every `Avatar`, whose brand
+gradient fill defeats the composited-background walk. Measured by hand instead:
+white 12px bold initials against both gradient stops, **7.13** and **9.11**.
+Fine here, but worth knowing that `Avatar` initials are invisible to the audit
+everywhere it is used.
+
+### ⚠️ Unreachable on staging data
+
+`Pending 0` and `Rejected 0`, and unlike the approvals pages this one is **not
+period-scoped** (`getAllLeaveRequests` takes no month), so there is no other
+period to try. Out of reach: the Approve/Reject buttons, the reject modal, and
+the rejection-reason callout. The Revert path and everything else was exercised
+on the 50 approved requests.
+
+Sixth surface needing the same seeding exercise.
+
+### Verification
+
+- **0 contrast failures** in both themes (529 light / 532 dark nodes),
+  `dimmedByAncestorOpacity: 0`; `Avatar` initials measured separately
+- Logic byte-identical (80 lines); `formatDate` identical; 8 mutating paths and
+  8 display strings asserted
+- Exercised live: tab counts, the approved list with Sick Leave / LOP / Casual
+  Leave pills, LOP callout, half-day chip, reason block, "Approved on" line, and
+  Revert rendering only for `approved`
+- **No writes** — zero calls to any `/approve`, `/reject` or `/revert` endpoint
+
+---
+
+## timesheet/projects — three columns that nothing populates
+
+Small page, clean migration: logic spliced in verbatim (**57 lines,
+byte-identical**), all eight write paths asserted by exact text (2 PUT, 2 POST,
+2 DELETE, both `confirm()` gates). Lint clean on both sides.
+
+### 🔴 `billingCurrency` has no input anywhere
+
+`billingCurrency` appears **four** times in the legacy file:
+
+- initialised to `'INR'` in the `clientForm` state
+- reset to `'INR'` after a save
+- reset to `'INR'` when opening the Add dialog
+- rendered as a read-only **Currency** column
+
+…and is bound to **no input at all**. So a client created through this screen is
+always INR, and there is no way to change it here. Edit happens to preserve
+whatever a record already has, because `setClientForm(c)` spreads the whole
+object — but nothing in this UI can ever set it.
+
+Given the standing rule that billing currency comes from the record rather than
+a hardcoded glyph, a money-defining field with no input is worth naming. Carried
+across exactly as-is, hardcoded `'INR'` included.
+
+### 🔴 …and the API doesn't return it, or two other columns
+
+Checked the live endpoint rather than inferring. `GET /timesheet/clients`
+returns documents with exactly these keys:
+
+```
+_id, name, orgId, companyId, contactId, createdAt
+```
+
+No `billingCurrency`, no `contactPerson`, no `contactEmail`. So **three of the
+five client columns render em-dashes for all 25 clients** — verified on screen,
+not just in the payload.
+
+Two of those three (Contact Person, Contact Email) *do* have inputs in the
+dialog. Whether the API stores-but-doesn't-return them, or drops them the way it
+drops tax `type`, needs an API-side check — it cannot be settled from the
+frontend without creating a client, which was not done.
+
+### One deliberate render difference
+
+Legacy prints `{c.billingCurrency}` bare, so a missing value renders as an empty
+cell, while the adjacent Contact and Email columns explicitly print `|| '—'`.
+`DataTable` falls back to an em-dash for every column, so Currency now matches
+its neighbours. Strictly more consistent, and stated here because it is a
+rendered difference rather than a pure re-skin.
+
+### Harness: I hit the stale-paint artifact again
+
+Switched the theme and audited **in the same call**, and got the familiar 29
+sidebar failures at 1.67:1. The very next audit in the same batch — taken after
+a tab click forced a repaint — was 0/144 on the same page. The guard is already
+written down; the mistake is doing both in one `javascript_tool` call. **Force a
+paint (screenshot, or any real interaction) between the theme switch and the
+read**, every time.
+
+### Verification
+
+- **0 contrast failures** across eight surfaces — clients, projects, and both
+  modals × light and dark (144 / 60 / 150 / 67 nodes per theme),
+  `dimmedByAncestorOpacity: 0` throughout
+- Logic byte-identical (57 lines); 8 write paths asserted; `billingCurrency`
+  reference count identical (4) and still bound to no input
+- Exercised live: both tabs with counts, the 25-client table, the 4-project
+  table with Active chips, and both dialogs opened and dismissed
+- **No writes** — client and project counts re-queried after the run: still
+  **25** and **4**, unchanged. Nothing created, edited or deleted.
+
+---
+
+## tax/declarations — the one page where source-text parity was not enough
+
+This page computes the 80C cap, the 80D total, the declared-deduction total and
+the HRA annualisation that feed TDS, and its regime toggle selects the slab
+table. Logic spliced in verbatim (**216 lines, byte-identical**), the five
+top-level helpers diffed separately, and **13 tax computations** asserted by
+exact text — including the payload's `Math.min(sumItems(items), section80CLimit)`
+and the `section80CItems` breakdown it travels with.
+
+### Why the ₹-string check had to escalate
+
+The source-text ₹ diff reported **7 of 23 strings missing**. They were not
+missing: the comparison cards became a two-row `map` and the summary rows a
+`row()` helper, so `₹{fmt(x)}` became `` `₹${fmt(x)}` ``. Identical output,
+different source.
+
+That is exactly the point where a text diff stops being evidence. So the page
+got a **rendered** capture instead — legacy and v2 driven with the same inputs
+(80C 120,000 + 80,000 over the 150,000 cap, 80D 25,000, rent 10,000/mo):
+
+```
+₹0  ₹1,32,600  ₹1,32,600  ₹1,50,000  ₹1,50,000  ₹1,50,000
+₹1,00,000  ₹1,00,000  ₹1,50,000  ₹25,000  ₹1,75,000
+```
+
+**11 strings, identical sequence, exact match.**
+
+A first pass showed `₹1,00,000` twice in legacy and once in v2. Not a defect —
+I had filled the landlord PAN in the v2 run, which clears the "Required when
+annual rent exceeds ₹1,00,000" error. Re-run with PAN empty on both: exact
+match. *Third time in this project a parity diff was the harness, not the code —
+always equalise the input state before believing a count.*
+
+### Computations exercised live, not just diffed
+
+- **80C cap:** 120,000 + 80,000 → `Total 80C (capped) ₹1,50,000` with the
+  `Capped at ₹1,50,000` warning, and Total Deductions ₹1,50,000
+- **80D flows in uncapped:** +25,000 → Total Deductions **₹1,75,000**
+- **HRA PAN threshold:** 8,000/mo (96,000/yr) → no PAN required; 10,000/mo
+  (1,20,000/yr) → required; entering a PAN clears it; input uppercases
+
+### Findings, all preserved
+
+- **Statutory figures are hardcoded prose.** The New Regime panel states
+  ₹75,000 standard deduction, 14% employer NPS and a ₹12,75,000 rebate ceiling
+  as literal text — while `section80CLimit` beside it is fetched from
+  `getPublicPlatformSetting('tax_declaration_sections')`. One is correctable
+  without a deploy and the others are not, so a finance act will silently split
+  them apart.
+- **`taxInfo` is dead state.** `setTaxInfo(taxRes.tax)` is called and `taxInfo`
+  is never read. Present in both files; lint parity legacy 4 / v2 4.
+- **`isProofWindow()`** hides the entire upload block outside Jan 1 – Mar 15, so
+  it is unreachable today. Seventh surface on the seeding list.
+
+### ⚠️ Staging footprint — declared, not hidden
+
+Verifying the Old Regime form needs the regime to *be* old, and that is a write.
+Judged acceptable: staging, the test user's own record, one toggle, reversible.
+
+- switched `new` → `old`, verified the form, switched back
+- **regime re-queried afterwards: `new` — restored**
+- the regime PUT created `declarations: {}` server-side where the field was
+  previously absent. It holds **none** of the typed test values (checked
+  explicitly), and `{}` normalises to the same all-zero render. Nothing was
+  saved — the Save button was never pressed — and there is no endpoint to
+  remove the empty object, so it is left as-is.
+
+### Verification
+
+- **0 contrast failures** in both themes on the Old Regime form, the richest
+  state (95 light / 98 dark nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (216 lines); 5 helpers identical; 13 tax computations and
+  all money expressions asserted; rendered money **exact match** with legacy
+- Build green; lint parity 4/4, every error inside the verbatim slice
+
+---
+
+## tax/report — hardcoded labels sitting beside the numbers they describe
+
+The employee-facing tax computation: slab breakdown, surcharge, cess, rebate,
+YTD TDS and a month-by-month cumulative. Every figure comes from the server;
+the page only formats and signs them. Logic spliced in verbatim (**68 lines,
+byte-identical**), the three top-level helpers diffed separately, **13 money
+expressions** asserted — including `Row`'s
+`{negative ? '-' : ''}₹{fmt(Math.abs(value || 0))}` sign handling.
+
+Rendered parity against legacy on the same data: **41 figures, exact match, 0
+differences**, with the Monthly TDS breakdown expanded so the running
+cumulative column was compared too.
+
+### 🔴 The finding: a label that can contradict the number next to it
+
+```jsx
+<Row label={`Less: Standard Deduction (${report.regime === 'new' ? '₹75K' : '₹50K'})`}
+     value={-report.standardDeduction} negative />
+<Row label="Cess (4%)" value={report.cess} />
+```
+
+In both rows the **label is hardcoded** and the **value is server-computed**.
+They are rendered side by side in the same table row, so if the server's
+standard deduction or cess rate ever changes, the row will state one figure and
+show another — and the label is the more authoritative-looking of the two.
+
+This is the sharper form of the same problem written up under
+`tax/declarations`, where the hardcoded statutory prose at least sat in a
+separate panel from the computed numbers. Here they share a row. Preserved
+exactly; the fix is to derive the label from the value (or drop the parenthetical),
+which is a copy decision.
+
+### Lint: a spurious error worth not "fixing"
+
+Legacy reports `'Icon' is defined but never used` at `SummaryCard`, and it **is**
+used — `<Icon size={14} />` is two lines below. I initially assumed legacy's
+`icon: Icon` destructure-rename confused the rule and took `Icon` directly in
+v2; the error persisted, so that theory was wrong and the comment in the file
+now says so rather than repeating a wrong explanation. Lint parity is **3 errors
++ 1 warning on both sides**, identical set.
+
+### Verification
+
+- **0 contrast failures** in both themes with every section expanded
+  (101 light / 105 dark nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (68 lines); `fmt`, `MONTH_NAMES` and `getCurrentFY`
+  identical; 13 money expressions asserted
+- **Rendered money: 41 figures, exact match** with legacy, monthly breakdown
+  expanded
+- **No writes.** The only mutating control is the "Switch to … Regime" button,
+  which renders solely when `betterRegime !== regime`. The account's better
+  regime equals its current regime, so the button never appeared — this page was
+  verified entirely read-only.
+
+---
+
+## The seeding script — and the claim it disproved
+
+`scripts/seed-staging-fixtures.js` creates the record states the timesheet/ESS
+QA passes could not reach. **Dry-run by default**, `--apply` to write,
+`--cleanup` to reverse, host-locked to staging, idempotent (probes first), and
+every free-text field it writes carries a `[QA-SEED]` tag.
+
+### I said "one seeding exercise unblocks all seven". That was wrong.
+
+Writing it forced the question of what each fixture actually *costs*, and the
+seven split three ways:
+
+| fixture | outcome |
+|---|---|
+| `attendance-submitted` | ✅ seeded |
+| `leave-pending` | ✅ seeded |
+| `attendance-rejected` | ⚠️ needs a **second account** |
+| `leave-rejected` | ⚠️ needs a **second account** |
+| `bank-statement` | ⚠️ possible, but **irreversible** — own flag |
+| `gstr2b` | ⚠️ operator must supply a real 2B export |
+| `payroll-lock` | ⛔ **refused** — payroll publish |
+| `fnf-receipt` | ⛔ **refused** — F&F settlement |
+| `proof-window` | ⛔ **not a data problem** — reads the clock |
+
+Two are on the standing never-trigger list, so the script refuses them *even
+with `--apply`* and prints why. One cannot be seeded at all.
+
+### Two constraints only the write path revealed
+
+The dry run passed cleanly and was still wrong twice. Both were found by
+actually calling the API:
+
+1. **`PATCH /attendance/:id/submit` → 403 Access denied.** Submit is
+   self-service; an admin cannot submit another employee's attendance. The
+   fixture had been scanning the admin-wide `/attendance/all` and picking any
+   draft. Fixed to scan the *self* endpoint.
+2. **`PATCH /leave-requests/:id/reject` → 403 "You cannot reject your own leave
+   request".** A correct self-approval guard — and it means one account can
+   never produce a rejected fixture. Both rejection fixtures now declare
+   `secondAccount: true` and explain how to supply one
+   (`RIVVRA_STAGING_APPROVER_EMAIL` / `_PASSWORD`).
+
+Neither is a bug. Both are the API being right, and both would have shipped as
+a broken script if the write path had been left untested — the same lesson as
+the green build that never caught a defect.
+
+### `bank-statement` is gated because it cannot be undone
+
+The API exposes list / create / update / suggestions / reconcile for bank
+statements and **no delete route**. A seeded statement is permanent, so it sits
+behind `--allow-permanent` rather than running with the rest. Same family as the
+three undeletable `ZZ TEST TAX` rows.
+
+### What the fixtures unblocked, verified on screen
+
+- **attendance/approvals** — `Submitted 0 → 1`; Approve and Reject now render,
+  and the reject modal opens. In #75 that modal was reported as *inferred from
+  the sibling page*, not verified. **It is verified now.**
+- **leave/approvals** — `Pending 0 → 1`; Approve/Reject render, reject modal
+  opens with its copy, and the `[QA-SEED]` tag is visible on the row
+- **0 contrast failures** across the newly-reachable states (54 nodes,
+  `dimmed: 0`)
+
+The fixtures are **left in place** — that is the point of them. `--cleanup
+--apply` reverses the two that can be reversed.
+
+---
+
+## payroll batch 1 — the dual-use problem, and extracting `PageSwitch`
+
+Payroll is 7 legacy pages / 4,424 LOC. Surveying it first turned up something
+that changes how the whole block has to be migrated.
+
+### All three config pages have two entry points
+
+`PTMasterPage`, `StatutoryConfigPage` and `SalaryStructuresPage` are each **both**
+a `/payroll/*` route **and** a tab inside `components/settings/SettingsPayroll`
+— they already take an `embedded` prop for it.
+
+`PageSwitch` was a local function inside `App.jsx`, so only routes could use it.
+Migrating the route alone would have left the same feature rendering **two
+different UIs depending on how you reached it** — precisely the "two places
+disagreed" shape behind the third hand-rolled leave-type map, the two
+`controllerRef` copies, and the select-all that decayed differently in each
+approvals file.
+
+So `PageSwitch` moves to `components/platform/v2/PageSwitch.jsx`. It already
+spreads extra props (`{ v2, legacy, ...props }`), so the embedded caller keeps
+its own:
+
+```jsx
+{activeTab === 'pt' && <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />}
+```
+
+One flag, both entry points, same commit. **Verified on screen: the route and
+the Settings > Payroll > PT Master tab both render v2**, with `embedded`
+correctly suppressing the page header in the tab.
+
+### The eslint config is missing `eslint-plugin-react`
+
+Chasing the `V2`/`Legacy` "unused" errors on the extracted file found the root
+cause of a false positive I had already met on `tax/report`'s `Icon`:
+
+```js
+extends: [js.configs.recommended, reactHooks…, reactRefresh…]   // no eslint-plugin-react
+```
+
+Without it there is no `react/jsx-uses-vars`, so **any variable used only as a
+JSX element name reports as unused** — every component received as a prop or
+param. The original `App.jsx` reported the same 2 errors, so the extraction
+moved them rather than adding any. Not fixed here: adding the plugin is a
+dependency + shared-config change that could surface new errors across the repo.
+
+### PTMasterPageV2
+
+Statutory money config, so full treatment: logic spliced in verbatim (**92
+lines, byte-identical**), the four top-level FY helpers diffed separately, and
+9 money/slab probes asserted — including `fmtCurrency`'s `== null → 'No limit'`
+and the slab-index bookkeeping that keeps display sorting from disturbing
+stored order.
+
+### Verification
+
+- **0 contrast failures** across four surfaces — route (expanded slab table) and
+  the embedded Settings tab × light and dark (141 / 143 / 42 nodes), `dimmed: 0`
+- Slab table renders `₹0 / ₹15,000 / ₹0`, `₹15,001 / ₹20,000 / ₹150`,
+  `₹20,001 / No limit / ₹200` — the null-max fallback exercised
+- Lint parity: v2 2 errors = legacy 2, both inside the verbatim slice;
+  `SettingsPayroll` unchanged at 8
+- **No writes** — Seed, Save and Edit were never clicked. Re-queried after:
+  FY 2025-26 still **20 states / 70 slabs**, default PT state still **MP**.
+
+### Noted while here
+
+FY **2026-27 has no PT slabs on staging** — the page's own copy says that means
+"payroll deducts no professional tax" for the FY. Staging data is scrubbed so
+this may not mirror production, but it is worth a glance at the real org.
+
+---
+
+## payroll/statutory-config — the one place `?? true` is deliberately wrong
+
+Per-employee PF / ESI / PT / tax-regime, read by every payroll run. Logic
+spliced in verbatim (**78 lines, byte-identical**), `getPan` / `getBank` /
+`FILTERS` diffed separately, **10 statutory defaults** and **8 statutory copy
+strings** asserted.
+
+### Why the verbatim rule earns its keep here
+
+The house rule for a policy checkbox is `?? true` — absent means on. This file
+contains the documented exception:
+
+```js
+esiDisabilityCeiling: s.esiDisabilityCeiling === true,
+```
+
+Absent must mean **off**, because the flag raises the ESI wage ceiling from
+₹21,000 to ₹25,000 — defaulting it on would start deducting ESI from employees
+earning ₹21K–₹25K who are not entitled to it. Both the expression and the
+comment explaining it survive byte-identical, as does the matching `=== true`
+gate on the row badge.
+
+The other seven defaults (`pfEnabled ?? true`, `pfCappedAt15K ?? true`,
+`esiEnabled || false`, `ptEnabled ?? true`, `ptState || 'MH'`,
+`taxRegime || 'new'`, `stopSalaryProcessing || false`) are asserted too, along
+with the row-level `pfOn` / `ptOn` that mirror them so a badge can't disagree
+with the form.
+
+### Statutory copy carried across intact
+
+Eight strings asserted verbatim, including the ones that state actual rates:
+the PF ₹15,000 cap and its uncapped-cost warning, the ESI ₹21,000 default
+ceiling, the ₹25,000 disability ceiling with **0.75% employee / 3.25%
+employer**, and the "excluded from every payroll run" hold-salary warning.
+
+### Both entry points, again
+
+Route + the `statutory` tab in `SettingsPayroll`, both via the shared
+`PageSwitch`. **Verified on screen in both places**, with `embedded` correctly
+suppressing the page header in the tab (8 headers, 26 rows in each).
+
+### Not reachable on this data
+
+The **₹25,000 ceiling badge** needs an employee with ESI *on* **and**
+`esiDisabilityCeiling === true`. No staging employee has both, so the row badge
+whose `=== true` gate is the whole point of the exception above was not seen
+rendered. The expression is asserted present; the pixel is not verified.
+
+### Verification
+
+- **0 contrast failures** in both themes with the edit dialog open (309 nodes
+  each), `dimmed: 0`
+- Logic byte-identical (78 lines); helpers and `FILTERS` identical; 10 defaults
+  + 8 statutory strings asserted
+- Lint parity 1 = 1
+- **No writes** — the dialog was opened and cancelled; zero calls matching the
+  update endpoint's `statutory-config/:employeeId` shape
+
+---
+
+## payroll/salary-structures — salary math, exercised rather than asserted
+
+The templates that split gross into Basic / HRA / the rest and decide which
+parts count for PF and tax. Logic spliced in verbatim (**100 lines,
+byte-identical**), the four top-level constants diffed separately
+(`EMPTY_COMPONENT`, `SEARCH_THRESHOLD`, `FALLBACK_COMPONENTS` 50/20/30,
+`pctDisplay`), and **12 salary-math probes** asserted.
+
+### The two rules are independent, and both were driven live
+
+Legacy carries an `EPSILON = 0.001` comparison with a comment explaining it:
+float equality would reject a legitimate 33.33/33.33/33.34 split, which sums to
+`100.00000000000001`, and print that artifact in the badge. Rather than trust
+the assertion, the form was driven:
+
+| input | Total badge | Basic ≥ 50 warning | submit |
+|---|---|---|---|
+| 50 / 20 / 30 | `Total: 100%` | — | enabled |
+| Basic → 40 | `Total: 90% — must be 100%` | shown | disabled |
+| **33.33 / 33.33 / 33.34** | **`Total: 100%`** | shown | disabled |
+
+The last row is the useful one: the epsilon tolerance accepts the sum with **no
+float artifact in the display**, while the separate `Basic >= 50` New Wage Code
+gate independently rejects it. Two rules, both working, neither masking the
+other.
+
+### Bar palette
+
+Legacy's `BAR_COLORS` was seven fixed Tailwind fills, index-based so a
+structure's bar keeps its colours between renders. Now seven tokens in the same
+order and the same hues, so a given component keeps the colour it had.
+
+### Verification
+
+- **0 contrast failures** in both themes with the edit form open (73 / 75
+  nodes), `dimmed: 0`
+- Logic byte-identical (100 lines); 4 constants identical; 12 salary-math probes
+  asserted
+- Both entry points verified on screen — route and the `structures` tab in
+  Settings (4 structures in each), `embedded` suppressing the page header
+- Lint parity **0 = 0**
+- **No writes** — form opened, edited in local state, cancelled. Re-queried
+  after: still **4 structures**, first one still `Basic 35% / Personal Allowance
+  35% / Special Allowance 30%`. The 33.33 split was never saved.
+
+---
+
+## payroll/tax-declarations — the admin twin, and a cap that only agrees by coincidence
+
+The admin counterpart to the ESS page from #78. A save here makes the backend
+recalculate TDS and reprocess the latest payroll run; an approve marks every
+uploaded proof verified. Logic spliced in verbatim (**205 lines,
+byte-identical**), `declStatusKey` / `approvalActionsFor` / `FILTER_ORDER`
+diffed separately, **16 tax-logic and copy probes** asserted.
+
+### 🔴 The two twins cap 80C differently
+
+| page | 80C cap |
+|---|---|
+| `timesheet/tax/declarations` (ESS) | `section80CLimit` from `getPublicPlatformSetting('tax_declaration_sections')` |
+| `payroll/tax-declarations` (admin) | **hardcoded** `Math.min(150000, …)`, labelled `(Max ₹1,50,000)` |
+
+Both write the `section80CTotal` that payroll reads. Change the platform
+setting and the two pages cap the same employee's 80C differently, depending on
+who edited it.
+
+Driven live, the admin page caps 120,000 + 80,000 → **₹1,50,000**, and +80D
+25,000 → **₹1,75,000** — *identical to the ESS twin's numbers in #78*. **They
+agree today only because the configurable value happens to equal the hardcoded
+one.** That is the whole finding: the divergence is latent, not visible.
+
+Carried across unchanged — the fix is to read the setting here too, which is a
+behaviour change on a TDS input.
+
+### The audit caught my own regression
+
+First run: **0 failures but `dimmed: 5`**. By the rule written under
+my-attendance, a non-zero `dimmedByAncestorOpacity` means those nodes are
+*unmeasured*, not passed — so it needed chasing rather than accepting.
+
+They were the filter-chip counts, and the `opacity: 0.75` on them was **mine**,
+written in this very file — the exact anti-pattern that rule exists for. Removed;
+the count inherits the button ink. Re-run: **`dimmed: 0`**, 274/276 nodes, 0
+failures.
+
+Worth noting the flag did its job on the author who added it.
+
+### Not reachable on this data
+
+`Awaiting approval 0`, `approved 0`, `rejected 0` — so `approvalActionsFor`
+returns `[]` for every row present, and **the approve/reject dialog never
+renders**. Verified only that the buttons are correctly *absent* for `declared`
+rows, which is the documented behaviour. The asymmetric reversal copy ("proofs
+already marked verified … stay verified") is asserted present, not seen.
+
+The `[QA-SEED]` fixture from #80 shows up here as `Fomuj Sekij Lo — Declared`,
+which is the empty `declarations: {}` the regime toggle created in #78.
+
+### Verification
+
+- **0 contrast failures** in both themes (274 / 276 nodes), `dimmed: 0` after
+  the fix
+- Logic byte-identical (205 lines); 3 workflow helpers identical; 16 probes
+- Exercised live: filter chips with counts, the documented `visibleFilters`
+  hiding of zero-count states, row derivation, the edit dialog, regime switch,
+  and the 80C cap
+- Lint parity **0 = 0**
+- **No writes** — no save, no approve, no reject. The dialog was opened, edited
+  in local state, and dismissed.
+
+## #85 — `payroll/tax-reports`
+
+Per-employee income tax report: a list of confirmed employees, an expandable
+row that fetches one report, and a full-report dialog with the detailed
+computation. Read-only — nothing on this page writes.
+
+Logic spliced in verbatim (**87 lines, byte-identical**), including the request
+ticket. `taxReport` is a single shared slot, so expanding two rows quickly
+fires two overlapping fetches and the slower one used to win — employee A's
+numbers landing under employee B. Every fetch takes a ticket and only the
+newest may write. That is carried across untouched.
+
+### This page is the worked answer for #79
+
+The ESS twin (`MyTaxReportPage`) was flagged in #79 for two hardcoded captions.
+This admin page had **already fixed both**, with the reasoning in comments:
+
+| row | ESS twin (#79) | here |
+|---|---|---|
+| `Less: Standard Deduction` | caption `(₹75K / ₹50K)` from the regime | no caption — the amount is FY-configurable (`fyStatutoryConfig`) and could disagree with the figure in the next column |
+| `Health & Education Cess` | caption `(4%)` | no caption — `cessRate` is per-FY configurable and **is not in the tax-report payload**, so `(4%)` was an assumption |
+
+Both comments are carried across verbatim. Fixing the ESS page is now a matter
+of copying them, not of re-deriving the argument.
+
+### 🔴 `EmptyState` was being called with props it does not have — 12 sites, 8 files
+
+The component's contract is `children` for the explanatory line and `actions`
+for the buttons. I have been passing `sub=` and `action=` since #76. React
+spreads unknown props onto the outer `<div>` and renders nothing, so **every
+one of those empty states shipped without its explanatory copy and without its
+button** — silently, in already-merged code.
+
+| file | what was invisible |
+|---|---|
+| `TaxReportsPageV2` | load-error **Retry**, search **Clear search** |
+| `StatutoryConfigPageV2` | **Clear search and filters**, the "no employees yet" copy |
+| `SalaryStructuresPageV2` | **Create your first structure**, **Clear search** |
+| `PTMasterPageV2` | **Load Default PT Slabs**, **Clear search** |
+| `MyTaxDeclarationsPageV2` | **Retry** + `BLOCK_COPY[blockReason]` |
+| `MyTaxReportPageV2` | **Retry** + the whole blocked-reason explanation |
+| `LeaveApplyV2` | why leave is unavailable |
+| `TimesheetProjectsV2` | "Add a client before creating projects." |
+
+The worst of these are the `Retry` buttons: an admin hitting a failed load had
+**no way to retry at all** except a full page reload.
+
+`EmptyState.d.ts` declares the correct contract — I wrote it, then did not
+follow it. Vite does not type-check, eslint has no JSX prop rule, and the build
+is happy either way. **This is the sixth time in this migration that the build
+passed on something visibly broken**, and the first where the wrong thing was
+invisible rather than wrong-looking, which is why it survived eight PRs.
+
+All 12 rewritten and re-verified live: `Clear search` restores 26 rows, and the
+`Retry` button — exercised by forcing `GET /statutory` to reject, clicking it,
+and letting the next attempt succeed — recovers from 0 rows to 26.
+
+### Restored on the way through
+
+Two things the first draft of the V2 page dropped, both caught by diffing the
+rendered output rather than the source:
+
+- the **Cumulative TDS** column and its running accumulator, which exists only
+  in the dialog's monthly table and is computed in the component — it is not a
+  payload field, so nothing else would have surfaced its absence
+- `{monthsProcessed} processed • {monthsRemaining} remaining` under Est.
+  Monthly TDS, and the `imported` marker on months carried over from an
+  imported payslip rather than processed in a Rivvra run
+
+Also restored: legacy distinguishes **three** empty states — request failed,
+company genuinely has no confirmed employees, and the search matched nothing.
+The first draft collapsed the last two into one, which is the exact conflation
+the legacy page carries a comment about having fixed.
+
+### One deliberate divergence
+
+Legacy sets `✓ Better by ₹…` in green **on a green wash** — an accent ink on a
+tint of itself, the pairing documented twice in THEMING.md as failing every
+time. The tint and border already carry "this regime is better"; the ink is
+`--fg`. Same structural fix as my-attendance and leave/approvals.
+
+### Verification
+
+- Money parity **legacy vs v2, same employee, 84 values in the same order**:
+  4 summary-row, 17 expanded-row, 63 dialog — zero differences.
+  The first attempt at this compared V2 to V2: flipping `uiV2` in the cached
+  org was undone by the app's own org refetch mid-load. Pinned properly by
+  temporarily routing straight at the legacy component, then restored.
+- **0 contrast failures** in both themes with the dialog open (287 light /
+  289 dark). The page uses no `opacity`, so nothing went unmeasured.
+- Exercised live: row expand and collapse, the full-report dialog, monthly
+  breakdown, regime comparison, search, the no-match empty state, and the
+  forced load failure with a successful Retry.
+- Lint parity **11 = 11** (all pre-existing); `TaxReportsPageV2.jsx` clean.
+- **No writes.** The page has no mutating endpoint.
+
+⚠️ `SalaryStructuresPageV2`'s `Clear search` fix is verified by build and lint
+only — its search box renders behind `showSearch`, which the staging data does
+not satisfy. It is the identical one-token rename to the two confirmed live.
+
+## #86 — `payroll/settings` (FY statutory rates) + `ds/Accordion`
+
+The FY statutory config: income-tax slabs for both regimes, cess, surcharge,
+PF and ESI. **This is where every payroll run reads its rates from**, so the
+arithmetic was treated as untouchable rather than merely preserved.
+
+Logic spliced in verbatim (**97 lines, byte-identical**). On top of that, every
+conversion and row mutation was asserted individually — **22 probes**, all
+matching:
+
+- `toPercentDisplay`'s `Math.round(n * 10000) / 100` (the float-artifact guard)
+- `Number(raw) / 100` in both `SlabTable` and `ConfigField`
+- `showTax` branching to `tax` vs `rate`
+- `max === '' ? null` and `slab.max === null ? '' : slab.max` (the ∞ band)
+- `addRow`'s `(last.max || 0) + 1`, `removeRow`'s `length <= 1` guard
+- `DraftNumberInput`'s `draft !== null ? draft : (value ?? '')` and its
+  `onBlur` reset
+- the FY-select fallback that stops a blank select before seeding
+- the copy dialog's `/^\d{4}-\d{2}$/` gate
+- `CURRENT_FY`'s April boundary
+
+### Rendered parity — 65 rate values
+
+Every input on the page, all five sections open, legacy vs v2: **65 values,
+identical**. That is the whole statutory table — new-regime slabs 0/5/10/15/
+20/25/30, std deduction 75,000, 87A limit 12,00,000 / max 60,000; old-regime
+0/5/20/30 with 50,000 / 5,00,000 / 12,500; cess 4; surcharge 0/10/15/25/37;
+PF 12 / 3.67 / 8.33 / ceiling 15,000 / EDLI 0.5 / admin 0.5; ESI 0.75 / 3.25 /
+ceiling 21,000.
+
+Re-checked on the **embedded** entry point (Settings → Payroll → FY Rates):
+same 65 values, and the page header correctly suppressed.
+
+### The percent↔fraction round trip, driven live
+
+The risk this page carries is that a rate is stored as a fraction and edited as
+a percent, so a re-render has to survive `Number(raw) / 100` then
+`toPercentDisplay`. Typed four values into cess, collapsed and re-expanded the
+section each time to force a re-render straight off `config`:
+
+| typed | after round trip |
+|---|---|
+| 4.65 | 4.65 |
+| 8.33 | 8.33 |
+| 0.5 | 0.5 |
+| 12 | 12 |
+
+`8.33` is the one that matters — it is the EPS rate, and it is exactly the
+shape that produces `8.330000000000002` without the rounding guard.
+
+Add slab / remove slab round-tripped 16 → 17 → 16 bands. The copy dialog's
+gate rejects `''`, `2027` and `202-27`, and enables only on `2027-28`.
+
+### A false failure that was mine
+
+`"4."` read back as `""` and I briefly took it for a `DraftNumberInput`
+regression. It is not: assigning an invalid intermediate to an
+`<input type="number">` clears it in the DOM **before React sees it**, so the
+probe never delivered the value at all. `el.value` on a number input cannot
+distinguish "draft held in React state" from "cleared" — the harness was wrong,
+not the code.
+
+The real risk it pointed at was worth checking though: if `ds`'s `Input`
+defined its own `onBlur`, the draft would never reset and a partial value would
+stick forever. It does not — `Input` spreads `...rest` onto `<input>` and
+declares no handlers, so the behaviour is preserved by construction.
+
+### New primitive: `ds/Accordion`
+
+Five titled collapsible sections, and `ds` had no such thing — the existing
+collapsibles in v2 pages are all table-row expanders. Built in `ds/` with a
+`.d.ts` per the standing rule rather than left local to the page.
+
+Controlled on purpose: settings pages need to open a section from outside (deep
+link, validation error, expand-all), which an internally stateful version
+cannot do without a ref escape hatch. The chevron rotates rather than swapping
+glyphs, so open/closed is one element to a screen reader.
+
+The consumer queue is real — `settings` (7,260 lines) is next and is almost
+entirely this shape.
+
+### Verification
+
+- **0 contrast failures** in both themes with all five sections open
+  (112 light / 114 dark), and 118 with the copy dialog open
+- Logic byte-identical (97 lines); 22 arithmetic probes; 65 rate values
+- Both entry points exercised — the route and the embedded Settings tab
+- Lint parity **8 = 8** on the page (all inherited from the verbatim slice);
+  `Accordion.jsx`, `ds/index.js` and `App.jsx` clean; `SettingsPayroll.jsx`
+  unchanged from its baseline
+- **No writes.** Save rewrites the rates every payroll run uses, Seed
+  overwrites the FY 2025-26 config, and Copy creates an FY document with no
+  delete endpoint — all three are on the never-trigger list. The dialog was
+  opened, its validation gate exercised, and cancelled; local field edits were
+  discarded by reload, confirmed by cess reading `4` again afterwards.
+
+⚠️ **The super-admin wall is unverified.** The staging user *is* a super admin,
+so the `!isSuperAdmin` branch cannot render for them. Its copy and structure
+rest on the static diff alone. Verifying it needs a non-super-admin account —
+the same second-account gap the seeder hit on leave rejection in #80.
+
+## #87 — `payroll/statutory-run` (Run Payroll) — the last payroll page
+
+1,660 lines, two views in one component: a run index and a run detail with a
+per-employee breakdown. This is the page that processes, finalizes, releases
+payslips and marks payroll paid.
+
+### The method had to change here
+
+Every previous page in this migration was safe because everything above
+`return (` was spliced in verbatim. **That is not sufficient on this page.**
+Most of the money math lives *in the render*:
+
+| block | what it computes |
+|---|---|
+| detail-view head | `computedTotalPf`, `computedTotalCtc`, and the type → search → sort pipeline |
+| summary cards | five `items.reduce(...)` totals |
+| expanded row | `liveAdHoc` → `baseGross` → `displayGross` → `baseDeductions` → `displayDeductions` → `displayNet` |
+| mark-paid dialog | the payable/held split that keeps on-hold employees out of the confirmed total |
+| list view | `presentStatuses` and `visibleRuns` |
+| list row | the `Number.isFinite` guards that show `—` instead of an empty cell for draft runs |
+
+So the 358-line pre-return splice was verified byte-identical **and** each of
+those six render-resident blocks was copied across and diffed on its own
+(indentation normalised for the nested ones). Nothing that produces a number
+was retyped. 46 `formatMoney` call sites, 31 distinct leaf fields — identical
+sets.
+
+The `displayNet` chain is the one that matters most: it deliberately strips
+ad-hoc deductions out of `item.totalDeductions` but leaves F&F in, so live
+edits flow through while the total still matches the printed payslip. Retyping
+that from memory would have been the single easiest way to silently change
+someone's net pay.
+
+### Rendered parity — 394 money values
+
+Legacy vs v2, same run (June 2026, the largest at 68 rows):
+
+| surface | values | result |
+|---|---:|---|
+| run index rows | 11 | identical |
+| summary cards | 5 | identical |
+| employee table | 365 | identical |
+| one expanded row | 13 | identical |
+
+The expanded row was chosen by **index, not name**, and happens to carry an
+ad-hoc earning (`1% of Profit +₹4,387`) and a placement incentive with its
+payout breakdown — so the live-ad-hoc path and the incentive path are both
+covered by the capture rather than merely present in the source.
+
+### The audit caught a failure I introduced in `ds`
+
+`finalized` had no Chip tone. Mapping it to `info` would have made it
+indistinguishable from `processed` — two adjacent lifecycle states rendering
+identically on a status column, which is real information loss. So `Chip`
+gained a `purple` tone.
+
+I shipped it with `fg: var(--acc-purple)` — an accent ink on a 14% wash of
+itself, **the exact pairing documented twice in THEMING.md as failing**, and
+the exact pairing the comment three lines above it in `Chip.jsx` already warns
+about. The audit measured it at **4.12** against a 4.5 floor in light theme.
+
+The fix was already in the file as precedent: `brand` and `warn` read
+`--brand-ink` / `--warn-ink` rather than the accent. Added `--acc-purple-ink`
+(dark `#C084FC`, unchanged — it sits on a dark surface; light `#6B21A8`) and
+pointed the tone at it. Re-measured: **0 failures**.
+
+Worth stating plainly: I predicted this failure while writing the tone, decided
+to let the audit adjudicate rather than guess, and the audit adjudicated
+against me. That is the tool working, but the cheaper path was to follow the
+rule already written in the same file.
+
+### Verification
+
+- **0 contrast failures** in both themes on the densest surface — the 68-row
+  run with a row expanded (817 light / 819 dark nodes)
+- 358-line splice byte-identical; **6 render-resident money blocks** diffed
+  individually; 394 rendered money values identical
+- Exercised live: run index, the four employment-type tabs (25/8/35 of 68),
+  search with its no-match state, **sorting** (money columns descend on first
+  click, `Employee` ascends A→Z, Reset restores the backend order), row expand
+  and collapse
+- Lint parity **0 = 0** — the legacy page was clean and so is the v2
+- `Chip` change is purely additive: one new tone key, two new tokens, no
+  existing tone touched
+
+### No writes — and this is the page where that mattered most
+
+Not triggered: **Process, Re-process, Finalize, Unfinalize, Mark Paid, Release
+Payslips, Hold Payslips, Lock/Unlock Inputs, Lock/Unlock Payroll, Create run,
+Delete run, Ad-hoc save, Hold/Release salary**, and every download.
+
+Two dialogs were opened read-only and cancelled:
+
+- **Release Payslips** — 68 checkboxes, Select All / Deselect All, and the
+  documented exclusion of on-hold employees. Cancelled; the run is still
+  unreleased. The Release button was never clicked — it emails 68 payslips.
+- **Mark Paid** on a `finalized` run — renders `₹2,25,902 across 1 employee`,
+  matching the index row. Cancelled; status still `Finalized`.
+
+⚠️ **The on-hold exclusion path is present but untested with data.** This run
+has no employee on salary hold (`disabled` checkbox count = 0), so Select All
+skipping held employees, the disabled row, the `On Hold` chip and the
+"Excludes N employees on salary hold" line in Mark Paid all rest on the static
+diff. Creating a hold to test it is a write to a payroll run, which is on the
+never-trigger list.
+
+That is now the fourth surface in this project unverifiable for the same
+reason: **staging has no instance of the exceptional state**, and manufacturing
+one means performing the action the rule exists to prevent.
+
+## #88 — settings batch 1: `crm`, `sign`, `contacts`, `todo`
+
+Settings is ~7,500 legacy lines across 16 files — far more than one batch. This
+takes the four app-settings tabs that share one archetype (admin gate → cards
+of controls → optional save), which is the shape the remaining twelve follow.
+
+`SettingsCrm`'s state/fetch/save block is spliced in verbatim (**38 lines**), as
+is `SettingsTodo`'s (**64 lines**, one deliberate change noted below). The two
+placeholder tabs carry no logic beyond their admin gate.
+
+### Rendered parity — all four tabs, legacy vs v2
+
+Every word, every `<select>` value **and full option list**, every `<input>`
+value and disabled state:
+
+| tab | words differing | selects | inputs |
+|---|---|---|---|
+| crm | none | identical | identical |
+| sign | none | identical | identical |
+| contacts | none | identical | identical |
+| todo | none | identical | identical |
+
+The CRM currency list matters more than it looks: `defaultCurrency` is what
+every CRM deal's revenue is reported in, so the eight options are carried
+across in the legacy order, value **and** label. Dropping or reordering one
+would silently re-denominate existing opportunities.
+
+`selectsMatch: true` on `todo` is also the proof that **nothing was written**
+between the legacy and v2 captures — the org's scan config reads identically
+before and after.
+
+### 🔴 `SettingsTodo` saves on every keystroke of interaction
+
+There is no Save button and no confirm step. All three selects call
+`handleSaveConfig` straight from `onChange`, and adding or removing a blocked
+sender writes on the spot. Touching any control on a live org immediately
+changes AI-scan behaviour **for every member of that org**.
+
+Carried across unchanged — it is the existing contract — but the v2 file now
+says so at the top, because the tab gives a tester no signal that it is live.
+
+### The `opacity-60` "Coming Soon" cards were unmeasurable, not passing
+
+Both placeholder tabs dimmed each unbuilt card with `opacity-60` and each
+control with `opacity-50`. **Container opacity is the one thing the contrast
+audit cannot see through** — by the rule written under tax-declarations, those
+nodes are *unmeasured*, not passed, and the audit in its current form would
+have reported a comfortable pass that wasn't real.
+
+Replaced with the signal carried by a `Coming Soon` chip and by controls being
+genuinely `disabled` — which IS exempt from AA by spec, and which the audit
+skips deliberately rather than accidentally. Same meaning, now measurable.
+
+### A third and fourth hand-rolled toggle
+
+`ToggleSwitch` was duplicated **character for character** in `SettingsContacts`
+and `SettingsSign`. Both are gone in favour of ds `Switch`.
+
+Four more copies survive elsewhere and are out of scope for this batch:
+`SettingsTimesheet`, `SettingsEmployee`, `SettingsAts`, and the shared
+`components/ToggleSwitch.jsx` (used by `EngageSettings` and
+`SequenceDetailPage`). Worth collapsing when those files are migrated.
+
+### Verification
+
+- **0 contrast failures** on all four tabs in **both** themes
+  (crm 34, sign 41, contacts 38, todo 191 nodes)
+- Slices byte-identical: CRM 38 lines, To-Do 64 lines
+- Rendered word/select/input parity on all four
+- V2 lint **clean on all four**; legacy baseline was clean on three, and
+  `SettingsTodo` had 2 problems. The `catch (err)` → `catch` in the To-Do slice
+  is the one deliberate deviation — it drops an unused binding, and the
+  `exhaustive-deps` disable comment matches the house pattern used in
+  `PayrollRunPage` and `TaxReportsPage`.
+- **No writes.** CRM's Save was never clicked; no To-Do select was changed and
+  no blocklist entry added or removed.
+
+### Deliberately not in this batch
+
+`SettingsOutreach` (71 lines) looks like the smallest tab of all, but its body
+is `<EngageSettings />` — **408 legacy lines** of send limits, unsubscribe and
+signature config. Migrating the 71-line shell alone would ship a tab that is
+half redesigned and half not. The two belong in one batch.
+
+Remaining in settings after this: `SettingsCompanies` (1,162), `SettingsTeam`
+(984), `SettingsGeneral` (866), `SettingsPayroll` (787, the tab hub itself),
+`SettingsTimesheet` (641), `SettingsEmailLogs` (487), `SettingsPolicies` (448),
+`SettingsIncentive` (447), `SettingsAts` (438), `SettingsEmployee` (304),
+`ReassignDataModal` (258), and `SettingsOutreach` + `EngageSettings` (479).
+
+## #89 — settings batch 2: `outreach` + `EngageSettings`
+
+Deferred from #88 on purpose: `SettingsOutreach` is a 71-line shell whose body
+is `<EngageSettings />`, 408 more legacy lines. Migrating one without the other
+ships a half-redesigned tab. Both are done here.
+
+Two slices spliced in verbatim: `EngageSettings`'s state/load/save/reset block
+(**99 lines**) and `SignatureSection`'s iframe effect (**46 lines**).
+
+### What was treated as load-bearing
+
+- **The send-limit clamps.** `Math.min(200, Math.max(1, val))` daily and
+  `Math.min(50, Math.max(1, val))` hourly, with the `isNaN` early return. These
+  govern how many emails leave a real mailbox — typing 5000 into that field is
+  a domain-reputation problem, not a UI one. Driven live: `5000 → 200`,
+  `0 → 1`, `75 → 75`; `999 → 50`, `0 → 1`, `12 → 12`.
+- **`starterSignature` and its prefill guard.** `savedSig ? res.settings.signature
+  : starterSignature` — the starter is a prefill for *empty* signatures only and
+  must never overwrite one a rep has saved.
+- **The preview iframe's `sandbox="allow-same-origin"` with no
+  `allow-scripts`.** It renders HTML the user pasted, so granting scripts would
+  turn a settings field into stored XSS against its own author. Verified
+  present and unchanged on the rendered page.
+
+### 🔴 Pre-existing crash: the tab dies if the Gmail status call fails
+
+`SettingsOutreach` leaves `gmailStatus === null` when `api.getGmailStatus()`
+rejects or returns `success: false` (the `.catch(() => {})` swallows it), and
+`EngageSettings` then reads `gmailStatus.connected` unguarded.
+
+Forced the failure and reproduced it on **both**:
+
+```
+Something went wrong
+Cannot read properties of null (reading 'connected')
+```
+
+The entire tab is replaced by the error boundary. **Not fixed** — the
+expression is carried across byte-identically and the behaviour is confirmed
+identical to legacy, so this is reported rather than silently changed. The
+one-character fix is `gmailStatus?.connected`, which would render "Not
+connected" instead of crashing.
+
+### `ds/Button` gained a polymorphic `as`
+
+The Connect control is a real navigation (`href="#/outreach/engage"`). `Button`
+renders a `<button>` and had **no** `as` prop — writing `as="a" href=…` would
+have spread both onto a `<button>`, producing a control that looks like a link
+and navigates nowhere.
+
+That is the `EmptyState` failure from #85 exactly, and this time it was caught
+**before** writing the page, by reading `Button.d.ts` first. The rule from #85
+worked.
+
+Added `as` (default `'button'`), with `type` and `disabled` applied only for
+real buttons and `aria-disabled` used otherwise. Verified live: the Connect
+control is an `<a>`, carries `href="#/outreach/engage"`, and has no stray
+`type` attribute.
+
+### Tooltip copy moved to native `title`
+
+Legacy built each hint as an always-in-DOM `opacity-0 group-hover:opacity-100`
+div. Those are now native `title` attributes — which is why an `innerText` diff
+shows nine words "missing" from v2. They are not missing; all three strings
+were asserted present verbatim as `title` values:
+
+- `Name shown in the "From" field. Leave empty to use your profile name.`
+- `Maximum emails sent per day`
+- `Maximum emails sent per hour`
+
+### The audit's 5th false-failure mode, again
+
+First light-theme run: **19 failures**, every one a sidebar nav item with ink
+`rgb(186,196,208)` on white — a *dark-theme* foreground measured against a
+*light-theme* background. I had forced layout with `void document.body.offsetHeight`
+and assumed that was enough.
+
+It is not. **Layout is not paint.** After forcing a real paint the same ink
+computes to `rgb(52,60,70)` and all 19 vanish. The rule stands as written under
+my-attendance and gets one clarification: only a screenshot (or equivalent
+compositor flush) settles a theme switch — `offsetHeight` does not.
+
+### A method correction
+
+Earlier baselines in this project were taken with `eslint … && echo clean`,
+which reads the **exit code** — and eslint exits 0 when there are only
+warnings. Re-checked with full output: legacy `EngageSettings` has 1 warning
+(`exhaustive-deps` on `loadSettings`) and v2 has the same 1, inherited from the
+slice. Parity holds. The #88 files were re-checked too and are genuinely clean.
+
+### Verification
+
+- **0 contrast failures** in both themes (57 dark / 59 light) after a real paint
+- Slices byte-identical: 99 lines + 46 lines
+- Rendered parity: all four input/textarea values identical, **including the
+  full ~4KB HTML signature**, and the iframe `sandbox` attribute
+- Clamps driven live; tooltip copy asserted preserved; `as="a"` verified
+- Lint parity **1 warning = 1 warning**, same warning
+- **No writes.** Neither Save nor Reset was clicked. `handleReset` is not a
+  local form reset — it PUTs the defaults and would wipe the signature,
+  `fromName` and unsubscribe settings. The clamp probes were local state only
+  and were discarded by reload, confirmed by the limits reading 50/6 afterwards.
+
+### One deliberate addition
+
+The unsubscribe toggle had no label of its own in legacy — only a section
+heading and a paragraph. It now has a `SettingRow` label ("Add an unsubscribe
+link to every sequence email") and the `Switch` carries an accessible name.
+That is an addition, not a copy change, and it is the only text v2 gained.
+
+### `EngagePage` still renders the legacy child
+
+`EngageSettings` has a second consumer, `pages/EngagePage.jsx`, which is not
+migrated and not switched. Legacy page → legacy child, v2 tab → v2 child, so
+neither surface is half-styled. When EngagePage is migrated it should move to
+`EngageSettingsV2` in the same change.
+
+## #90 — settings batch 3: `settings/employee`
+
+304 lines. The state/fetch/save block is spliced in verbatim (**39 lines**),
+and two things in the render were treated as slices of their own.
+
+### `timesheetModeConfig` decides who fills a timesheet
+
+It lives in the render, not above `return (` — the shape that broke the method
+on `statutory-run` (#87). It maps each *employment type × billable* pair to
+`timesheet` or `attendance`, which is what payroll later reads day counts from,
+so it is carried across byte-identically: the seven-row `defaultConfig`, the
+reconciliation that guarantees every pair exists even when the stored config is
+partial, and the per-row updater.
+
+Verified rendered, row by row, legacy vs v2 — all seven identical:
+
+| type | billable | mode |
+|---|---|---|
+| Confirmed | Yes / No | attendance / attendance |
+| Internal Consultant | Yes / No | **timesheet** / attendance |
+| External Consultant | Yes | **timesheet** |
+| Intern | Yes / No | attendance / attendance |
+
+### The `??` defaults, all eight
+
+`billableByDefault ?? true` is **not** `|| false` — a stored `false` must stay
+false and a missing key must read as true. All eight defaults asserted present
+and identical: the one `?? true`, two `?? false`, `?? 'quarterly'`,
+`?? 'confirmed'`, `?? 'EMP'`, and the two `?? ''` on the Plan Roles selects.
+
+### Plan Roles write two keys per select
+
+Each writes the id **and** the denormalised name, looked up from `members`.
+Both `update()` calls and both member lookups are preserved — dropping the name
+write would leave plan tasks showing a blank assignee.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| visible text | **zero** word differences |
+| inputs | identical (`text=EMP`) |
+| 10 selects — value + full option list, in order | identical |
+| 7 timesheet-mode rows | identical |
+
+### Closing the toggle gap properly
+
+Legacy's hand-rolled `ToggleSwitch` exposes **no `role="switch"` and no
+`aria-checked`**, so the aria comparison came back empty for legacy and
+populated for v2 — the two were not comparable, which is not the same as
+matching.
+
+Rather than assert the states from the (byte-identical) `??` expressions, I
+re-pinned legacy and read the **painted background colour** of each toggle:
+`rgb(21,128,61)` / muted / muted → on, off, off. V2 reports
+`true, false, false`. They match, and `billableByDefault ?? true` renders as ON
+in both.
+
+The binding was checked too: toggling Profile Update Reminders reveals the
+Reminder Frequency select (default `quarterly`, options monthly/quarterly/
+yearly); toggling back hides it and restores the initial state. Local state
+only — Save was never clicked.
+
+The `aria-checked` v2 now exposes is a genuine accessibility gain: legacy's
+toggle was an unlabelled `<button>` with a coloured `<span>` and announced
+nothing.
+
+### Verification
+
+- **0 contrast failures** in both themes (66 nodes each), with a real paint
+  forced between the theme switch and the read — the mistake from #89
+- Slice byte-identical (39 lines); `timesheetModeConfig` derivation identical;
+  8 `??` defaults and 4 Plan-Roles writes asserted
+- Lint **0 = 0** — legacy was clean and so is v2
+- **No writes.** Save was never clicked. The one toggle exercised was local
+  state and was toggled back.
+
+### Toggle count
+
+Third of six hand-rolled `ToggleSwitch` copies removed. Three remain:
+`SettingsTimesheet`, `SettingsAts`, and the shared `components/ToggleSwitch.jsx`
+(used by `EngageSettings` and `SequenceDetailPage`).
+
+## #91 — settings batch 4: `settings/ats`
+
+438 lines, two components. Three verbatim slices — `CareersCard`'s whole
+state/effect/save block (**81 lines**), `SettingsAts`'s (**40 lines**), and the
+reporting-threshold block that lives in the render (**15 lines**).
+
+### ⚠️ This tab publishes to a public website
+
+`CareersCard`'s `enabled` toggle plus Save is the difference between a live
+public careers page and a 404. On this staging org the site is **already
+enabled**, with a live URL (`/careers/huemot-technology`).
+
+That Save was never clicked. It is a genuinely outward-facing action — it
+changes what anonymous visitors on the internet can see — which puts it a step
+beyond the usual "writes to staging are fine".
+
+### The threshold block is render-resident
+
+`updateThreshold` merges into `settings.reportingThresholds` rather than
+replacing it; a flat `update` would nuke the sibling thresholds every time one
+was edited. That, the three `Number.isFinite` defaults, and the comment saying
+the values **14 / 3 / 24 mirror `ATS_REPORTING_THRESHOLD_DEFAULTS` in the API
+(`src/ats.js`)** are all carried across byte-identically. The `|| 14`, `|| 3`,
+`|| 24` fallbacks in each `onChange` come with them.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| all 6 inputs | identical — thresholds `14 / 3 / 24`, tagline empty, colour `#2bb3b3`, logo empty |
+| Default Stage select | identical, all **10** options in order (First stage → Hired) |
+| public careers URL | identical |
+| 3 toggles | identical — `true, false, true` |
+
+`autoCreateCandidate ?? true` renders ON in both, and `?? true` is not
+`|| false`: a stored `false` must stay false.
+
+### Careers validation, driven live
+
+`colorValid` is `/^#[0-9a-fA-F]{6}$/`, and `hasChanges` gates Save:
+
+| state | error shown | `aria-invalid` | Save |
+|---|---|---|---|
+| at rest (no changes) | no | false | **disabled** |
+| `#12` | yes | true | **disabled** |
+| `#2563eb` | no | false | enabled |
+| restored to `#2bb3b3` | no | false | **disabled again** |
+
+The last row is the useful one: restoring the original value re-disables Save,
+which proves `hasChanges` works *and* that nothing was left dirty. Save was not
+clicked in the enabled state.
+
+### A capture bug of mine, caught
+
+The legacy toggle capture returned **4** states where the source declares only
+**3** `<ToggleSwitch>` usages — my selector (`rounded-full` + a `<span>` child)
+wasn't scoped and picked up a control from the app shell. Re-scoped to `main`:
+3 in, 0 out, and the three align with legacy's first three exactly.
+
+Worth noting because the failure mode is silent: an over-matching selector
+inflates a count, and a count that doesn't match is easy to explain away as
+"v2 renders one fewer" rather than "my selector is wrong."
+
+### Verification
+
+- **0 contrast failures** in both themes (63 nodes each), real paint forced
+  between the theme switch and each read
+- Three slices byte-identical: 81 + 40 + 15 lines
+- Lint parity **1 error = 1 error** — the empty `catch {}` in `handleCopyUrl`,
+  inherited unchanged from the slice rather than quietly fixed
+- **No writes.** Neither Save was clicked. The colour probe was local state and
+  was restored, confirmed by Save returning to disabled.
+
+### Toggle count
+
+Fourth of six hand-rolled `ToggleSwitch` copies removed. Two remain:
+`SettingsTimesheet` and the shared `components/ToggleSwitch.jsx` (used by
+`EngageSettings` and `SequenceDetailPage`).
+
+## #92 — settings batch 5: `settings/incentive`
+
+447 lines, and a money surface: the FX table decides what a recruiter or
+account manager is actually paid when an invoice is raised in a currency other
+than the company's functional one.
+
+Spliced in verbatim: the whole state/load/save/FX-row block (**131 lines**) and
+the three module tables — `DEFAULTS`, `BLANK_FX_ROW`, `CURRENCY_OPTIONS`
+(**26 lines**). **13 probes** asserted on top of that.
+
+### Three details that are cheap to lose and expensive to have lost
+
+- **`DEFAULTS` still carries `defaultRecruiterRate` / `defaultAccountManagerRate`
+  at `0.06`.** They are deliberately not rendered — the Rate Table owns them —
+  but `onSave` PUTs `{ ...form }`, so dropping them from the object would
+  **erase the resolver's Layer-4 fallback** on the next save. Asserted present.
+- **The `loadError` guard.** It exists so a failed fetch cannot render built-in
+  DEFAULTS and let a Save click overwrite the org's real settings. Both the
+  early return and `disabled={saving || loadError}` asserted.
+- **`CurrencySelect` re-offers an unknown stored code as "(legacy)"** rather
+  than silently resetting it to blank — which would drop an FX pair on the next
+  save. Asserted.
+
+### Rendered parity
+
+Zero word differences. Identical inputs (cut-off `25`, FX rate `85`), both
+selects identical including **all 11 options** (placeholder + 10 currencies),
+all three toggles identical, and the Save button's disabled state identical.
+
+### The validation chain, driven live behind a blocking interceptor
+
+Before touching Save I installed a fetch interceptor that **blocks and records
+any non-GET** to the incentive settings endpoint — so that even if my reading
+of a guard was wrong, nothing could land.
+
+| probe | result | reached the network? |
+|---|---|---|
+| row with only `from` set | “Please complete all FX rate rows…” | **no** — returned before fetch |
+| row duplicating an existing pair | “Duplicate FX pair USD → INR…” | **no** |
+| row with `from === to` | “Removed 1 same-currency row…” | **yes — blocked by the harness** |
+
+That third row is why the interceptor was there. **Same-currency is a
+warn-and-continue, not a blocker** — the toast reads like a rejection but
+execution falls through to the PUT. Had I trusted the wording and clicked Save
+without the net, I would have written to the org's incentive settings.
+
+The interceptor caught exactly one attempt. Afterwards, fetch was restored, the
+page reloaded, and the server state re-read: **1 FX row, USD→INR @ 85, cut-off
+25** — identical to the legacy capture taken before any of this. Nothing landed.
+
+### Verification
+
+- **0 contrast failures** in both themes (43 light / 45 dark), real paint forced
+  before each read
+- Slices byte-identical: 131 + 26 lines; 13 probes
+- Rendered parity on text, inputs, both selects with full option lists,
+  toggles, and Save state
+- Lint **0 = 0**
+- **No writes.** One save attempt reached the network layer via the
+  warn-and-continue path and was blocked by the harness; server state verified
+  unchanged afterwards.
+
+### Worth carrying forward
+
+A toast that reads like a rejection is not proof of a rejection. `sameCcy`
+shows a message and then keeps going — the only reliable way to know whether a
+guard *returns* is to watch the network, not the UI.
+
+## #93 — settings batch 6: `settings/policies`
+
+448 lines, three components. Two verbatim slices: the admin block (**70 lines**)
+and `PolicyEditor`'s state + `handleSubmit` (**64 lines**). **10 probes**.
+
+### ⚠️ This tab can permanently destroy an audit trail
+
+`deletePolicy` hits `/policies/:id/permanent`, which removes the document file
+**and every acknowledgment record for it** — the evidence that employees read
+the policy. `archivePolicy` is a softer write but still a write. Neither was
+triggered, nor either save path, nor an upload.
+
+### The `appliesTo` footgun, carried across with its comment
+
+Unchecking "All employees" and then selecting nothing sends `appliesTo: []`,
+which **the backend treats as everyone** — the exact opposite of the intent.
+The guard forcing an explicit choice, `finalAppliesTo = appliesAll ? ['ALL'] : appliesTo`,
+and the `filter((k) => k !== 'ALL')` on editor init are all byte-identical.
+
+Driven live: opened the editor on an "All employees" policy, unchecked the box,
+selected no type, clicked Save.
+
+> Select at least one employee type, or choose "All employees"
+
+…and **zero network attempts** — it returned before the fetch, dialog still
+open. (The one checked box remaining was "require acknowledgment", not an
+audience type; zero types selected is precisely what tripped the guard.)
+
+### The confirm dialog got safer
+
+Swapped `shared/ConfirmDialog` for the ds one — prop-compatible, with one
+deliberate difference: **Enter confirms only when `danger` is false**. Both
+confirms here are `danger: true`.
+
+Verified on the live Archive confirm: pressing Enter left the dialog open with
+**zero network attempts**; Escape cancelled. A stray keypress can no longer
+archive — or permanently delete — a policy. That is the whole reason the ds
+version exists, and this is the first page where it actually matters.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| visible text | **zero** word differences |
+| policy rows | 5, identical |
+| meta lines | identical — filename, `formatBytes` output, version, **and the All-employees vs N-types branch** |
+| ack counts | identical — `31, 27, 28, 12, 13` |
+| Show archived | identical (off) |
+
+The acknowledgment report was opened (a GET): **141 rows**, header
+`31 of 141 acknowledged (current version)` — matching the `31` on the list row
+— with both Pending and acknowledged states present. Closed on Escape.
+
+### Verification
+
+- **0 contrast failures** in both themes (60 dark / 62 light), real paint forced
+  before each read
+- Slices byte-identical: 70 + 64 lines; 10 probes
+- Lint **0 = 0**
+- **No writes — zero attempts.** The blocking interceptor from #92 was in place
+  for the whole session and recorded **nothing**: both guards returned before
+  the network, and Enter never confirmed. Server state re-read after reload:
+  same 5 policies, same meta lines.
+
+Stronger than #92, where one attempt was blocked. Here nothing was even tried —
+which is what the interceptor is supposed to report on a page whose delete is
+irreversible.
+
+## #94 — settings batch 7: `settings/email-logs`
+
+487 lines, and the first fully **read-only** page in the settings run — every
+request it makes is a GET, including "Check Delivery". Spliced in verbatim: the
+state/fetch/helpers block (**93 lines**) and the pagination-window algorithm
+(**11 lines**), which lives in the render.
+
+### Rendered parity
+
+All **20 rows byte-identical** (date, subject, recipient, app, status), plus
+`50 emails logged`, `Showing 1–20 of 50`, and the page buttons.
+
+Pagination and filters driven live:
+
+| action | result |
+|---|---|
+| page 3 | `Showing 41–50 of 50`, 10 rows, `aria-current` on 3 |
+| Previous | `Showing 21–40 of 50` |
+| App = Sign | `47 emails logged`, `Showing 1–20 of 47` |
+| Clear | back to 50, **0 of my chips still pressed** |
+
+### 🔴 The App filter list has drifted from the apps that send email
+
+`APPS = ['auth', 'ats', 'sign', 'org']` drives both the filter chips and
+`APP_LABELS` / `APP_COLORS`. Queried the endpoint directly — the 50 logs
+actually carry four **different** app values:
+
+```
+timesheet, sign, employee, expenses
+```
+
+So today:
+
+- **Three of the four filter chips (`Auth`, `ATS`, `Org`) match nothing.**
+- **Three real senders (`timesheet`, `employee`, `expenses`) have no chip at
+  all** — those emails are unreachable by the App filter.
+- `APP_LABELS[log.app] || log.app` falls back to the raw string, so they render
+  lowercase and unlabelled next to a properly-cased `Sign`.
+- `APP_COLORS[log.app] || APP_COLORS.auth` gives all three the **same** colour
+  as `auth`, so three distinct senders are visually identical.
+
+Visible in the screenshot: a `timesheet` badge in auth-slate beside a `Sign`
+badge in indigo. Carried across unchanged and reported — the fix is a data
+question (which apps should be filterable), not a layout one.
+
+### On the badge palette
+
+Legacy used three colour maps spanning **eight** hues — more than `Chip` has
+tones. Rather than add five accent/ink token pairs for one page, these render
+as a local `Tag`: the accent carries the hue in a 14% tint **and a dot**, and
+the ink stays `--fg`.
+
+That is the structural fix from my-attendance — an accent ink on a wash of
+itself is the pairing that fails — so it passes by construction rather than by
+tuning, and all eight stay distinguishable.
+
+### ⚠️ Four surfaces unverifiable on this data
+
+Queried the API rather than expanding fifty rows by hand. Of 50 logs:
+`withResendId: 0`, `withDeliveryStatus: 0`, `withError: 0`, and every row is
+`status: 'sent'`. So these rest on the static diff alone:
+
+- the **Check Delivery** button (gated on `resendId` — correctly hidden, which
+  *was* confirmed live)
+- all eight **DELIVERY_COLORS** tags
+- the **error** Callout
+- the `failed` / `skipped` status tags
+
+### Verification
+
+- **0 contrast failures** in both themes (164 light / 166 dark), real paint
+  forced before each read
+- Slices byte-identical: 93 + 11 lines; the `Showing a–b of n` arithmetic
+  asserted
+- Lint parity **1 error = 1 error** — the same unused `err`, inherited from the
+  slice rather than quietly fixed
+- **No writes** — the page has none
+
+### A harness note
+
+Two `javascript_tool` calls timed out on a row expand that had in fact worked;
+a polling loop was spinning on a text regex that never matched because the
+label renders with different whitespace. The click was fine. When a poll times
+out, check whether the *predicate* is wrong before concluding the *page* is.
+
+## #95 — settings batch 8: `settings/timesheet` (ESS)
+
+641 lines, the largest settings tab. **145-line verbatim slice** — all state,
+both effects, both send handlers and all five leave-type mutators — plus
+**21 probes**.
+
+### ⚠️ Two buttons on this page email every employee
+
+`handleSendReminders` POSTs `/reminders/send` to everyone with a non-approved
+timesheet; `handleSendAttReminders` does the same for attendance. Both are
+outward-facing and on the never-trigger list. Neither was clicked — only their
+enabled state and their "last sent" copy were read. Neither Save was clicked
+either.
+
+### Leave accrual is the load-bearing part
+
+`accrualByEmployeeType` is what each employee's yearly quota is drawn from, so
+its mutator, the `?? lt.accrualPerYear ?? 0` fallback chain, the eligibility
+toggle and `Number(value) || 0` are all byte-identical. So are **16 `??`
+defaults** across app settings and leave policy — `requireApproval ?? true`,
+`proRataOnJoining ?? true`, `halfDayAllowed ?? true`, `overtimeMultiplier ?? 1.5`
+and the rest. Each is a policy decision, not a formatting choice.
+
+### Rendered parity — the strongest yet on a settings tab
+
+| surface | result |
+|---|---|
+| visible text | **zero** word differences |
+| inputs | **21**, identical |
+| selects | **6**, identical incl. full option lists |
+| toggles | **22**, identical — `22 = 22`, no over-match this time |
+| leave-type summary | identical — Sick 12/yr, Casual 4/yr, LOP 0/yr |
+
+Legacy's toggle states were read from painted background colour (its
+hand-rolled switch exposes no `aria-checked`); v2's from `aria-checked`. The
+counts agreed exactly, unlike the ATS capture in #91 where my selector
+over-matched.
+
+### The clamp does something I predicted wrong
+
+Legacy clamps the reminder day with
+`Math.min(10, Math.max(1, Number(e.target.value) || 5))`. I expected `0 → 1`.
+It is `0 → 5`, because **`Number('0')` is falsy, so `|| 5` fires before the
+clamp ever runs**. The `Math.max(1, …)` lower bound is only reachable with a
+negative number.
+
+Confirmed by evaluating the same pure expression and comparing to the DOM on
+five inputs — they agree exactly:
+
+| typed | result |
+|---|---|
+| `0` | **5** |
+| `-3` | 1 |
+| `7` | 7 |
+| `99` | 10 |
+| `` (blank) | 5 |
+
+My expectation was wrong, not the code. Carried across untouched. Worth writing
+down because `x || fallback` after a `Number()` silently swallows a legitimate
+zero, and this is the second page in the project where that pattern appears.
+
+### Verification
+
+- **0 contrast failures** in both themes (148 nodes each), real paint forced
+  before each read
+- Slice byte-identical (145 lines); `monthNames` identical; 21 probes
+- Lint parity **4 errors = 4 errors** — two unused `err` and two empty `catch`
+  blocks, inherited from the slice rather than quietly fixed
+- **No writes.** Neither Save, neither Send Reminders. The clamp probes were
+  local state and were restored; confirmed `5` again after reload.
+
+### Toggle count
+
+Fifth of six hand-rolled `ToggleSwitch` copies removed. **One remains** —
+`components/ToggleSwitch.jsx`, used by `EngageSettings` and
+`SequenceDetailPage`.
+
+## #96 — settings batch 9: `settings/general`
+
+866 lines, four components — and the page holding the three most destructive
+actions in the product. **Four verbatim slices**: `AuthenticationSection` (46),
+`DangerZoneSection` (53), `DataBackupSection` (66), page body (96). **14 probes.**
+
+### ⚠️ What was deliberately not done
+
+| action | why it stayed untouched |
+|---|---|
+| **Delete organization** | permanently removes every record in the workspace, for every member |
+| **Restore backup** | **replaces** all current data; anything since the backup is lost |
+| **Create backup** | a write |
+| Resend workspace URL email | sends mail |
+| Export data | downloads every record in the workspace |
+| Logo upload / remove, Save branding, Save authentication | writes |
+
+A blocking interceptor recorded any non-GET to `/api/org/*` for the whole
+session. It recorded **nothing**.
+
+### The gates, verified without arming them
+
+**Auth guard.** Turning both sign-in methods off is the one setting here that
+could lock every member out of the org. Toggled both off: the warning appeared
+and **both Save buttons stayed disabled**. Restored to the org's real config
+(Google off, Password on).
+
+**Delete gate.** Opened the confirm and typed only deliberately wrong values —
+every one left the button disabled:
+
+| typed | button |
+|---|---|
+| *(empty)* | disabled |
+| `huemot` (prefix) | disabled |
+| `huemot-technolog` (one char short) | disabled |
+| `HUEMOT-TECHNOLOGY` (wrong case) | disabled |
+| `huemot-technology ` (trailing space) | disabled |
+
+**I did not verify the enable case, and that is deliberate.** Typing the exact
+slug arms a button that erases the entire workspace one click later. A test
+that leaves the most destructive control in the product live-and-waiting is not
+worth the coverage. The rejection side is verified; the acceptance side rests
+on `confirmSlug !== slug` being byte-identical, which is probed.
+
+The restore gate could not be armed at all — this org has **no backups**, so no
+Restore button renders. `confirmText !== 'RESTORE'` is probed, not exercised.
+
+### Rendered parity
+
+Zero word differences. All four inputs identical (including the org's real
+website), all licence figures identical — `12 / 100 / 88 / 0` and
+`12 of 100 licenses used (12%)` — backup list identical (empty), danger zone
+present with its delete button.
+
+### Verification
+
+- **0 contrast failures** in both themes (79 nodes each), real paint forced
+  before each read
+- Four slices byte-identical (46 + 53 + 66 + 96 = 261 lines); 14 probes
+  covering all three confirmation gates, all three destructive endpoints, the
+  licence math and the three-field branding dirty-check
+- Lint parity **6 = 6** — including the unused `user` binding, kept rather than
+  quietly removed so the slice stays byte-identical
+- **No writes, zero attempts.**
+
+### Worth carrying forward
+
+There is a class of control where *verifying the happy path is itself the
+risk*. The right coverage for a type-the-slug delete is: probe the comparison
+in source, exercise every rejection live, and stop. Writing "verified" against
+the acceptance path would have meant arming it.
+
+## #97 — settings batch 10: `settings/companies`
+
+1,162 lines — the largest settings file. Legal entities: the record every
+invoice, payslip and PDF is issued against. **380-line verbatim slice** plus the
+**77 lines** of module constants and helpers.
+
+### The check that mattered most
+
+`handleSave` PUTs the whole form, and `populateForm` is what fills it. A field
+bound in the render but *missing* from `populateForm` would be sent blank and
+**silently erase itself on the next save**.
+
+So rather than eyeball it, I extracted every field bound through
+`handleChange` / `handleAddressChange` / `handleSocialChange` /
+`handleBankChange` / `handleEInvoiceCredChange` on both sides:
+
+```
+legacy bound fields: 31
+v2 bound fields:     31
+in legacy not v2:    none
+in v2 not legacy:    none
+```
+
+Also byte-identical: the `delete payload.eInvoiceCredentials` guard (blank means
+"keep the stored IRP secrets", which the API never returns), the
+`isDefault` delete guard, both upload guards (`image/*`, 2 MB), and all three
+`.toUpperCase()` normalisations.
+
+### Country-aware relabelling, driven live
+
+The helpers mirror `invoicePdfHelper.js` so the form and the printed invoice
+agree. Switching the country code re-labels correctly:
+
+| code | Tax ID | routing field | placeholder |
+|---|---|---|---|
+| `IN` (default branch) | GSTIN | IFSC Code | `29AALCR0152L1Z2` |
+| `US` | **EIN** | **SWIFT / BIC** | `12-3456789` |
+| `CA` | **BN** | **Transit / Institution** | `123456789RC0001` |
+
+Restored to the stored value afterwards; Save never clicked.
+
+### 🔴 A data defect the relabelling exposed
+
+The default company reads `country: "India"` but `countryCode: "MP"` — the
+**Madhya Pradesh state code**, in the country-code field.
+
+`cc === 'IN'` gates two things, so for that company:
+
+- the **PAN** field is not rendered at all, and
+- the entire **E-Invoicing / IRP API Credentials** section is hidden.
+
+An admin cannot enter a PAN or configure IRP credentials for a company that is
+plainly Indian. The Tax ID label still reads "GSTIN" only because that is the
+helper's *default* branch — it is right by accident, not because the code was
+recognised.
+
+Across the four companies: one correct `IN`, one `MP`, one `CA`, one `US`. So
+**one of the two Indian companies is affected**.
+
+⚠️ This is staging, where values are pseudonymised (`country: "Titonur Racuc"`
+on another row is clearly a scrub artifact). `MP` is a plausible real
+data-entry slip rather than obviously scrubbed, but I cannot tell from here.
+**Worth checking the same field in production before treating it as a live
+bug** — the same discipline as the "Invalid Date" scrub artifact in
+`sign_date_field_non_date_values_2026_08_14`.
+
+Carried across unchanged either way: the gate is `cc === 'IN'` in both versions.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| list rows | 4, identical (name, Default chip, currency, location, tax ID) |
+| detail inputs | **24**, identical |
+| detail selects | 2, identical incl. full option lists (8 currencies, 8 GST treatments) |
+| detail labels | **20**, identical |
+| visible text | **zero** word differences |
+
+### Verification
+
+- **0 contrast failures** in both themes — list 50 nodes, detail 62 dark / 64
+  light, real paint forced before each read
+- Slices byte-identical (380 + 77); 31-field binding set proven equal; 7 guard
+  probes
+- Lint parity **4 = 4**, all inherited
+- **No writes.** Save/Create, Delete company, logo upload, signature upload,
+  signature remove and "Clear saved credentials" were all left alone. The
+  country-code probes were local form state and were restored.
+
+### One deliberate detail
+
+The `cc` alias (`const cc = form.address.countryCode`) makes six call sites
+read cleanly. Verified it is a pure rename by counting each dependent
+expression on both sides — 1/1/1/2/1/1 either way. The initial count looked
+wrong only because the *helper definitions* also name their parameter `cc`,
+verbatim from legacy.
+
+## #98 — settings batch 11: `settings/users` (Users & Teams)
+
+984 lines, two components. **Two verbatim slices** — the page's state and
+handlers (**127 lines**) and `TeamSection`'s (**129**) — plus the derived member
+filters (9) and **11 probes**.
+
+### ⚠️ Every mutation left alone
+
+Invite Member, **Resend invite** (emails the invitee), **Update & Resend**
+(emails a *different* address), Cancel invite, Save rate limits, and in both
+TeamSections: Create / Rename / Delete team, Add / Remove member. None
+triggered.
+
+### The derived sets are the load-bearing part
+
+- **`eligible`** — active, not an owner, not already in a team **of this type**.
+  Its source of truth is `team.memberIds`, deliberately *not* the denormalised
+  `member.teamId`, so someone in a sales team is still offered for a
+  recruitment team. Both the derivation and the comment explaining it are
+  byte-identical.
+- **The team-lead pool** is `NO_LEAD_OPTION` + current members + `eligible`,
+  which is why a lead can be chosen from outside the team (the backend adds
+  them). All three spreads asserted.
+- **The `ComboSelect` remount key** — ``key={`add-${team.id}-${(team.memberIds || []).length}`}`` —
+  is what makes the picker visibly clear after each add.
+- **The rate-limit clamps**, `Math.min(50, Math.max(1, v))` hourly and
+  `Math.min(200, Math.max(1, v))` daily — the same ceilings Outreach enforces
+  per mailbox (#89).
+
+### Rendered parity — a 63-member org
+
+| surface | result |
+|---|---|
+| seats | `63/100 seats used`, identical |
+| org-role chips | **64**, identical in order |
+| team sections | both, identical |
+| team leads | 3, identical |
+| member counts | `63 / 5 / 5 / 5`, identical |
+| rate-limit badges | **10**, identical — including the non-default `20/hr · 200/day`, `25/hr · 200/day`, `30/hr · 200/day` |
+| pending-invites section | same state (absent) |
+
+The varied rate-limit badges are the useful ones: they prove the per-member
+values render from `memberRateLimits`, not from a default.
+
+Search driven live: `staging.invalid` matches all 63, `zzzznomatch` gives
+`No members match "zzzznomatch"`, clearing restores 64 chips exactly.
+
+### Verification
+
+- **0 contrast failures** in both themes (397 light / 399 dark) — the largest
+  node count audited in this project — real paint forced before each read
+- Slices byte-identical: 127 + 129 + 9 lines; 11 probes
+- Lint parity **7 = 7**, including the `'Icon' is defined but never used`
+  false positive (the eslint config still has no `eslint-plugin-react`, so
+  `react/jsx-uses-vars` never runs — documented under tax/report)
+- **No writes**
+
+### One measurement note
+
+`gradient: 25` in both themes — the fallback avatars. Legacy painted them with
+`bg-gradient-to-br from-dark-600 to-dark-700`; v2 uses ds `Avatar`, which also
+carries a gradient. So the same 25 nodes are unmeasurable in **both** versions,
+by the same guard, for the same reason. That is parity, not a regression — but
+it is still 25 nodes nobody has measured, and it is the `Avatar` limitation
+already recorded in THEMING.md.
+
+## #99 — settings batch 12: `settings/payroll` (the hub)
+
+787 lines. Four of its seven tabs were migrated in earlier batches and already
+route through `PageSwitch`; this does the three that were still inline —
+**Disbursement**, **TDS Configuration**, **Structure Mapping** — plus the shell.
+**Four verbatim slices** (79 + 71 + 75 + 50 = 275 lines) and **12 probes**.
+
+### The date math is the whole point of the Disbursement tab
+
+`moveToWorkdayClient`, `lastWorkingDayClient`, the on-or-before-15th variant,
+`calcDisbDateForRule` and the 6-month preview loop are carried across
+byte-identically. They mirror the backend, so a drift here would show admins
+one payday and pay on another.
+
+Driven live — all six preview rows identical, and **two of them show the
+weekend roll-back actually firing**:
+
+| salary month | disbursement date | note |
+|---|---|---|
+| August 2026 | Mon, 31 Aug 2026 | |
+| September 2026 | Wed, 30 Sept 2026 | |
+| **October 2026** | **Fri, 30 Oct 2026** | 31 Oct is a **Saturday** → rolled back |
+| November 2026 | Mon, 30 Nov 2026 | |
+| December 2026 | Thu, 31 Dec 2026 | |
+| **January 2027** | **Fri, 29 Jan 2027** | 31 Jan is a **Sunday** → rolled back 2 days |
+
+Those two rows are the useful ones: they prove `moveToWorkdayClient` is live and
+agreeing, not merely present in the source.
+
+### TDS percent↔fraction, same shape as FY Rates
+
+Rates are **stored as fractions** (0.02) and **edited as percents** (2.0):
+
+```
+read  → String(Math.round(section.rate * 10000) / 100)
+write → (parseFloat(v) / 100) || 0
+```
+
+with a `rateDrafts` map so a half-typed `2.` is not reformatted away — and
+`(def.rate * 100).toFixed(1)}% TDS` on the summary chip. All byte-identical,
+along with the save validation (`hasDefault`, non-empty sections).
+
+Rendered identically: **194C @ 2**, **194J @ 10**, **194H @ 5**, and the
+default chip reading `2.0% TDS`.
+
+### The hub keeps its `PageSwitch` calls
+
+`SettingsPayrollV2` only renders when `uiV2` is on, so switching inside it is
+redundant *today*. It is kept anyway: it means exactly **one** place decides
+which variant a tab gets, and the legacy hub and this one cannot drift apart if
+the flag moves.
+
+### Rendered parity — all three tabs
+
+| tab | words differing | inputs | selects |
+|---|---|---|---|
+| Disbursement | **none** | identical | identical (4) |
+| TDS Configuration | **none** | identical (9) | identical |
+| Structure Mapping | **none** | identical (`0 / 2 / 2`) | identical (4) |
+
+All seven tab labels identical, including the super-admin-only **FY Rates**.
+
+### Verification
+
+- **0 contrast failures** in both themes on all three tabs — dark 62/50/49,
+  light 64/52/51 — real paint forced before each read
+- Four slices byte-identical; 12 probes covering the TDS round-trip, the save
+  validation, the structure-mapping defaults, the UTC day-shift guard on custom
+  dates, and the four surviving `PageSwitch` calls
+- Lint parity **8 = 8**, all inherited
+- **No writes.** Save Disbursement Settings, Save TDS Configuration and Save
+  Structure Mapping were all left alone.
+
+### Settings is now complete except one modal
+
+`ReassignDataModal` (258 lines) is the only legacy file left in
+`components/settings/`. It is a modal opened from the user-detail page rather
+than a settings tab, so it belongs with that flow rather than this run.

@@ -43,6 +43,12 @@ export interface DataTableProps<Row = any> extends Omit<React.HTMLAttributes<HTM
   loadingRows?: number;
   /** Rendered when there are no rows — pass an `EmptyState`. */
   empty?: React.ReactNode;
+  /**
+   * Totals row, rendered in a `<tfoot>`. Keyed by COLUMN key, not position, so
+   * reordering columns cannot move a total under the wrong header. Columns
+   * with no entry render an empty cell. Suppressed while `loading`.
+   */
+  totals?: Record<string, React.ReactNode> | null;
   onRowClick?: (row: Row, index: number) => void;
   rowHref?: (row: Row, index: number) => string;
   /** Custom `<tbody>` content — use for grouped tables with `GroupedHeader`. */

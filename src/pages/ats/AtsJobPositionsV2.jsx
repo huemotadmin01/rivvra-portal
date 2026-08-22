@@ -207,7 +207,7 @@ export default function AtsJobPositionsV2() {
       key: 'name', header: 'Name', sortable: true, width: 260,
       render: (j) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span style={{ width: 28, height: 28, borderRadius: 999, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'var(--brand-soft)', color: 'var(--brand)' }}>
+          <span style={{ width: 28, height: 28, borderRadius: 999, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'var(--brand-soft)', color: 'var(--brand-ink)' }}>
             <Briefcase size={13} />
           </span>
           <span style={{ minWidth: 0 }}>
@@ -288,7 +288,7 @@ export default function AtsJobPositionsV2() {
       >
         {columns.map((col) => (
           <td key={col.key} style={{ padding: pad, font: density === 'compact' ? '450 13px/1.4 var(--font)' : '450 13.5px/1.45 var(--font)', color: col.muted ? 'var(--fg-3)' : 'var(--fg-2)', textAlign: col.align || 'left', borderBottom: '1px solid var(--line)', verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {col.render ? col.render(j) : j?.[col.key] ?? <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+            {col.render ? col.render(j) : j?.[col.key] ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
           </td>
         ))}
       </tr>

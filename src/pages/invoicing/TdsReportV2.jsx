@@ -1,0 +1,386 @@
+// ============================================================================
+// TdsReportV2.jsx — TDS report on ds (phase 14, statutory reports)
+// ============================================================================
+// Copied from TdsReport.jsx. **Chrome only**, same rule as GstReportV2: the
+// header, FY picker, the two CSV buttons and the error / loading states move
+// to ds; every figure, table, TermHint and the StatutoryRecordsModal drill-in
+// are byte-identical.
+//
+// The 26Q and 24Q exports were NOT triggered during verification. They are
+// filing artefacts — 26Q is vendor deductee rows, 24Q is employee-wise salary
+// TDS — and a layout pass has no business generating either. Their handlers
+// and titles are carried over unchanged.
+// ============================================================================
+
+// ============================================================================
+// TdsReport.jsx — TDS Report for Indian companies. Three flows in one page:
+//   1. Vendor TDS we deducted on bills (26Q) — monthly + section×quarter
+//   2. Salary TDS from payroll runs (24Q) — monthly deposit liability
+//   3. TDS customers deducted on OUR invoices (26AS receivable side)
+// Deposit entries (challan) recorded per month for 26Q / 24Q streams.
+// Backend: GET /invoicing/statutory/tds-report, POST/DELETE .../filings.
+// ============================================================================
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
+import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
+import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
+import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
+import { StatusChip } from './GstReport';
+import { TermHint, HowToRead } from '../../components/invoicing/TermHint';
+import { Loader2, Percent, Info, Download } from 'lucide-react';
+import { Button, EmptyState, PageHeader, PageSpinner, Select, Spinner } from '../../components/ds';
+import { useToast } from '../../context/ToastContext';
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthLabel = (row) => `${MONTH_ABBR[row.month - 1]} ${row.year}`;
+
+function Kpi({ label, amount, tone, hint }) {
+  const tones = {
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  };
+  return (
+    <div className={`rounded-xl border p-4 ${tones[tone] || tones.blue}`}>
+      <span className="text-[11px] font-medium uppercase tracking-wider">{label}</span>
+      <p className="text-xl font-bold mt-1.5">{formatCurrency(amount, 'INR')}</p>
+      {hint && <p className="text-[11px] mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+export default function TdsReportV2() {
+  const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
+  const orgSlug = currentOrg?.slug;
+  const isAdmin = getAppRole('invoicing') === 'admin';
+
+  const [fy, setFy] = useState('');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filingModal, setFilingModal] = useState(null);
+  const [exporting, setExporting] = useState(null); // 'tds26q' | 'tds24q'
+  const [drill, setDrill] = useState(null); // { bucket, monthKey, title, subtitle }
+  const { showToast } = useToast();
+
+  const DRILL_TITLES = { vendor: 'Vendor TDS — bills (26Q)', salary: 'Salary TDS — employees (24Q)', customer: 'TDS deducted by customers' };
+  const openDrill = (bucket, row) => setDrill({
+    bucket, monthKey: row.key, title: DRILL_TITLES[bucket], subtitle: `${monthLabel(row)} · INR`,
+  });
+  const drillCls = 'underline decoration-dotted decoration-dark-500 underline-offset-4 hover:decoration-current cursor-pointer';
+
+  const exportCsv = async (kind) => {
+    setExporting(kind);
+    try {
+      await invoicingApi.downloadStatutoryCsv(orgSlug, kind, { fy: fy || data?.fy || '' }, `${kind.toUpperCase()}.csv`);
+    } catch (err) {
+      showToast(err.message || 'Export failed', 'error');
+    } finally {
+      setExporting(null);
+    }
+  };
+  const exportMonthCsv = async (row) => {
+    setExporting(row.key);
+    try {
+      await invoicingApi.downloadStatutoryCsv(orgSlug, 'tdsmonth', { month: row.key }, `TDS_${row.key}.csv`);
+    } catch (err) {
+      showToast(err.message || 'Export failed', 'error');
+    } finally {
+      setExporting(null);
+    }
+  };
+  // Zero amounts render as plain text — an underlined ₹0.00 opening an empty
+  // modal is noise, especially on future months.
+  const drillAmount = (value, bucket, row, cls) => (
+    value > 0
+      ? <button className={`${drillCls} ${cls}`} onClick={() => openDrill(bucket, row)}>{formatCurrency(value, 'INR')}</button>
+      : <span className={cls}>{formatCurrency(value, 'INR')}</span>
+  );
+
+  // Drop stale responses when FY changes mid-flight (throttled cluster makes
+  // the out-of-order window seconds long).
+  const seqRef = useRef(0);
+  const load = useCallback(() => {
+    if (!orgSlug) return;
+    const seq = ++seqRef.current;
+    setLoading(true);
+    setError(null);
+    invoicingApi.getTdsReport(orgSlug, { fy: fy || undefined })
+      .then((res) => { if (seq === seqRef.current) setData(res.data); })
+      .catch((err) => { if (seq === seqRef.current) setError(err.message || 'Failed to load TDS report'); })
+      .finally(() => { if (seq === seqRef.current) setLoading(false); });
+  }, [orgSlug, fy, currentCompany?._id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const months = data?.months || [];
+  const sections = data?.sections || [];
+  const customerRecords = data?.customerRecords || [];
+  const totals = data?.totals || {};
+
+  const openDeposit = (kind, row) => {
+    if (!isAdmin) return;
+    setFilingModal({
+      kind, year: row.year, month: row.month,
+      existing: kind === 'tds26q' ? row.deposit26q : row.deposit24q,
+      suggestedAmount: kind === 'tds26q' ? row.vendorTds : row.salaryTds,
+      periodLabel: monthLabel(row),
+    });
+  };
+
+  const numCls = 'px-4 py-3 text-right tabular-nums';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <PageHeader
+        title="TDS Report"
+        sub={`Deducted, deposited and receivable TDS for ${data?.company?.name || currentCompany?.name || 'this company'}`}
+        actions={data && (
+          <>
+            <Select value={fy || data.fy || ''} onChange={(e) => setFy(e.target.value)} aria-label="Financial year">
+              {(data.fyOptions || (data.fy ? [data.fy] : [])).map((o) => <option key={o} value={o}>FY {o}</option>)}
+            </Select>
+            <Button
+              variant="secondary" size="sm"
+              onClick={() => exportCsv('tds26q')} disabled={!!exporting}
+              title="Vendor TDS deductee rows for the FY, with a Quarter column"
+              iconLeft={exporting === 'tds26q' ? <Spinner size={13} /> : <Download size={13} />}
+            >
+              26Q CSV
+            </Button>
+            <Button
+              variant="secondary" size="sm"
+              onClick={() => exportCsv('tds24q')} disabled={!!exporting}
+              title="Employee-wise salary TDS for the FY, with a Quarter column"
+              iconLeft={exporting === 'tds24q' ? <Spinner size={13} /> : <Download size={13} />}
+            >
+              24Q CSV
+            </Button>
+          </>
+        )}
+      />
+
+        {error && (
+        <EmptyState
+          tone="danger"
+          title="Couldn't load the TDS report"
+          actions={<Button variant="secondary" onClick={load}>Retry</Button>}
+        >
+          {error}
+        </EmptyState>
+      )}
+      {loading && <PageSpinner minHeight="40vh" />}
+
+        {!loading && !error && data && (
+          <>
+            <HowToRead storageKey="tds-report">
+              <p>
+                <span className="text-white">TDS (Tax Deducted at Source)</span> means whoever pays, withholds
+                a slice of the payment as income tax and deposits it with the government on the payee's behalf.
+                This report tracks all three directions it touches your company.
+              </p>
+              <p>
+                <span className="text-blue-400">You withhold from vendors</span> when paying their bills
+                (reported quarterly in form <span className="text-white">26Q</span>) and
+                <span className="text-purple-400"> from employee salaries</span> (form <span className="text-white">24Q</span>).
+                Both must be deposited by the <span className="text-white">7th of the following month</span> —
+                the chips show each month's deposit status. Meanwhile
+                <span className="text-emerald-400"> customers withhold from you</span> when paying your invoices;
+                that money isn't lost — it's pre-paid tax you reclaim in your income-tax return, and it should
+                appear in your <span className="text-white">Form 26AS</span> (the govt's statement of tax
+                deposited in your name) — verify it does.
+              </p>
+              <p className="text-dark-400">
+                Amounts are clickable and open the underlying records. Admins click a deposit chip to record
+                the challan. The section table (194J, 194C…) shows what goes into each quarterly 26Q return.
+              </p>
+            </HowToRead>
+
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <Kpi label="Vendor TDS (26Q)" amount={totals.vendorTds} tone="blue" hint="withheld from vendor bill payments" />
+              <Kpi label="Salary TDS (24Q)" amount={totals.salaryTds} tone="purple" hint="withheld from salaries (payroll)" />
+              <Kpi label="Deposit due" amount={totals.depositDue} tone="amber" hint="owed to govt by the 7th" />
+              <Kpi label="Deposited" amount={totals.deposited} tone={totals.deposited >= totals.depositDue ? 'green' : 'amber'} hint="challans recorded" />
+              <Kpi label="Customer-deducted TDS" amount={totals.customerTds} tone="green" hint="withheld from you — verify in 26AS" />
+            </div>
+
+            {/* Monthly deposit table */}
+            <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+              <div className="p-5 border-b border-dark-700 flex items-center gap-3">
+                <Percent size={18} className="text-blue-400" />
+                <h3 className="text-lg font-semibold text-white">Monthly TDS deposits</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
+                  <thead>
+                    <tr className="border-b border-dark-700 text-dark-300">
+                      <th className="text-left px-4 py-3 font-medium">Month</th>
+                      <th className={`${numCls} font-medium text-blue-400`}>
+                        <TermHint label="Vendor TDS">Tax withheld from vendor bill payments this month. You hold it for the government — reported quarterly in form 26Q.</TermHint>
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium">
+                        <TermHint label="26Q deposit">Whether this month's vendor TDS has been deposited (challan recorded). Due by the 7th of the following month.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-purple-400`}>
+                        <TermHint label="Salary TDS">Income tax withheld from employee salaries in this month's payroll — reported quarterly in form 24Q.</TermHint>
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium">
+                        <TermHint label="24Q deposit">Whether this month's salary TDS has been deposited (challan recorded). Due by the 7th of the following month.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-amber-400`}>
+                        <TermHint label="Total due">Vendor + salary TDS to deposit for this month.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-emerald-400`}>
+                        <TermHint label="Customer TDS">Tax customers withheld when paying your invoices. It's pre-paid tax in your name — verify it appears in Form 26AS.</TermHint>
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium" title="Download this month's TDS working (all flows)">CSV</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {months.map((row) => (
+                      <tr key={row.key} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
+                        <td className="px-4 py-3 text-white font-medium">{monthLabel(row)} <span className="text-dark-500 text-xs">Q{row.quarter}</span></td>
+                        <td className={`${numCls} text-blue-400`}>
+                          {drillAmount(row.vendorTds, 'vendor', row, '')}
+                          <span className="text-dark-500 text-xs ml-1">({row.vendorBills})</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => openDeposit('tds26q', row)} disabled={!isAdmin} className={isAdmin ? 'cursor-pointer' : 'cursor-default'}>
+                            <StatusChip status={row.deposit26qStatus} due={row.depositDueDate} />
+                          </button>
+                        </td>
+                        <td className={`${numCls} text-purple-400`}>
+                          {drillAmount(row.salaryTds, 'salary', row, '')}
+                          <span className="text-dark-500 text-xs ml-1">({row.salaryEmployees})</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => openDeposit('tds24q', row)} disabled={!isAdmin} className={isAdmin ? 'cursor-pointer' : 'cursor-default'}>
+                            <StatusChip status={row.deposit24qStatus} due={row.depositDueDate} />
+                          </button>
+                        </td>
+                        <td className={`${numCls} font-semibold text-amber-400`}>{formatCurrency(row.depositDue, 'INR')}</td>
+                        <td className={`${numCls} text-emerald-400`}>
+                          {drillAmount(row.customerTds, 'customer', row, '')}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => exportMonthCsv(row)} disabled={exporting === row.key}
+                            title={`Download ${monthLabel(row)}'s TDS working — vendor, salary and customer flows`}
+                            className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-50 transition-colors">
+                            {exporting === row.key ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-dark-800/50 font-semibold">
+                      <td className="px-4 py-3 text-white">Total</td>
+                      <td className={`${numCls} text-blue-400`}>{formatCurrency(totals.vendorTds, 'INR')}</td>
+                      <td />
+                      <td className={`${numCls} text-purple-400`}>{formatCurrency(totals.salaryTds, 'INR')}</td>
+                      <td />
+                      <td className={`${numCls} text-amber-400`}>{formatCurrency(totals.depositDue, 'INR')}</td>
+                      <td className={`${numCls} text-emerald-400`}>{formatCurrency(totals.customerTds, 'INR')}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Section-wise 26Q */}
+              <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-dark-700">
+                  <h3 className="text-lg font-semibold text-white">Vendor TDS by section (26Q)</h3>
+                  <p className="text-dark-400 text-xs mt-0.5">Fiscal quarters — what goes in each quarterly 26Q return</p>
+                </div>
+                {sections.length === 0 ? (
+                  <div className="py-10 text-center text-dark-500 text-sm">No vendor TDS in this FY</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b border-dark-700 text-dark-300">
+                          <th className="text-left px-4 py-3 font-medium">Section</th>
+                          {[1, 2, 3, 4].map((q) => <th key={q} className={`${numCls} font-medium`}>Q{q}</th>)}
+                          <th className={`${numCls} font-medium`}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sections.map((s) => (
+                          <tr key={s.section} className="border-b border-dark-700/50">
+                            <td className="px-4 py-3 text-white font-medium">{s.section}<span className="text-dark-500 text-xs ml-1">({s.count})</span></td>
+                            {[1, 2, 3, 4].map((q) => <td key={q} className={`${numCls} text-dark-200`}>{formatCurrency(s.quarters[q] || 0, 'INR')}</td>)}
+                            <td className={`${numCls} font-semibold text-white`}>{formatCurrency(s.total, 'INR')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Customer-deducted TDS records */}
+              <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-dark-700">
+                  <h3 className="text-lg font-semibold text-white">TDS deducted by customers</h3>
+                  <p className="text-dark-400 text-xs mt-0.5">
+                    Withheld from our invoice payments — reconcile against Form 26AS
+                    {data.customerTruncated ? ' · showing first 200; use the CSV exports for the full list' : ''}
+                  </p>
+                </div>
+                {customerRecords.length === 0 ? (
+                  <div className="py-10 text-center text-dark-500 text-sm">No customer TDS recorded in this FY</div>
+                ) : (
+                  <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
+                      <thead className="sticky top-0 bg-dark-850">
+                        <tr className="border-b border-dark-700 text-dark-300">
+                          <th className="text-left px-4 py-3 font-medium">Date</th>
+                          <th className="text-left px-4 py-3 font-medium">Invoice</th>
+                          <th className="text-left px-4 py-3 font-medium">Customer</th>
+                          <th className={`${numCls} font-medium`}>TDS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customerRecords.map((r, i) => (
+                          <tr key={i} className="border-b border-dark-700/50">
+                            <td className="px-4 py-3 text-dark-300">{new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</td>
+                            <td className="px-4 py-3 text-white">{r.invoiceNumber}</td>
+                            <td className="px-4 py-3 text-dark-200 max-w-[180px] truncate">{r.customer}</td>
+                            <td className={`${numCls} text-emerald-400`}>{formatCurrency(r.amount, 'INR')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 text-dark-400 text-xs">
+              <Info size={14} className="mt-0.5 shrink-0" />
+              <p>
+                Vendor TDS comes from finalized vendor bills (by bill date, section-wise). Salary TDS reads finalized
+                payroll runs. Deposits are due by the 7th of the following month
+                {isAdmin ? ' — click a deposit chip to record the challan.' : '.'}
+                {' '}Customer-deducted TDS is captured when an inbound payment is marked as TDS.
+              </p>
+            </div>
+          </>
+        )}
+
+        {filingModal && (
+          <StatutoryFilingModal orgSlug={orgSlug} {...filingModal} onClose={() => setFilingModal(null)} onSaved={load} />
+        )}
+        {drill && (
+          <StatutoryRecordsModal orgSlug={orgSlug} report="tds" {...drill} onClose={() => setDrill(null)} />
+        )}
+    </div>
+  );
+}

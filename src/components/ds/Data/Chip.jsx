@@ -1,9 +1,14 @@
 const TONES = {
   neutral: { bg: 'var(--surface-3, #1c242f)', fg: 'var(--fg-3, #98a4b2)', ring: 'transparent' },
-  brand:   { bg: 'var(--brand-soft, rgba(34,197,94,.14))', fg: 'var(--brand, #22c55e)', ring: 'var(--brand-line, rgba(34,197,94,.28))' },
-  warn:    { bg: 'var(--warn-soft, rgba(245,158,11,.14))', fg: 'var(--warn, #f59e0b)', ring: 'transparent' },
+  // brand/warn read the *-ink tokens, not the accent itself: on paper the
+  // accent-on-its-own-tint pairing measures ~4.35 against a 4.5 floor.
+  brand:   { bg: 'var(--brand-soft, rgba(34,197,94,.14))', fg: 'var(--brand-ink, #22c55e)', ring: 'var(--brand-line, rgba(34,197,94,.28))' },
+  warn:    { bg: 'var(--warn-soft, rgba(245,158,11,.14))', fg: 'var(--warn-ink, #f59e0b)', ring: 'transparent' },
   danger:  { bg: 'var(--danger-soft, rgba(239,68,68,.14))', fg: 'var(--danger, #ef4444)', ring: 'transparent' },
   info:    { bg: 'var(--info-soft, rgba(59,130,246,.14))', fg: 'var(--info, #3b82f6)', ring: 'transparent' },
+  // Added for payroll's run lifecycle, where `finalized` sits between
+  // `processed` (info) and `paid` (brand) and must not read as either.
+  purple:  { bg: 'color-mix(in srgb, var(--acc-purple) 14%, transparent)', fg: 'var(--acc-purple-ink, #9333EA)', ring: 'transparent' },
 };
 
 /** Compact status pill. Pattern is bg/14, text/full, optional 1px ring. */

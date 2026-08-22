@@ -11,11 +11,16 @@ import { useToast } from '../../context/ToastContext';
 import { getOrgTdsConfig, updateOrgTdsConfig, getPayrollSettings, updatePayrollSettings, getSalaryStructures } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
 import { Save, Plus, Trash2, Loader2, Star, AlertCircle, X, Calendar } from 'lucide-react';
+import { PageSwitch } from '../platform/v2/PageSwitch';
 
 const SalaryStructuresPage = lazy(() => import('../../pages/payroll/SalaryStructuresPage'));
+const SalaryStructuresPageV2 = lazy(() => import('../../pages/payroll/SalaryStructuresPageV2'));
 const StatutoryConfigPage = lazy(() => import('../../pages/payroll/StatutoryConfigPage'));
+const StatutoryConfigPageV2 = lazy(() => import('../../pages/payroll/StatutoryConfigPageV2'));
 const PTMasterPage = lazy(() => import('../../pages/payroll/PTMasterPage'));
+const PTMasterPageV2 = lazy(() => import('../../pages/payroll/PTMasterPageV2'));
 const PayrollSettingsPage = lazy(() => import('../../pages/payroll/PayrollSettingsPage'));
+const PayrollSettingsPageV2 = lazy(() => import('../../pages/payroll/PayrollSettingsPageV2'));
 
 const TABS = [
   { id: 'disbursement', label: 'Disbursement' },
@@ -771,11 +776,11 @@ export default function SettingsPayroll() {
       <Suspense fallback={<TabLoader />}>
         {activeTab === 'disbursement' && <DisbursementTab />}
         {activeTab === 'tds' && <TdsConfigTab />}
-        {activeTab === 'structures' && <SalaryStructuresPage embedded />}
+        {activeTab === 'structures' && <PageSwitch v2={SalaryStructuresPageV2} legacy={SalaryStructuresPage} embedded />}
         {activeTab === 'structure-mapping' && <StructureMappingTab />}
-        {activeTab === 'statutory' && <StatutoryConfigPage embedded />}
-        {activeTab === 'pt' && <PTMasterPage embedded />}
-        {activeTab === 'fy' && isSuperAdmin && <PayrollSettingsPage embedded />}
+        {activeTab === 'statutory' && <PageSwitch v2={StatutoryConfigPageV2} legacy={StatutoryConfigPage} embedded />}
+        {activeTab === 'pt' && <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />}
+        {activeTab === 'fy' && isSuperAdmin && <PageSwitch v2={PayrollSettingsPageV2} legacy={PayrollSettingsPage} embedded />}
       </Suspense>
     </div>
   );

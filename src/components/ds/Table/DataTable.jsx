@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
+import { Checkbox as Check } from '../Form/Checkbox';
 
 const DENSITY = {
   comfortable: { pad: '11px 14px', font: '450 13.5px/1.45', head: '9px 14px', h: 44 },
@@ -14,31 +15,6 @@ function SortGlyph({ state }) {
   );
 }
 
-function Check({ checked, indeterminate, onChange, label }) {
-  return (
-    <span
-      role="checkbox"
-      aria-checked={indeterminate ? 'mixed' : checked}
-      aria-label={label}
-      tabIndex={0}
-      onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
-      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onChange(!checked); } }}
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 15, height: 15, borderRadius: 4, cursor: 'pointer', flexShrink: 0,
-        background: checked || indeterminate ? 'var(--brand, #22c55e)' : 'transparent',
-        boxShadow: `inset 0 0 0 ${checked || indeterminate ? 0 : 1.5}px var(--line-strong, rgba(255,255,255,.18))`,
-        transition: 'background 120ms var(--e-out, ease), box-shadow 120ms var(--e-out, ease)',
-      }}
-    >
-      {indeterminate ? (
-        <span style={{ width: 7, height: 2, borderRadius: 1, background: 'var(--brand-fg, #041209)' }} />
-      ) : checked ? (
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--brand-fg, #041209)" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-      ) : null}
-    </span>
-  );
-}
 
 /**
  * The list surface the whole product is built on: sticky header, three-state
@@ -61,6 +37,7 @@ export function DataTable({
   loading = false,
   loadingRows = 6,
   empty = null,
+  totals = null,
   onRowClick,
   rowHref,
   children,
@@ -107,6 +84,12 @@ export function DataTable({
     color: 'var(--fg-4, #828e9f)', padding: d.head, textAlign: 'left', whiteSpace: 'nowrap',
     background: 'var(--surface-2, #141b24)', borderBottom: '1px solid var(--line, rgba(255,255,255,.07))',
     position: stickyHeader ? 'sticky' : 'static', top: stickyHeader ? stickyTop : 'auto', zIndex: 2, userSelect: 'none',
+  };
+
+  const footCell = {
+    padding: d.pad, font: d.font, fontWeight: 650, color: 'var(--fg, #eef2f6)',
+    background: 'var(--surface-2, #141b24)', borderTop: '1px solid var(--line-2, rgba(255,255,255,.11))',
+    whiteSpace: 'nowrap', verticalAlign: 'middle',
   };
 
   const showEmpty = !loading && rows.length === 0 && !children;
@@ -205,13 +188,40 @@ export function DataTable({
                         fontVariantNumeric: c.align === 'right' ? 'tabular-nums' : 'normal',
                       }}
                     >
-                      {c.render ? c.render(row, i) : row?.[c.key] ?? <span style={{ color: 'var(--fg-faint, #4a5563)' }}>—</span>}
+                      {c.render ? c.render(row, i) : row?.[c.key] ?? <span style={{ color: 'var(--fg-4, #828e9f)' }}>—</span>}
                     </td>
                   ))}
                 </tr>
               );
             })}
           </tbody>
+
+          {/* Totals row. Every money report in the product ends in one, and a
+              <tfoot> is the only correct place for it: it stays attached to
+              the table for screen readers and for print, and it does not join
+              the sortable row set. Cells are keyed by COLUMN key rather than
+              positionally so a column reorder cannot silently move a total
+              under the wrong header — the failure that would matter most on
+              an aging or tax report. */}
+          {!loading && totals && (
+            <tfoot>
+              <tr>
+                {selectable && <td style={footCell} />}
+                {columns.map((c) => (
+                  <td
+                    key={c.key}
+                    style={{
+                      ...footCell,
+                      textAlign: c.align || 'left',
+                      fontVariantNumeric: c.align === 'right' ? 'tabular-nums' : 'normal',
+                    }}
+                  >
+                    {totals[c.key]}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
       {showEmpty && <div style={{ padding: '48px 24px' }}>{empty}</div>}
