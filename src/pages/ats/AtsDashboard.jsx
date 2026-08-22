@@ -460,8 +460,12 @@ function JobAgingCard({ jobAging, orgPath }) {
                 {visible.map((j) => (
                   <tr key={j._id} className="border-b border-dark-800 last:border-0">
                     <td className="py-2 pr-3 max-w-[180px]">
+                      {/* orgPath is a FUNCTION from usePlatform, not a string.
+                          Interpolating it stringified the arrow-function source
+                          into the href, producing an unroutable URL that fell
+                          through to the `*` catch-all and bounced the user out. */}
                       <Link
-                        to={`${orgPath}/ats/jobs/${j._id}`}
+                        to={orgPath(`/ats/jobs/${j._id}`)}
                         className="text-dark-200 hover:text-rivvra-400 transition-colors block truncate"
                         title={j.name}
                       >

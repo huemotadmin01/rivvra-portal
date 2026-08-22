@@ -445,7 +445,11 @@ function JobAgingCard({ jobAging, orgPath }) {
                 {visible.map((j) => (
                   <tr key={j._id} style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ ...td, maxWidth: 180 }}>
-                      <Link to={`${orgPath}/ats/jobs/${j._id}`} title={j.name} style={{ ...trunc, color: 'var(--fg-2)' }}>
+                      {/* orgPath is a FUNCTION from usePlatform, not a string.
+                          Interpolating it stringified the arrow-function source
+                          into the href, producing an unroutable URL that fell
+                          through to the `*` catch-all and bounced the user out. */}
+                      <Link to={orgPath(`/ats/jobs/${j._id}`)} title={j.name} style={{ ...trunc, color: 'var(--fg-2)' }}>
                         {j.name}
                       </Link>
                     </td>
