@@ -199,6 +199,12 @@
 }
 .ds-shell .icon-btn:hover { background: var(--surface-2); color: var(--fg); }
 
+/* My Activities rows. Hover maps one surface step up so it stays visible on
+   the popover's own --surface-1 background. */
+.ds-shell .act-row.is-nav:hover { background: var(--surface-2); }
+.ds-shell .act-check { transition: border-color var(--d-1) var(--e-out), background-color var(--d-1) var(--e-out); }
+.ds-shell .act-check:hover { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 20%, transparent); }
+
 .ds-shell kbd {
   display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px;
   font: 600 10.5px/1 var(--font); color: var(--fg-3);

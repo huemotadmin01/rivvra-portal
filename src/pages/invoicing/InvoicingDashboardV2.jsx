@@ -74,8 +74,12 @@ function InvoicingGetStarted({ orgPath, companyDetailsDone, companyId, invoicesT
             )}
           </div>
         ))}
+        {/* The declared route is /invoicing/config/journals. Legacy
+            InvoicingDashboard.jsx:75 still points at /invoicing/journals,
+            which has no route and falls through to the `*` catch-all —
+            this port corrects it on the V2 side only. */}
         <Link
-          to={orgPath('/invoicing/journals')}
+          to={orgPath('/invoicing/config/journals')}
           className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-dark-700 text-dark-400 hover:text-white hover:border-dark-500 transition-colors"
         >
           <Settings2 className="w-4 h-4 flex-shrink-0" />
