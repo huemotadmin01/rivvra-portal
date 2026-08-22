@@ -347,6 +347,11 @@ export default function SettingsAtsV2() {
   const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : 14;
   const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : 3;
   const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : 24;
+  // 2026-08-20 job-aging SLA (dashboard Job Aging card). Defaults must match
+  // ATS_REPORTING_THRESHOLD_DEFAULTS in the API and the legacy page, or the
+  // card scores against one number while this page shows another.
+  const jobAgingTargetDays = Number.isFinite(Number(thresholds.jobAgingTargetDays)) ? thresholds.jobAgingTargetDays : 30;
+  const jobNoSubmittalDays = Number.isFinite(Number(thresholds.jobNoSubmittalDays)) ? thresholds.jobNoSubmittalDays : 7;
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -449,6 +454,39 @@ export default function SettingsAtsV2() {
                 value={pendingApprovalHours}
                 aria-label="Pending job approvals, hours"
                 onChange={(e) => updateThreshold('pendingApprovalHours', Number(e.target.value) || 24)}
+              />
+            </FieldBlock>
+            {/* Job-aging SLA. These two drive the dashboard's Job Aging &
+                Delivery SLA card — without them the card scores every org
+                against the defaults with no way to tune it. */}
+            <FieldBlock
+              id="ats-job-aging-target"
+              label="Job aging target"
+              hint="Open jobs older than this (from approval) flag red on the dashboard's Job Aging card."
+            >
+              <UnitNumber
+                id="ats-job-aging-target"
+                unit="days"
+                min="1"
+                max="365"
+                value={jobAgingTargetDays}
+                aria-label="Job aging target, days"
+                onChange={(e) => updateThreshold('jobAgingTargetDays', Number(e.target.value) || 30)}
+              />
+            </FieldBlock>
+            <FieldBlock
+              id="ats-job-no-submittal"
+              label="Submittal window"
+              hint="Open jobs with no new submittal within this window flag amber on the Job Aging card."
+            >
+              <UnitNumber
+                id="ats-job-no-submittal"
+                unit="days"
+                min="1"
+                max="60"
+                value={jobNoSubmittalDays}
+                aria-label="Submittal window, days"
+                onChange={(e) => updateThreshold('jobNoSubmittalDays', Number(e.target.value) || 7)}
               />
             </FieldBlock>
           </div>

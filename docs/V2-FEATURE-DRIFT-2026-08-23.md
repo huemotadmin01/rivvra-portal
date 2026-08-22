@@ -69,16 +69,24 @@ Effect: on V2 an admin sees the SLA card and its "14 breaching SLA" count, but
 cannot tune what counts as a breach. The card reads defaults it cannot change.
 (The three older `reportingThresholds` — stale/awaiting/pending — *are* in V2.)
 
-### 3. `ReplyIntentBadge` — absent from all of V2
+### 3. ~~`ReplyIntentBadge` — absent from all of V2~~ — **WITHDRAWN, false positive**
 
-`grep` across every `/v2/` path and `*V2.jsx`: **zero references.** The AI
-reply-intent badge shipped to `TeamListsPage` and `MyListsPage` on 2026-08-21
-and has no V2 presence.
+Corrected 2026-08-23 while fixing it. V2 has the reply-intent badge and always
+did: `leadskit.jsx` exports `ReplyIntentChip`, rendered next to
+`OutreachStatusChip` on the lead row. Same five intents, same labels, same
+tooltip hint, same trailing `·`; only the colours differ (ds tones instead of
+Tailwind classes).
 
-Note the near miss: `IcpScoreBadge` **is** present, via
-`components/outreach/v2/leadskit.jsx`, which both V2 list pages import. So the
-ICP fit badge is fine and only reply-intent is missing — a per-page check would
-have wrongly flagged both.
+**Why the audit got it wrong:** it grepped for the *legacy component name*
+`ReplyIntentBadge`. V2 renamed it on the way across — exactly as
+`IcpScoreBadge` became `IcpScoreChip`, which the audit did notice. Searching
+for the old name finds nothing and reads as a gap.
+
+**The lesson for the next audit:** a component identifier is not a stable key
+across a redesign, because renaming is part of porting. Data keys are
+(`jobAgingTargetDays` is an API field and cannot be renamed unilaterally),
+which is why finding 2 held up and this one did not. Grep behaviour, or the
+data contract — not the component's name.
 
 ---
 
@@ -122,13 +130,23 @@ State these before treating the list as complete:
 
 ---
 
-## Suggested order
+## Outcome — all closed, 2026-08-23
 
-1. **`PayrollRunPageV2`** — blocks any payroll-using org from the flag. Needs
-   real care: release/finalize is money and statutory.
-2. **`SettingsAtsV2` thresholds** — small and self-contained; the card is
-   already there and only needs its two inputs.
-3. **`ReplyIntentBadge` into `leadskit`** — smallest; `IcpScoreBadge` next to
-   it is the working template.
+1. **`PayrollRunPageV2`** — DONE (`ecb3f10e`). Guided-run layer ported off the
+   shared `payrollRunGuidance` module, affordances block spliced verbatim.
+   Three further V2 defects were found and fixed while porting: Release/Hold
+   was an either/or that hid Release on a partially-released run; release
+   selection would have re-emailed already-released employees and emailed
+   zero-value payslips; release-modal rows locked only on salary hold.
+2. **`SettingsAtsV2` thresholds** — DONE. `jobAgingTargetDays` /
+   `jobNoSubmittalDays` now editable, defaults 30 / 7 matching the API.
+3. **reply-intent badge** — nothing to do; see the withdrawal above.
 
-Until 1 is done, do not enable `uiV2` for an org that runs payroll.
+So of three findings, two were real and one was an artifact of the method.
+Worth remembering when reading the counts in section 2: the content-check
+removed nine false positives, and one still got through it.
+
+**Everything here remains verified by identifier parity and a clean build, not
+by running a payroll.** Before enabling `uiV2` for an org that runs payroll,
+exercise release-remaining and finalize-with-caution on staging against a real
+multi-cohort run — those are the paths that move money and send email.
