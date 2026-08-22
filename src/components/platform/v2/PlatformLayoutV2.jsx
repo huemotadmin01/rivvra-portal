@@ -81,8 +81,17 @@ function PlatformLayoutV2() {
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const isFullScreenPage = location.pathname.includes('/employee/onboarding');
-  const isKnowledgeBase = currentApp?.id === 'knowledgeBase';
-  const showSidebar = currentApp && !isFullScreenPage && !isKnowledgeBase;
+  // Knowledge Base used to be excluded here by name, which is why it was the
+  // one app with no left nav. Removed 2026-08-22 on request: KB should carry
+  // the app shell like every other app.
+  //
+  // Worth knowing if this is ever revisited — the exclusion was not arbitrary.
+  // KB renders its OWN left column (article search + category tree), so it now
+  // shows two left columns: the 246px app rail, whose KB nav is the single
+  // "Browse Articles" item from apps.jsx, and then KB's article nav beside it.
+  // If that reads as heavy, the fix is to give KB more sidebar items or fold
+  // its article tree INTO the rail — not to special-case the shell again.
+  const showSidebar = currentApp && !isFullScreenPage;
 
   return (
     <TimesheetProvider>
