@@ -41,17 +41,22 @@
 //    one difference is that Enter no longer confirms a `danger` dialog, which
 //    is what we want on a delete.
 //
-// ⚠️ `incentiveApi.lookupEmployees` returns exactly 50 employees and ignores
-//    both `limit` and `search` — verified against staging. So the picker can
-//    only ever reach the first 50 people in the org, and typing a 51st
-//    person's name finds nothing. That is a pre-existing server-side cap, not
-//    something this migration introduced, and fixing it means an API change.
-//    Left as-is and flagged.
+// RESOLVED 2026-08-23. The earlier note here said the endpoint ignored both
+//    `limit` and `search`. Half of that was wrong: `employeeLookup` in the API
+//    (src/incentive.js) DOES honour `search`, matching fullName, email and
+//    employeeId, and it already company-scopes. What it hardcodes is
+//    `.limit(50)`. The real defect was on this side — both shells called
+//    `lookupEmployees(orgSlug)` with no arguments and filtered the resulting 50
+//    in the browser, so a 51st person was never fetched and could not be found.
+//    Fixed by passing the query through (see `loadEmployees` and the ComboBox
+//    `onSearch`). No API change was needed, which matters: the API repo has no
+//    staging branch, so a backend fix could not have been tested before
+//    reaching production.
 //
 // Not triggered: add rate, save edit, delete rate.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -157,16 +162,30 @@ function RatesTableV2() {
     }
   }
 
-  async function loadEmployees() {
-    setEmployees([]);
+  // `search` is passed through to the server, which matches on fullName, email
+  // and employeeId. Without it the endpoint returns the first 50 employees by
+  // name and nothing else is reachable — see the ComboBox `onSearch` wiring.
+  // Deliberately does NOT clear the list on a search: blanking it mid-type
+  // collapses the open dropdown and loses the current selection's label.
+  async function loadEmployees(search = '') {
+    if (!search) setEmployees([]);
     try {
-      const res = await incentiveApi.lookupEmployees(orgSlug);
+      const res = await incentiveApi.lookupEmployees(orgSlug, search ? { search } : {});
       setEmployees(res?.employees || res || []);
     } catch (e) {
       console.error('Failed to load employees', e);
       // Non-fatal — admin can still add Org-wide / Tier rates.
     }
   }
+
+  // Stable identity is REQUIRED, not tidiness. Both pickers put their search
+  // callback in a useEffect dependency array, so passing the raw
+  // `loadEmployees` — re-created every render — would make each response
+  // (setEmployees -> render -> new function -> effect re-fires) trigger another
+  // fetch. That is an unbounded request loop, not a perf nit.
+  const handleEmployeeSearch = useCallback((q) => { loadEmployees(q); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [orgSlug]);
 
   function validateRatePct(s) {
     if (s === '' || s == null) return 'Rate is required';
@@ -555,6 +574,11 @@ function RatesTableV2() {
                 value={newRate.employeeId}
                 onChange={(id) => setNewRate({ ...newRate, employeeId: id })}
                 options={employeeOptions}
+                // Server-side search. ComboBox debounces 250ms and only fires
+                // while open, so this is one request per pause in typing, not
+                // per keystroke. Without it the picker could only ever see the
+                // first 50 employees the endpoint returns by name.
+                onSearch={handleEmployeeSearch}
                 emptyLabel="Select employee…"
                 placeholder="Search by name, email, designation…"
               />
