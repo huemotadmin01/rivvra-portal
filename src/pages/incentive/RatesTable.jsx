@@ -12,7 +12,7 @@
 // employeeId continue to work as personal overrides.
 // ============================================================================
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -110,16 +110,30 @@ export default function RatesTable() {
     }
   }
 
-  async function loadEmployees() {
-    setEmployees([]);
+  // `search` goes to the server, which matches fullName, email and employeeId.
+  // Called with no argument the endpoint returns only the first 50 employees by
+  // name, so anyone past that was unreachable from the picker — filtering used
+  // to happen in the browser over those 50. Does NOT clear the list while
+  // searching: blanking it mid-type closes the open dropdown.
+  async function loadEmployees(search = '') {
+    if (!search) setEmployees([]);
     try {
-      const res = await incentiveApi.lookupEmployees(orgSlug);
+      const res = await incentiveApi.lookupEmployees(orgSlug, search ? { search } : {});
       setEmployees(res?.employees || res || []);
     } catch (e) {
       console.error('Failed to load employees', e);
       // Non-fatal — admin can still add Org-wide / Tier rates.
     }
   }
+
+  // Stable identity is REQUIRED, not tidiness. Both pickers put their search
+  // callback in a useEffect dependency array, so passing the raw
+  // `loadEmployees` — re-created every render — would make each response
+  // (setEmployees -> render -> new function -> effect re-fires) trigger another
+  // fetch. That is an unbounded request loop, not a perf nit.
+  const handleEmployeeSearch = useCallback((q) => { loadEmployees(q); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [orgSlug]);
 
   function validateRatePct(s) {
     if (s === '' || s == null) return 'Rate is required';
@@ -304,6 +318,7 @@ export default function RatesTable() {
                 employees={employees}
                 value={newRate.employeeId}
                 onChange={(id) => setNewRate({ ...newRate, employeeId: id })}
+                onSearch={handleEmployeeSearch}
               />
             </div>
           )}
@@ -592,10 +607,21 @@ function EditingRow({ row, state, setState, onSave, onCancel }) {
 // type-to-filter pattern used elsewhere in the app (RecordDetail combo,
 // asset Assign/Reassign modals). Pure form-mode — no async save cycle, just
 // `value` + `onChange`. Click the X chip to clear the selection.
-function EmployeePicker({ employees, value, onChange }) {
+function EmployeePicker({ employees, value, onChange, onSearch }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
+
+  // Ask the server as the admin types. 250ms matches the ds ComboBox in
+  // RatesTableV2 so both shells behave identically. Only while open, so
+  // closing the dropdown does not leave a request in flight. The local
+  // `filtered` below still runs — harmless, and it keeps the list responsive
+  // between the keystroke and the response.
+  useEffect(() => {
+    if (!onSearch || !open) return undefined;
+    const id = setTimeout(() => onSearch(search.trim()), 250);
+    return () => clearTimeout(id);
+  }, [search, open, onSearch]);
 
   const selected = useMemo(
     () => (value ? employees.find((e) => e._id === value) : null),
