@@ -27,7 +27,11 @@ function OrgRedirect({ to }) {
 
   // Wait for auth to resolve — render blank bg (no spinner) to avoid flash
   if (loading) {
-    return <div className="min-h-screen bg-dark-950" />;
+    // Theme token, not bg-dark-950: this is the third pre-shell paint (with
+    // ProtectedRoute and SuperAdminRoute) and it renders outside `.ds-shell`,
+    // so a light-theme user got a full-screen black hold while the redirect
+    // resolved.
+    return <div className="min-h-screen" style={{ background: 'var(--bg, #020617)' }} />;
   }
 
   // Not authenticated → find workspace

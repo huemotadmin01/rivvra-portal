@@ -7,10 +7,25 @@ function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+      // Theme tokens, not the legacy dark-* scale. This paints before any
+      // shell mounts and sits OUTSIDE `.ds-shell`, so legacy-bridge.css cannot
+      // reach it — hardcoded `bg-dark-950` meant a light-theme user got a
+      // near-black screen on every reload while auth resolved. The tokens
+      // resolve correctly because index.html now stamps `data-theme` on <html>
+      // before React runs; the fallbacks keep this dark if that ever fails.
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg, #020617)' }}
+      >
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-rivvra-500/30 border-t-rivvra-500 rounded-full animate-spin" />
-          <p className="text-dark-400">Loading...</p>
+          <div
+            className="w-12 h-12 rounded-full animate-spin"
+            style={{
+              border: '4px solid color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)',
+              borderTopColor: 'var(--brand, #22c55e)',
+            }}
+          />
+          <p style={{ color: 'var(--fg-3, #94a3b8)' }}>Loading...</p>
         </div>
       </div>
     );
