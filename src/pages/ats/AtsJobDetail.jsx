@@ -17,6 +17,7 @@ import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
+import SourcingStrings from '../../components/ats/SourcingStrings';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -1085,6 +1086,7 @@ export default function AtsJobDetail() {
                 <Plus size={14} /> New Application
               </button>
             )}
+            <SourcingStrings orgSlug={orgSlug} jobId={jobId} />
             {(isAdmin || isAccountOwner) && !job.archived && (
               <ChangeStatusDropdown
                 currentStatus={statusKey}

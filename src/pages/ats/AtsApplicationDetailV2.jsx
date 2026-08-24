@@ -50,6 +50,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
+import SubmittalSummary from '../../components/ats/SubmittalSummary';
 import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
 
 
@@ -1175,6 +1176,9 @@ export default function AtsApplicationDetail() {
             is hidden entirely for non-owners — they see View Only pill instead. */}
         {canRecruit && canActOnThis && (
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Submittal summary (2026-08-24): client-ready blurb — read-only
+                action, available to anyone who can view the application. */}
+            <SubmittalSummary orgSlug={orgSlug} applicationId={applicationId} />
             {canEdit && (
               <>
                 <MoveStageDropdown

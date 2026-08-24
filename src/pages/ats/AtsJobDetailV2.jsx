@@ -17,6 +17,7 @@ import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
+import SourcingStrings from '../../components/ats/SourcingStrings';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -1089,6 +1090,9 @@ export default function AtsJobDetail() {
                 <Plus size={14} /> New Application
               </button>
             )}
+            {/* Sourcing strings (2026-08-24): job-level action — lives with
+                the other header actions rather than floating mid-page. */}
+            <SourcingStrings orgSlug={orgSlug} jobId={jobId} />
             {(isAdmin || isAccountOwner) && !job.archived && (
               <ChangeStatusDropdown
                 currentStatus={statusKey}
