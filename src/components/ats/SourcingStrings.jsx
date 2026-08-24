@@ -9,8 +9,8 @@ import api from '../../utils/api';
  * job is edited), so repeat opens are instant and free.
  *
  * Styling note (2026-08-24): the modal uses INLINE styles reading the
- * semantic theme vars (--surface-*/--fg-*/--line with dark fallbacks) —
- * the ds-* utility classes failed to resolve here on first ship and the
+ * semantic theme vars (surface/fg/line tokens with dark fallbacks) —
+ * the ds- utility classes failed to resolve here on first ship and the
  * modal rendered transparent over the page. Inline var() reads cannot. */
 
 const V = (name, fallback) => `var(${name}, ${fallback})`;
