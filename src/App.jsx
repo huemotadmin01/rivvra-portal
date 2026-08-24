@@ -445,7 +445,36 @@ function SettingsPageWrapper({ children }) {
 // cache), so returning users get their shell on first paint; a flag
 // change propagates on the next verified org fetch (one reload).
 function ShellSwitch() {
-  const { currentOrg } = useOrg();
+  const { currentOrg, loading } = useOrg();
+
+  // Same guard as PageSwitch, and the one that was actually missing when the
+  // user kept seeing "V1 content" on reload after PageSwitch was fixed:
+  // `currentOrg` starts null and the localStorage cache hydrates in an effect,
+  // AFTER the first render — so this switch always had ≥1 render (cache miss:
+  // the whole fetch window) where `null?.uiV2 === true` picked the LEGACY
+  // shell. The full V1 sidebar/topbar mounted, fired its fetches, then swapped.
+  //
+  // Hold instead. The spinner deliberately mirrors ProtectedRoute's so the
+  // auth spinner flows into this one as one continuous loading state rather
+  // than a swap. Gate on `loading && !currentOrg`, never `loading` alone —
+  // silent revalidation sets loading with an org already in hand.
+  if (loading && !currentOrg) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg, #020617)' }}
+      >
+        <div
+          className="w-12 h-12 rounded-full animate-spin"
+          style={{
+            border: '4px solid color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)',
+            borderTopColor: 'var(--brand, #22c55e)',
+          }}
+        />
+      </div>
+    );
+  }
+
   return currentOrg?.uiV2 === true ? <PlatformLayoutV2 /> : <PlatformLayout />;
 }
 
