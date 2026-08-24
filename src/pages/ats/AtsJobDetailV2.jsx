@@ -1090,6 +1090,9 @@ export default function AtsJobDetail() {
                 <Plus size={14} /> New Application
               </button>
             )}
+            {/* Sourcing strings (2026-08-24): job-level action — lives with
+                the other header actions rather than floating mid-page. */}
+            <SourcingStrings orgSlug={orgSlug} jobId={jobId} />
             {(isAdmin || isAccountOwner) && !job.archived && (
               <ChangeStatusDropdown
                 currentStatus={statusKey}
@@ -1498,12 +1501,6 @@ export default function AtsJobDetail() {
               L3 …). Account Owner / ATS admin can add rounds for this
               requirement only. (per_job_interview_rounds_plan.md) */}
           <InterviewRoundsCard orgSlug={orgSlug} jobId={jobId} />
-
-          {/* Sourcing strings (2026-08-24): paste-ready boolean searches for
-              external sourcing, generated from this job's requirements. */}
-          <div className="flex justify-end">
-            <SourcingStrings orgSlug={orgSlug} jobId={jobId} />
-          </div>
 
           {/* Suggested Candidates — only for a live (approved + open) req.
               Helps the account owner immediately submit best-fit people from
