@@ -23,6 +23,34 @@
         }
       })();
     </script>
+    <!-- Theme, resolved BEFORE React mounts.
+
+         ThemeToggle writes `data-theme` on <html>, but it only mounts inside
+         the v2 app shell — several seconds into a cold load on a slow API.
+         Until then <html> carries no theme, every ds token falls back to its
+         dark default, and anything painted in that window (notably
+         ProtectedRoute's auth spinner) shows dark chrome to a light-theme
+         user. That is the reload flash.
+
+         Must stay INLINE and in <head>: an external or deferred script runs
+         after first paint, which is exactly the window being closed. Mirrors
+         ThemeToggle's own resolution order — stored choice, else OS
+         preference, else dark — and the key must stay in step with
+         `KEY` in ThemeToggle.jsx. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('rivvra.theme');
+          if (!t) {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light' : 'dark';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
