@@ -17,6 +17,7 @@ import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
+import SourcingStrings from '../../components/ats/SourcingStrings';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -1497,6 +1498,12 @@ export default function AtsJobDetail() {
               L3 …). Account Owner / ATS admin can add rounds for this
               requirement only. (per_job_interview_rounds_plan.md) */}
           <InterviewRoundsCard orgSlug={orgSlug} jobId={jobId} />
+
+          {/* Sourcing strings (2026-08-24): paste-ready boolean searches for
+              external sourcing, generated from this job's requirements. */}
+          <div className="flex justify-end">
+            <SourcingStrings orgSlug={orgSlug} jobId={jobId} />
+          </div>
 
           {/* Suggested Candidates — only for a live (approved + open) req.
               Helps the account owner immediately submit best-fit people from
