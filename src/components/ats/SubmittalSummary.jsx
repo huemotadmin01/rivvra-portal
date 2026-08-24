@@ -76,8 +76,8 @@ export default function SubmittalSummary({ orgSlug, applicationId }) {
                 <button type="button" onClick={toggleAnon} style={{ ...S.ghostBtn, ...(anonymize ? { borderColor: V('--brand', '#22c55e'), color: V('--brand', '#22c55e') } : {}) }} title="Hide the candidate's name and employer names (pre-shortlist submissions)">
                   <EyeOff size={12} /> {anonymize ? 'Anonymized' : 'Anonymize'}
                 </button>
-                <button type="button" onClick={() => fetchSummary(anonymize, true)} style={S.ghostBtn} title="Regenerate (after profile or notes changed)">
-                  <RefreshCw size={12} />
+                <button type="button" onClick={() => fetchSummary(anonymize, true)} style={S.ghostBtn} title="Force a fresh rewrite — use after the resume was re-scored or your notes changed">
+                  <RefreshCw size={12} /> Regenerate
                 </button>
                 <button type="button" onClick={copyText} style={S.ghostBtn} disabled={!summary}>
                   {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : 'Copy'}
