@@ -17,7 +17,20 @@ import { useOrg } from '../../../context/OrgContext';
  *   <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />
  */
 export function PageSwitch({ v2: V2, legacy: Legacy, ...props }) {
-  const { currentOrg } = useOrg();
+  const { currentOrg, loading } = useOrg();
+
+  // Do not choose until the org is known. `currentOrg` starts null on every
+  // hard reload, and `null?.uiV2 === true` is false — so without this the
+  // legacy page won for the whole fetch window, then swapped to v2 when the
+  // org arrived. That is not just a flash of the wrong theme: the legacy page
+  // MOUNTS, runs its effects and fires its own data requests, and all of it is
+  // thrown away. Every reload on a uiV2 org paid for two page loads.
+  //
+  // Gate on `loading && !currentOrg`, never on `loading` alone — a background
+  // refresh sets loading true again with an org already in hand, and blanking
+  // the page mid-session would be worse than the bug.
+  if (loading && !currentOrg) return null;
+
   return currentOrg?.uiV2 === true ? <V2 {...props} /> : <Legacy {...props} />;
 }
 
