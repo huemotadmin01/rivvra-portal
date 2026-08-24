@@ -6,10 +6,23 @@ function SuperAdminRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+      // Same fix as ProtectedRoute: theme tokens, not the legacy dark-* scale.
+      // Paints before any shell mounts and outside `.ds-shell`, so the bridge
+      // cannot reach it. Amber is kept deliberately — it is the super-admin
+      // identity colour and distinguishes /admin from the org app.
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg, #020617)' }}
+      >
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-          <p className="text-dark-400">Loading...</p>
+          <div
+            className="w-12 h-12 rounded-full animate-spin"
+            style={{
+              border: '4px solid color-mix(in srgb, var(--acc-amber, #f59e0b) 30%, transparent)',
+              borderTopColor: 'var(--acc-amber, #f59e0b)',
+            }}
+          />
+          <p style={{ color: 'var(--fg-3, #94a3b8)' }}>Loading...</p>
         </div>
       </div>
     );
