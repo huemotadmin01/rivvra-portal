@@ -478,6 +478,14 @@ export default function AtsJobDetail() {
 
   // UI / modal state
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  // Per-company ATS setting (2026-08-25): referral-link card can be hidden.
+  // Default ON — `?? true`, per the house UI-default rule.
+  const [showReferralLinks, setShowReferralLinks] = useState(true);
+  useEffect(() => {
+    let gone = false;
+    atsApi.getSettings(orgSlug).then((r) => { if (!gone) setShowReferralLinks(r?.settings?.showReferralLinks ?? true); }).catch(() => {});
+    return () => { gone = true; };
+  }, [orgSlug]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -1288,7 +1296,7 @@ export default function AtsJobDetail() {
           ref and uses it as application.recruiterId in place of the org
           default. Resolves the gap where Niharika shared a public link
           but didn't get credit on resulting applications. */}
-      {canRecruit && myEmployeeId && job.publishToCareers && jobPublicUrl && (() => {
+      {showReferralLinks && canRecruit && myEmployeeId && job.publishToCareers && jobPublicUrl && (() => {
         const myRefLink = `${jobPublicUrl}?ref=${myEmployeeId}`;
         return (
           <div className="rounded-lg border border-dark-700 bg-dark-800/40 px-4 py-3">

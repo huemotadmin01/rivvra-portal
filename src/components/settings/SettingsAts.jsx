@@ -425,6 +425,19 @@ export default function SettingsAts() {
                 <span className="text-xs text-dark-500">hours</span>
               </div>
             </div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Recruiter referral links</label>
+                <p className="text-xs text-dark-500">Show the "Your Referral Link" card on published jobs so recruiters can share credited apply links. Existing shared links keep crediting either way.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => update('showReferralLinks', !(settings?.showReferralLinks ?? true))}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${(settings?.showReferralLinks ?? true) ? 'bg-rivvra-500' : 'bg-dark-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${(settings?.showReferralLinks ?? true) ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Job aging target</label>
               <p className="text-xs text-dark-500 mb-2">Open jobs older than this (from approval) flag red on the dashboard's Job Aging card.</p>
