@@ -14,16 +14,13 @@ function SuperAdminRoute({ children }) {
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg, #020617)' }}
       >
-        <div className="flex flex-col items-center gap-4">
-          <div
-            className="w-12 h-12 rounded-full animate-spin"
-            style={{
-              border: '4px solid color-mix(in srgb, var(--acc-amber, #f59e0b) 30%, transparent)',
-              borderTopColor: 'var(--acc-amber, #f59e0b)',
-            }}
-          />
-          <p style={{ color: 'var(--fg-3, #94a3b8)' }}>Loading...</p>
-        </div>
+        <div
+          className="w-12 h-12 rounded-full animate-spin"
+          style={{
+            border: '4px solid color-mix(in srgb, var(--acc-amber, #f59e0b) 30%, transparent)',
+            borderTopColor: 'var(--acc-amber, #f59e0b)',
+          }}
+        />
       </div>
     );
   }
