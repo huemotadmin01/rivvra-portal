@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BootRing from './BootRing';
 
 function SuperAdminRoute({ children }) {
   const { user, isAuthenticated, loading } = useAuth();
@@ -14,13 +15,7 @@ function SuperAdminRoute({ children }) {
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg, #020617)' }}
       >
-        <div
-          className="w-12 h-12 rounded-full animate-spin"
-          style={{
-            border: '4px solid color-mix(in srgb, var(--acc-amber, #f59e0b) 30%, transparent)',
-            borderTopColor: 'var(--acc-amber, #f59e0b)',
-          }}
-        />
+        <BootRing color="var(--acc-amber, #f59e0b)" />
       </div>
     );
   }
