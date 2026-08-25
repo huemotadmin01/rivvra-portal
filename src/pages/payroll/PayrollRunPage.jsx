@@ -735,7 +735,7 @@ export default function PayrollRunPage() {
                   {frozenDrift.length} released payslip{frozenDrift.length === 1 ? '' : 's'} kept the figure already paid
                 </p>
                 <p className="text-xs text-dark-400 mt-0.5">
-                  July data changed after these employees were paid. Their rows were left untouched — recomputing would have moved a figure they have already received. Pay any genuine correction as arrears in a later run.
+                  {MONTHS[run.month]} data changed after these employees were paid. Their rows were left untouched — recomputing would have moved a figure they have already received. Pay any genuine correction as arrears in a later run.
                 </p>
                 <div className="mt-2 overflow-x-auto">
                   <table className="text-xs min-w-full">
