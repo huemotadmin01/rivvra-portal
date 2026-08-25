@@ -1350,11 +1350,14 @@ export default function AtsJobDetail() {
       {!job.archived && job.approvalStatus === 'pending' && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
           <Clock size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-100/90">
-            <div className="font-medium text-amber-200">Pending approval</div>
-            <div className="text-amber-100/70 mt-0.5">
+          {/* Inline theme-var colors: the previous amber-100/200 classes are
+              dark-theme constants that wash out to near-invisible on the
+              light theme (looked like garbled/overlapping text). */}
+          <div className="text-sm" style={{ color: 'var(--fg-2, #fde68a)' }}>
+            <div className="font-medium" style={{ color: 'var(--warn, #d97706)' }}>Pending approval</div>
+            <div className="mt-0.5">
               {job.approverName
-                ? <>Awaiting <span className="text-amber-200">{job.approverName}</span>'s decision. Applications are blocked until approved.</>
+                ? <>Awaiting <span className="font-medium" style={{ color: 'var(--warn, #d97706)' }}>{job.approverName}</span>'s decision. Applications are blocked until approved.</>
                 : <>Awaiting decision. Applications are blocked until approved.</>}
             </div>
           </div>
