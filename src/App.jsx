@@ -14,6 +14,7 @@ import PlatformLayout from './components/platform/PlatformLayout';
 const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import ProtectedRoute from './components/ProtectedRoute';
+import BootRing from './components/BootRing';
 import OrgRedirect from './components/OrgRedirect';
 import AppAccessGate from './components/AppAccessGate';
 import { useOrg } from './context/OrgContext';
@@ -464,13 +465,7 @@ function ShellSwitch() {
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg, #020617)' }}
       >
-        <div
-          className="w-12 h-12 rounded-full animate-spin"
-          style={{
-            border: '4px solid color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)',
-            borderTopColor: 'var(--brand, #22c55e)',
-          }}
-        />
+        <BootRing />
       </div>
     );
   }

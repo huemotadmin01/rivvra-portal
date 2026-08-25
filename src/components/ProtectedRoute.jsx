@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BootRing from './BootRing';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -17,16 +18,7 @@ function ProtectedRoute({ children }) {
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg, #020617)' }}
       >
-        {/* Ring only, no "Loading..." text — the text was the V1 spinner's
-            signature, and this ring is pixel-matched to the boot splash in
-            index.html so splash -> auth -> org reads as ONE loading state. */}
-        <div
-          className="w-12 h-12 rounded-full animate-spin"
-          style={{
-            border: '4px solid color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)',
-            borderTopColor: 'var(--brand, #22c55e)',
-          }}
-        />
+        <BootRing />
       </div>
     );
   }
