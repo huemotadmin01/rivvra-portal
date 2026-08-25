@@ -1713,7 +1713,7 @@ export default function AtsJobDetail() {
 
         {/* Sidebar — People, Client, Meta, Activities */}
         <div className="space-y-5">
-          <Panel title="People" icon={<UserCheck size={14} />}>
+          <Panel title="People" icon={<UserCheck size={14} />} style={{ overflow: 'visible' }}>
             <PersonLookup
               orgSlug={orgSlug}
               label="Recruiter"
