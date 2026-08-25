@@ -53,7 +53,31 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Boot splash. Lives INSIDE #root so React's first render replaces it —
+         createRoot().render() clears container children, so there is no JS
+         handoff to coordinate and no way for it to linger over the app.
+
+         Colors are literal (the token stylesheets have not loaded yet) and
+         keyed on the data-theme the head script just stamped. They are the v2
+         --bg values (#080B10 / #FAF8F4), NOT legacy #020617 — the whole point
+         is that the first painted frame already looks like the v2 app in the
+         user's own theme. The ring matches ProtectedRoute's and ShellSwitch's
+         spinners exactly, so boot -> auth -> org reads as one continuous
+         loading state instead of three different screens. -->
+    <style>
+      #root { min-height: 100vh; background: #080B10; }
+      html[data-theme='light'] #root { background: #FAF8F4; }
+      .boot-splash {
+        min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      }
+      .boot-splash .ring {
+        width: 48px; height: 48px; border-radius: 9999px;
+        border: 4px solid rgba(34, 197, 94, 0.3); border-top-color: #22C55E;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
+    <div id="root"><div class="boot-splash"><div class="ring"></div></div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -121,15 +121,15 @@
   }
 
   /* The :has() rule above cannot fix FIRST PAINT: before React mounts there
-     is no .ds-shell, so the bg-dark-950 body showed a light-theme user a
-     black frame on every reload (caught on production 2026-08-25 — a solid
-     #020617 frame between navigation and React mount). index.html stamps
-     `data-theme` before any paint, so key the pre-shell body on that instead.
-     Light only, deliberately: dark theme keeps the exact legacy body value,
-     and the legacy app under a light OS still paints its own dark containers
-     full-height, so this cannot restyle legacy pages. */
-  html[data-theme='light'] body {
-    background-color: var(--bg, #faf8f4);
+     is no .ds-shell, so the bg-dark-950 body painted legacy #020617 on every
+     reload (caught on production 2026-08-25 with a 25ms-poll iframe probe —
+     a ~1s solid #020617 state before the shell). index.html stamps
+     `data-theme` before any paint, so key the pre-shell body on that for BOTH
+     themes: on dark, #020617 vs the v2 --bg #080B10 is exactly the navy
+     mismatch the user reads as "the V1 flash". Legacy pages are unaffected —
+     they paint their own full-height dark containers over the body. */
+  html[data-theme] body {
+    background-color: var(--bg, #080b10);
   }
 
   /* Dark-theme date input: make calendar icon visible */

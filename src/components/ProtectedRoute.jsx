@@ -17,16 +17,16 @@ function ProtectedRoute({ children }) {
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg, #020617)' }}
       >
-        <div className="flex flex-col items-center gap-4">
-          <div
-            className="w-12 h-12 rounded-full animate-spin"
-            style={{
-              border: '4px solid color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)',
-              borderTopColor: 'var(--brand, #22c55e)',
-            }}
-          />
-          <p style={{ color: 'var(--fg-3, #94a3b8)' }}>Loading...</p>
-        </div>
+        {/* Ring only, no "Loading..." text — the text was the V1 spinner's
+            signature, and this ring is pixel-matched to the boot splash in
+            index.html so splash -> auth -> org reads as ONE loading state. */}
+        <div
+          className="w-12 h-12 rounded-full animate-spin"
+          style={{
+            border: '4px solid color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)',
+            borderTopColor: 'var(--brand, #22c55e)',
+          }}
+        />
       </div>
     );
   }
