@@ -1232,7 +1232,7 @@ export default function AtsApplicationNewV2() {
               </Panel>
 
               {/* Pipeline */}
-              <Panel>
+              <Panel style={{ overflow: 'visible' }}>
                 <div style={{ display: 'grid', gap: 18, padding: 4 }}>
                   <h2 style={sectionHead}><GitBranch size={14} style={{ color: 'var(--brand-ink)' }} /> Pipeline</h2>
 

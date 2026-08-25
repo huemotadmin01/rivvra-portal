@@ -548,7 +548,7 @@ function AtsCandidateDetailV2() {
 
         {/* Sidebar */}
         <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
-          <Panel title="Owner" icon={<UserCheck size={16} />}>
+          <Panel title="Owner" icon={<UserCheck size={16} />} style={{ overflow: 'visible' }}>
             <PersonLookup
               orgSlug={slug}
               label="Manager"

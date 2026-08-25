@@ -193,7 +193,7 @@ function AtsJobNewV2() {
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 16 }}>
-        <Panel title="Role" icon={<Briefcase size={16} />}>
+        <Panel title="Role" icon={<Briefcase size={16} />} style={{ overflow: 'visible' }}>
           <div style={{ display: 'grid', gap: 12 }}>
             <Field label="Job Title" htmlFor="jn-name" required>
               <Input id="jn-name" type="text" autoFocus required
