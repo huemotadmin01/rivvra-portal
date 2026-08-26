@@ -161,7 +161,46 @@ Each run writes `scrub-report-<ts>.json` with per-collection counts.
 
 ---
 
-## Branching for the redesign (from 2026-08-11)
+## Testing risky changes without touching production (policy, 2026-08-26)
+
+Both staging services deploy from **`main`** — the same branch production
+deploys from. That is deliberate: staging then always rehearses exactly the
+code production runs (this is what made the onboarding e2e rehearsal
+meaningful). There is **no permanent staging branch**, and there should not
+be one: it drifts, doubles every hotfix merge, and quietly makes staging stop
+telling the truth about prod.
+
+When a new feature is risky, pick the tier that fits:
+
+1. **Default — dark launch behind a per-org flag (the `uiV2` playbook).**
+   Build the feature gated on an org-level flag, push to `main`. It deploys
+   everywhere but runs nowhere until the flag is flipped — first for the
+   staging org, then a pilot company, then everyone. Production runs the
+   exact bits that were tested, and rollback is one flag flip per org.
+   Fits ~90% of work: new pages, endpoints, reports, crons (crons also sit
+   behind `CRONS_DISABLED`/`CRON_ALLOWLIST`).
+
+2. **Too invasive to flag (auth/middleware rewrites, dependency upgrades,
+   schema migrations) — short-lived feature branch + repoint staging.**
+   Work on `feature/x`. Production only deploys from `main`, so it is
+   untouched. In the Render dashboard, switch the staging service's deploy
+   branch (Settings → Build & Deploy → Branch) from `main` to `feature/x`
+   — API service, portal service, or both. Test against the scrubbed
+   staging DB (code AND data fully isolated; schema migrations can run for
+   real there). When it survives: merge to `main`, point staging back at
+   `main`, delete the branch. The branch lives days, not forever.
+   Need fresher data first? `scripts/staging-refresh.sh` (API repo) rebuilds
+   staging's DB from the latest R2 backup.
+
+3. **Money-math and data-shape logic — local rigs before any deploy.**
+   The in-memory-mongo rig and a local mongod loaded from a scrubbed dump
+   catch most breakage without deploying anything.
+
+Safety net behind all three: nightly R2 backup + weekly proven restore test
+(`db-restore-test.yml`), per-org flags for instant rollback, and Render's
+"redeploy previous commit" for a truly bad push.
+
+## Branching for the redesign (HISTORICAL — merged to main 2026-08-22, both staging services build `main` again; kept for the record)
 
 The UI redesign lives on the long-lived **`redesign`** branch, per the
 handoff's rollout plan. Rules:
