@@ -1361,7 +1361,9 @@ export default function InvoiceDetail() {
       (l.taxIds || []).forEach(taxId => {
         const tax = allTaxes.find(t => (t._id || t.id) === taxId);
         if (tax?.rate) {
-          if (tax.inclusive) {
+          if (tax.type === 'fixed') {
+            taxTotal += tax.rate * qty; // flat amount per unit
+          } else if (tax.inclusive) {
             taxTotal += lineSubtotal - (lineSubtotal / (1 + tax.rate / 100));
           } else {
             taxTotal += lineSubtotal * (tax.rate / 100);
@@ -1407,7 +1409,7 @@ export default function InvoiceDetail() {
         entries = taxIds
           .map(id => taxMapById[String(id)])
           .filter(Boolean)
-          .map(t => ({ name: t.name || '', rate: Number(t.rate) || 0, amount: null, inclusive: !!t.inclusive }));
+          .map(t => ({ name: t.name || '', rate: Number(t.rate) || 0, amount: null, inclusive: !!t.inclusive, type: t.type }));
       }
       if (entries.length === 0) continue;
 
@@ -1432,6 +1434,7 @@ export default function InvoiceDetail() {
       const lineTaxAmount = (fromRichTaxes && line.taxAmount != null)
         ? Number(line.taxAmount) || 0
         : entries.reduce((s, e) => {
+            if (e.type === 'fixed') return s + e.rate * qty; // flat amount per unit
             if (e.inclusive) return s + (taxable - taxable / (1 + e.rate / 100));
             return s + taxable * (e.rate / 100);
           }, 0);

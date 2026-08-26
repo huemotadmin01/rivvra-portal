@@ -1091,12 +1091,8 @@ class ApiClient {
     return this.request(`/api/org/${orgSlug}/sample-data`, { method: 'DELETE' });
   }
 
-  async upgradeOrg(orgSlug, data) {
-    return this.request(`/api/org/${orgSlug}/upgrade`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
+  // upgradeOrg removed — the no-payment /upgrade endpoint is gone; paid plans
+  // go through the Stripe methods below.
 
   // ─── Stripe ─────────────────────────────────────────────────────────────
 
