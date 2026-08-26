@@ -56,6 +56,23 @@ function UpgradePage() {
   const [subscription, setSubscription] = useState(null);
   const [subLoading, setSubLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [activationSlow, setActivationSlow] = useState(false);
+
+  // The ?stripe_success=true query param only proves the redirect happened —
+  // entitlement lands via webhook, which can lag (or need Stripe's retry).
+  // Poll the org until the plan actually flips before declaring success.
+  const PAID_PLANS = ['growth', 'scale', 'core', 'all_apps', 'pro', 'enterprise'];
+  const planActive = PAID_PLANS.includes(currentOrg?.plan);
+  useEffect(() => {
+    if (!stripeSuccess || planActive) return undefined;
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      refetchOrg?.();
+      if (tries >= 10) { clearInterval(t); setActivationSlow(true); }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [stripeSuccess, planActive, refetchOrg]);
 
   // Check for Stripe redirect success/cancel
   useEffect(() => {
@@ -141,6 +158,30 @@ function UpgradePage() {
   };
 
   // ── Success state after Stripe checkout ──────────────────────────────
+  // Payment confirmed by the redirect; "all set" waits for the plan to
+  // actually flip on the org (see the poll above).
+  if (stripeSuccess && !planActive) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-16 text-center">
+        <div className="w-20 h-20 bg-rivvra-500/20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-rivvra-500/10">
+          <Loader2 className="w-10 h-10 text-rivvra-400 animate-spin" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-3">
+          {activationSlow ? 'Payment received — activating…' : 'Finalizing your upgrade…'}
+        </h1>
+        <p className="text-dark-300 text-lg mb-2">
+          {activationSlow
+            ? 'This is taking a little longer than usual. Your plan will activate automatically within a few minutes — no action needed.'
+            : 'Confirming your subscription with Stripe.'}
+        </p>
+        {activationSlow && (
+          <p className="text-dark-400 text-sm mb-8">
+            Still not active after a while? Email team@rivvra.com and we'll sort it out.
+          </p>
+        )}
+      </div>
+    );
+  }
   if (stripeSuccess) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">

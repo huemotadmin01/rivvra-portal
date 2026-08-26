@@ -610,7 +610,7 @@ function generatePrintHTML(s, emp) {
 </style></head><body>
 <div class="header">
   <h1>Full & Final Settlement Statement</h1>
-  <p>Huemot Technology Private Limited</p>
+  <p>${currentCompany?.name || ''}</p>
   <span class="status ${s.status || 'draft'}">${(s.status || 'draft').toUpperCase()}</span>
 </div>
 

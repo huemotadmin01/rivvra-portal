@@ -517,8 +517,13 @@ function SignupPage() {
       }
       navigate(slug ? `/org/${slug}/home` : '/find-workspace');
     } catch (err) {
+      // Workspace creation failed server-side (ORG_CREATION_FAILED) or the
+      // request itself died. Silently bouncing to /find-workspace stranded the
+      // user with no workspace and no explanation — surface it and let them
+      // press Finish again (the API adopts a half-created org on retry).
       console.error('Failed to save onboarding data:', err);
-      navigate('/find-workspace');
+      setError(err?.message || 'We could not create your workspace. Please try again.');
+      setLoading(false);
     }
   };
 
@@ -554,7 +559,7 @@ function SignupPage() {
             </p>
             <p className="text-dark-500 text-xs mt-6">
               Need access now? Email{' '}
-              <a href="mailto:info@huemot.com" className="text-rivvra-400 hover:text-rivvra-300">info@huemot.com</a>.
+              <a href="mailto:team@rivvra.com" className="text-rivvra-400 hover:text-rivvra-300">team@rivvra.com</a>.
             </p>
           </div>
         </div>

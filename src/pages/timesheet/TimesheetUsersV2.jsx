@@ -9,21 +9,22 @@ import {
   PageHeader, FilterBar, SelectChip, DataTable, EmptyState, Modal,
   Field, Input, Select, Button, Chip, Callout,
 } from '../../components/ds';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A money page: it sets the daily/monthly pay rate and the client billing rate
-// that the contractor pay chain reads. So every money string below is carried
-// across byte-identical — including `RATE_TYPE_LABELS`, which is wrong (see
-// REDESIGN-QA.md: `hourly` is denominated in $ while daily and monthly are ₹)
-// and is deliberately NOT corrected here. Changing what a rate label says is a
-// change to what the number means; that is a decision to take on purpose, not
-// a side effect of a theme migration.
+// that the contractor pay chain reads. The mixed currencies below are REAL,
+// not a typo: prod data (verified 2026-08-26) stores hourly rates as USD
+// (23–40, US clients) while daily/monthly are INR (9k–371k). The labels now
+// say so explicitly. The durable fix is a per-rate currency field on the
+// record — see [[assignment_client_billing_currency]] — not a relabel, which
+// would silently change what stored numbers mean.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RATE_TYPE_LABELS = {
-  daily: '₹/day',
-  hourly: '$/hour',
-  monthly: '₹/month',
+  daily: '₹/day · INR',
+  hourly: '$/hour · USD',
+  monthly: '₹/month · INR',
 };
 
 // Badge hues move to Chip's tone set rather than being reproduced exactly.
@@ -180,6 +181,11 @@ export default function TimesheetUsersV2() {
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
+  // Status changes go through a ConfirmDialog: marking someone resigned stops
+  // their payroll and triggers alumni handling — too destructive for the
+  // one-click badge it used to be.
+  const [confirmToggle, setConfirmToggle] = useState(null);
+
   const toggleActive = async (user) => {
     try {
       const newStatus = user.isActive ? 'resigned' : 'active';
@@ -240,14 +246,10 @@ export default function TimesheetUsersV2() {
       render: (u) => (u.payType === 'monthly' ? (u.monthlyRate ? `₹${u.monthlyRate.toLocaleString()}/mo` : '—') : (u.dailyRate ? `₹${u.dailyRate.toLocaleString()}/day` : '—')) },
     { key: 'status', header: 'Status', width: 110, align: 'center',
       render: (u) => (
-        // Behaviour preserved exactly: one click flips the employee between
-        // active and resigned, with no confirmation. That is flagged as the
-        // top finding in the PR rather than fixed here — adding a confirm is a
-        // behaviour change and belongs in its own commit.
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); toggleActive(u); }}
-          title={u.isActive ? 'Click to mark this person resigned' : 'Click to reactivate'}
+          onClick={(e) => { e.stopPropagation(); setConfirmToggle(u); }}
+          title={u.isActive ? 'Mark this person resigned…' : 'Reactivate…'}
           style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer' }}
         >
           <Chip tone={u.isActive ? 'brand' : 'danger'}>{u.isActive ? 'Active' : 'Inactive'}</Chip>
@@ -512,6 +514,18 @@ export default function TimesheetUsersV2() {
           </Button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmToggle}
+        danger={!!confirmToggle?.isActive}
+        title={confirmToggle?.isActive ? 'Mark as resigned?' : 'Reactivate user?'}
+        message={confirmToggle?.isActive
+          ? `${confirmToggle?.fullName || 'This person'} will be marked resigned — their payroll stops and alumni handling kicks in.`
+          : `${confirmToggle?.fullName || 'This person'} will be reactivated and can log time again.`}
+        confirmLabel={confirmToggle?.isActive ? 'Mark resigned' : 'Reactivate'}
+        onCancel={() => setConfirmToggle(null)}
+        onConfirm={async () => { const u = confirmToggle; setConfirmToggle(null); await toggleActive(u); }}
+      />
     </div>
   );
 }
