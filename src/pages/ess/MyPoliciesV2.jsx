@@ -78,7 +78,7 @@ export default function MyPoliciesV2() {
     .filter((g) => g.items.length > 0);
 
   return (
-    <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 880 }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 880, margin: '0 auto' }}>
       <PageHeader title="Company Policies" sub="Policies that apply to you" style={{ marginBottom: 16 }} />
 
       {pendingCount > 0 && (

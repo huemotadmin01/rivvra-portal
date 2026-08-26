@@ -94,10 +94,12 @@ function AppLauncherPage() {
               <ShieldCheck className="w-5 h-5 text-amber-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-100">
+              {/* Theme-var colors: amber-100/200 are dark-theme constants that
+                  wash out to invisible on light theme (ghost-text bug class). */}
+              <p className="text-sm font-medium" style={{ color: 'var(--warn, #d97706)' }}>
                 {policyPending} {policyPending === 1 ? 'policy' : 'policies'} awaiting your acknowledgment
               </p>
-              <p className="text-xs text-amber-200/70">Review and acknowledge your company policies</p>
+              <p className="text-xs" style={{ color: 'var(--fg-2, #fde68a)' }}>Review and acknowledge your company policies</p>
             </div>
             <ChevronRight className="w-4 h-4 text-amber-300 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
           </Link>
