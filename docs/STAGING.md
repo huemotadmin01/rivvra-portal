@@ -200,7 +200,14 @@ Safety net behind all three: nightly R2 backup + weekly proven restore test
 (`db-restore-test.yml`), per-org flags for instant rollback, and Render's
 "redeploy previous commit" for a truly bad push.
 
-## Branching for the redesign (HISTORICAL — merged to main 2026-08-22, both staging services build `main` again; kept for the record)
+> ⚠️ **Verified 2026-08-26:** the staging **API** service builds `main`
+> (confirmed via `/health` commit). The staging **portal** service was still
+> serving a pre-merge bundle — it is likely still pinned to the `redesign`
+> branch (or has auto-deploy off). One-time fix in the Render dashboard:
+> `rivvra-portal-staging` → Settings → Build & Deploy → set Branch to `main`
+> and confirm auto-deploy is on. Then the `redesign` branch can be deleted.
+
+## Branching for the redesign (HISTORICAL — merged to main 2026-08-22; kept for the record)
 
 The UI redesign lives on the long-lived **`redesign`** branch, per the
 handoff's rollout plan. Rules:
