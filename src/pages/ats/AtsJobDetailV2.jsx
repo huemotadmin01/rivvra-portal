@@ -478,14 +478,6 @@ export default function AtsJobDetail() {
 
   // UI / modal state
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  // Per-company ATS setting (2026-08-25): referral-link card can be hidden.
-  // Default ON — `?? true`, per the house UI-default rule.
-  const [showReferralLinks, setShowReferralLinks] = useState(true);
-  useEffect(() => {
-    let gone = false;
-    atsApi.getSettings(orgSlug).then((r) => { if (!gone) setShowReferralLinks(r?.settings?.showReferralLinks ?? true); }).catch(() => {});
-    return () => { gone = true; };
-  }, [orgSlug]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -524,6 +516,14 @@ export default function AtsJobDetail() {
   // offer compensation. See ats.js middleware (atsAdmin vs atsAccess).
   const canRecruit = !!getAppRole('ats');
   const orgSlug = currentOrg?.slug;
+  // Per-company ATS setting (2026-08-25): referral-link card can be hidden.
+  // Default ON — `?? true`, per the house UI-default rule.
+  const [showReferralLinks, setShowReferralLinks] = useState(true);
+  useEffect(() => {
+    let gone = false;
+    atsApi.getSettings(orgSlug).then((r) => { if (!gone) setShowReferralLinks(r?.settings?.showReferralLinks ?? true); }).catch(() => {});
+    return () => { gone = true; };
+  }, [orgSlug]);
   // 2026-05-18: writer gate widened to include the job's Account Owner so a
   // salesperson can fill out and submit their own Draft. Server mirrors this
   // in ensureJobWriter (ats.js); change both together.
