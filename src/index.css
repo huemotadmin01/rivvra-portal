@@ -412,3 +412,16 @@
   max-width: 100%;
   height: auto;
 }
+
+/* ── Ghost-text fix (2026-08-26) ─────────────────────────────────────────
+   text-amber-50/100/200 are dark-theme constants: near-white ambers that
+   vanish on the light theme's pale banners (bug reported 3× — approval
+   banner, policy banner, home banner — before this class-wide fix).
+   In light theme, remap those shades to the theme warn color — EXCEPT
+   inside legacy dark cards (bg-dark-*) embedded in v2 pages, where the
+   original light ambers are correct on their dark backgrounds. */
+[data-theme="light"] :is(.text-amber-50, .text-amber-100, .text-amber-200,
+  [class*="text-amber-50/"], [class*="text-amber-100/"], [class*="text-amber-200/"]
+):not([class*="bg-dark"] *) {
+  color: var(--warn, #b45309) !important;
+}
