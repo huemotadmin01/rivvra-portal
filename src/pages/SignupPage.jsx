@@ -924,10 +924,10 @@ function SignupPage() {
           {currentStep === STEPS.COMPANY && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-1.5">
                   {isInviteFlow ? 'Almost there' : 'Tell us about your work'}
                 </h1>
-                <p className="text-dark-400">
+                <p className="text-dark-400 text-sm">
                   {isInviteFlow
                     ? `Confirm your details to join ${inviteData?.companyName || inviteCompanyName || 'your team'}.`
                     : 'This helps us set up your workspace.'}
@@ -1062,28 +1062,28 @@ function SignupPage() {
               </button>
 
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-1.5">
                   What best describes your business?
                 </h1>
-                <p className="text-dark-400">
+                <p className="text-dark-400 text-sm">
                   We'll tailor Rivvra to how you work.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {BUSINESS_TYPES.map((bt) => (
                   <button
                     key={bt.id}
                     onClick={() => setFormData({ ...formData, businessType: bt.id })}
-                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-left transition-all flex items-center gap-3 ${
                       formData.businessType === bt.id
                         ? 'border-rivvra-500 bg-rivvra-500/10'
                         : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
                     }`}
                   >
-                    <span className="text-2xl">{bt.icon}</span>
-                    <span className="font-medium text-white flex-1">{bt.label}</span>
-                    {formData.businessType === bt.id && <Check className="w-5 h-5 text-rivvra-400" />}
+                    <span className="text-xl">{bt.icon}</span>
+                    <span className="font-medium text-white flex-1 text-sm">{bt.label}</span>
+                    {formData.businessType === bt.id && <Check className="w-4 h-4 text-rivvra-400" />}
                   </button>
                 ))}
               </div>
@@ -1111,32 +1111,27 @@ function SignupPage() {
               </button>
 
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-1.5">
                   How big is your team?
                 </h1>
-                <p className="text-dark-400">
+                <p className="text-dark-400 text-sm">
                   Helps us size your workspace defaults.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
                 {TEAM_SIZES.map((size) => (
                   <button
                     key={size.id}
                     onClick={() => setFormData({ ...formData, teamSize: size.id })}
-                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    className={`px-3.5 py-2.5 rounded-lg border text-left transition-all ${
                       formData.teamSize === size.id
                         ? 'border-rivvra-500 bg-rivvra-500/10'
                         : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
                     }`}
                   >
-                    <div>
-                      <span className="font-medium text-white block">{size.label}</span>
-                      <span className="text-sm text-dark-400">{size.description}</span>
-                    </div>
-                    {formData.teamSize === size.id && (
-                      <Check className="w-5 h-5 text-rivvra-400" />
-                    )}
+                    <span className="font-medium text-white block text-sm">{size.label}</span>
+                    <span className="text-xs text-dark-400">{size.description}</span>
                   </button>
                 ))}
               </div>
@@ -1164,17 +1159,17 @@ function SignupPage() {
               </button>
 
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-1.5">
                   What do you want to do first?
                 </h1>
-                <p className="text-dark-400">
+                <p className="text-dark-400 text-sm">
                   Pick all that apply — we'll switch on the right apps for you.
                   To-Do and Documents are always included, and admins can enable
                   any app later in Settings.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {GOAL_OPTIONS.map((g) => {
                   const selected = formData.goals.includes(g.id);
                   return (
@@ -1186,13 +1181,13 @@ function SignupPage() {
                           ? formData.goals.filter((x) => x !== g.id)
                           : [...formData.goals, g.id],
                       })}
-                      className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                      className={`w-full px-3.5 py-2.5 rounded-lg border text-left transition-all flex items-center gap-3 ${
                         selected
                           ? 'border-rivvra-500 bg-rivvra-500/10'
                           : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
                       }`}
                     >
-                      <span className="text-2xl">{g.icon}</span>
+                      <span className="text-xl">{g.icon}</span>
                       <span className="flex-1">
                         <span className="font-medium text-white block">{g.label}</span>
                         <span className="text-xs text-dark-500">Enables {g.apps}</span>
@@ -1228,37 +1223,37 @@ function SignupPage() {
               </button>
 
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-1.5">
                   One last thing
                 </h1>
-                <p className="text-dark-400">
+                <p className="text-dark-400 text-sm">
                   Choose how your workspace should start.
                 </p>
               </div>
 
               {/* Sample data choice */}
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-2">
                 <button
                   onClick={() => setFormData({ ...formData, seedSampleData: true })}
-                  className={`p-4 rounded-xl border text-left transition-all ${
+                  className={`px-3.5 py-2.5 rounded-lg border text-left transition-all ${
                     formData.seedSampleData
                       ? 'border-rivvra-500 bg-rivvra-500/10'
                       : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
                   }`}
                 >
-                  <span className="font-medium text-white block">Start with example data</span>
-                  <span className="text-sm text-dark-400">Explore with sample jobs &amp; candidates. Remove anytime in one click.</span>
+                  <span className="font-medium text-white block text-sm">Start with example data</span>
+                  <span className="text-xs text-dark-400">Explore with sample jobs &amp; candidates. Remove anytime in one click.</span>
                 </button>
                 <button
                   onClick={() => setFormData({ ...formData, seedSampleData: false })}
-                  className={`p-4 rounded-xl border text-left transition-all ${
+                  className={`px-3.5 py-2.5 rounded-lg border text-left transition-all ${
                     !formData.seedSampleData
                       ? 'border-rivvra-500 bg-rivvra-500/10'
                       : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
                   }`}
                 >
-                  <span className="font-medium text-white block">Start with a clean workspace</span>
-                  <span className="text-sm text-dark-400">Empty and ready for your real data.</span>
+                  <span className="font-medium text-white block text-sm">Start with a clean workspace</span>
+                  <span className="text-xs text-dark-400">Empty and ready for your real data.</span>
                 </button>
               </div>
 
