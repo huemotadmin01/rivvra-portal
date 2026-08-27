@@ -2,7 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
+import { useOrg } from '../context/OrgContext';
+import { usePlatform } from '../context/PlatformContext';
 import { usePolicyAck } from '../context/PolicyAckContext';
+import WorkspaceGetStarted, { useGettingStarted } from '../components/WorkspaceGetStarted';
 import { Building2, Search, X, ShieldCheck, ChevronRight } from 'lucide-react';
 import AppBentoGrid from '../components/platform/AppBentoGrid';
 import RivvraLogo from '../components/RivvraLogo';
@@ -11,8 +14,12 @@ import api from '../utils/api';
 function AppLauncherPage() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { currentOrg } = useOrg();
+  const { orgPath } = usePlatform();
   const { pendingCount: policyPending } = usePolicyAck();
   const { slug } = useParams();
+  // First-run checklist for new workspaces (server decides visibility).
+  const { data: gettingStarted, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug || slug);
   const firstName = user?.name?.split(' ')[0] || 'there';
 
   const companyLogoUrl = currentCompany?.hasLogo && currentCompany?._id
@@ -103,6 +110,18 @@ function AppLauncherPage() {
             </div>
             <ChevronRight className="w-4 h-4 text-amber-300 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
           </Link>
+        )}
+        {gettingStarted && (
+          <div style={{ animation: 'fadeSlideUp 0.5s ease-out 0.08s both' }}>
+            <WorkspaceGetStarted
+              data={gettingStarted}
+              orgPath={orgPath}
+              enabledApps={currentOrg?.enabledApps}
+              orgName={currentOrg?.name || 'Your workspace'}
+              onDismiss={dismissGettingStarted}
+              style={{ marginBottom: 24 }}
+            />
+          </div>
         )}
         <AppBentoGrid query={query} />
         <a href="https://rivvra.com" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 mt-12 opacity-40 hover:opacity-60 transition-opacity">
