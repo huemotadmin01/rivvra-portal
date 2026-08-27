@@ -52,6 +52,7 @@ import ResetPasswordPage from './pages/ResetPasswordPageV2';
 // there) cannot gate it. Ships directly; legacy kept unreferenced.
 import ForgotPasswordPage from './pages/ForgotPasswordPageV2';
 import AppLauncherPage from './pages/AppLauncherPage';
+const OnboardingHubPage = lazy(() => import('./pages/OnboardingHubPage'));
 import OnboardingGate from './components/OnboardingGate';
 import UpgradePage from './pages/UpgradePage';
 
@@ -603,6 +604,9 @@ function App() {
             {/* ============================================================ */}
             <Route element={<ProtectedRoute><OrgPlatformLayout /></ProtectedRoute>}>
               <Route path="/org/:slug/home" element={<OnboardingGate><AppLauncherPage /></OnboardingGate>} />
+              {/* Onboarding hub — a permanent destination, reachable from the
+                  sidebar rail long after the first-run card is dismissed. */}
+              <Route path="/org/:slug/getting-started" element={<ErrorBoundary><OnboardingHubPage /></ErrorBoundary>} />
               <Route path="/org/:slug/my-profile" element={<PageSwitch v2={MyProfilePageV2} legacy={MyProfilePage} />} />
               {/* Company Policies (ESS) — any authenticated member with a linked
                   employee record; intentionally NOT behind an app/country gate. */}

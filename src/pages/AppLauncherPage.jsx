@@ -5,7 +5,8 @@ import { useCompany } from '../context/CompanyContext';
 import { useOrg } from '../context/OrgContext';
 import { usePlatform } from '../context/PlatformContext';
 import { usePolicyAck } from '../context/PolicyAckContext';
-import WorkspaceGetStarted, { useGettingStarted } from '../components/WorkspaceGetStarted';
+import { useGettingStarted } from '../components/WorkspaceGetStarted';
+import OnboardingHubTeaser from '../components/OnboardingHubTeaser';
 import { Building2, Search, X, ShieldCheck, ChevronRight } from 'lucide-react';
 import AppBentoGrid from '../components/platform/AppBentoGrid';
 import RivvraLogo from '../components/RivvraLogo';
@@ -111,17 +112,16 @@ function AppLauncherPage() {
             <ChevronRight className="w-4 h-4 text-amber-300 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
           </Link>
         )}
+        {/* Compact entry to the onboarding hub. The full task list lives on
+            /getting-started (a destination that survives dismissal) — the
+            launcher only advertises it and shows progress. */}
         {gettingStarted && (
-          <div style={{ animation: 'fadeSlideUp 0.5s ease-out 0.08s both' }}>
-            <WorkspaceGetStarted
-              data={gettingStarted}
-              orgPath={orgPath}
-              enabledApps={currentOrg?.enabledApps}
-              orgName={currentOrg?.name || 'Your workspace'}
-              onDismiss={dismissGettingStarted}
-              style={{ marginBottom: 24 }}
-            />
-          </div>
+          <OnboardingHubTeaser
+            data={gettingStarted}
+            orgPath={orgPath}
+            enabledApps={currentOrg?.enabledApps}
+            onDismiss={dismissGettingStarted}
+          />
         )}
         <AppBentoGrid query={query} />
         <a href="https://rivvra.com" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 mt-12 opacity-40 hover:opacity-60 transition-opacity">

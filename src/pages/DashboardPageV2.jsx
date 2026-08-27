@@ -50,7 +50,8 @@ import { exportLeadsToCSV } from '../utils/csvExport';
 import ComingSoonModal from '../components/ComingSoonModal';
 import { useExtensionDetector } from '../hooks/useExtensionDetector';
 import HiringSignalsCard from '../components/outreach/HiringSignalsCard';
-import WorkspaceGetStarted, { useGettingStarted } from '../components/WorkspaceGetStarted';
+import { useGettingStarted } from '../components/WorkspaceGetStarted';
+import OnboardingHubTeaser from '../components/OnboardingHubTeaser';
 import {
   Panel, Chip, Button, Input, Select, Field, Modal,
   EmptyState, Meter, Pagination, Avatar, Stat, Callout,
@@ -907,13 +908,13 @@ function DashboardPageV2() {
                 </Callout>
               )}
 
-              {/* Workspace Get Started (first-run, platform-wide) */}
+              {/* Onboarding hub teaser — the task list itself lives on
+                  /getting-started, reachable from the sidebar rail. */}
               {gettingStarted && (
-                <WorkspaceGetStarted
+                <OnboardingHubTeaser
                   data={gettingStarted}
                   orgPath={orgPath}
                   enabledApps={currentOrg?.enabledApps}
-                  orgName={currentOrg?.name || 'Your workspace'}
                   onDismiss={dismissGettingStarted}
                 />
               )}
