@@ -742,17 +742,17 @@ export default function PayrollRunPageV2() {
 
         {/* Step strip. The shared component from the legacy page, unmodified —
             it reads runSteps() from payrollRunGuidance, so both shells show the
-            same four steps in the same state. */}
-        {['processed', 'finalized', 'paid'].includes(run.status) && (
-          <div style={{ marginBottom: 14 }}><PayrollRunStepStrip run={run} /></div>
-        )}
+            same four steps in the same state. Unconditional like V1: a draft
+            run shows the wizard with Process as the current step — hiding it
+            until 'processed' made new runs look like they had no guided flow. */}
+        <div style={{ marginBottom: 14 }}><PayrollRunStepStrip run={run} /></div>
 
         {/* Next action — one sentence saying what to do now, and nothing else.
             nextAction() returns {key, label, headline, why, caution} and never
             returns null for a loaded run: 'done' is a key, not an absence. The
             copy is the helper's, not this page's, so it cannot drift from
             legacy. `label` is the button text and is deliberately unused here. */}
-        {['processed', 'finalized', 'paid'].includes(run.status) && next && (
+        {next && (
           <Callout
             tone={next.key === 'done' ? 'brand' : 'info'}
             icon={next.key === 'done' ? <CheckCircle size={15} /> : <Info size={15} />}

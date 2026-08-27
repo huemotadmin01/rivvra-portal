@@ -23,8 +23,9 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { Loader2, Receipt, Search } from 'lucide-react';
-import { PageHeader } from '../../components/ds';
+import { Loader2, Receipt, Search, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button, PageHeader } from '../../components/ds';
 import GstReportV2 from './GstReportV2';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,7 @@ function LegacyTaxReport() {
   const { currentOrg } = useOrg();
   const { isMobile } = usePlatform();
   const { currentCompany } = useCompany();
+  const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
 
   const defaults = getDefaultDateRange();
@@ -103,6 +105,11 @@ function LegacyTaxReport() {
       <PageHeader
         title="Tax Report"
         sub="Tax collected on sales versus tax paid on purchases"
+        actions={
+          <Button variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+            <ArrowLeft size={16} />
+          </Button>
+        }
       />
 
         {/* Date Range Filter */}

@@ -11,7 +11,7 @@ import { useToast } from '../../context/ToastContext';
 import { formatMoney } from '../../utils/formatCurrency';
 import { FileText, X, Search, Save, Loader2, CheckCircle2, Ban, AlertTriangle } from 'lucide-react';
 import {
-  PageHeader, Panel, Chip, Button, Input, Select, Textarea, Modal, Callout, PageSpinner,
+  PageHeader, Panel, Chip, Button, Input, Select, Textarea, Modal, Callout, PageSpinner, EmptyState,
 } from '../../components/ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -451,6 +451,26 @@ export default function TaxDeclarationsPageV2() {
               ))}
             </tbody>
           </table>
+          {filtered.length === 0 && (
+            totalEmployees === 0 ? (
+              <EmptyState
+                icon={<FileText size={22} />}
+                title="No confirmed employees"
+              >
+                Tax declarations apply to confirmed employees only. Add or confirm employees to see them here.
+              </EmptyState>
+            ) : (
+              <EmptyState
+                icon={<Search size={22} />}
+                title="No employee matches your search or filter"
+                actions={
+                  <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatusFilter('all'); }}>
+                    Clear search and filters
+                  </Button>
+                }
+              />
+            )
+          )}
         </div>
       </Panel>
 

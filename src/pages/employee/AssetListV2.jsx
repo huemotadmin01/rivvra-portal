@@ -262,8 +262,10 @@ export default function AssetListV2() {
                     <span style={{ flexShrink: 0 }}><Chip tone={st.tone}>{st.label}</Chip></span>
                   </div>
 
-                  {/* Assignee */}
-                  {asset.assignedToName && (
+                  {/* Assignee — status-gated like V1: return/lost don't clear
+                      assignedToName, so without the gate a returned asset keeps
+                      showing its last holder under a "Returned" chip */}
+                  {asset.status === 'assigned' && asset.assignedToName && (
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 6,
                       paddingTop: 8, borderTop: '1px solid var(--line-2)',

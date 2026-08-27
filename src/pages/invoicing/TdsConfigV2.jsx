@@ -34,7 +34,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
-import { Percent, Sparkles, ShieldCheck } from 'lucide-react';
+import { Percent, Sparkles, ShieldCheck, Power } from 'lucide-react';
 import { Button, Chip, ConfigList, EmptyState, Spinner } from '../../components/ds';
 
 const APPLICABLE_OPTIONS = [
@@ -124,6 +124,19 @@ export default function TdsConfigV2() {
     await invoicingApi.updateTdsConfig(orgSlug, row._id, buildPayload(values));
     showToast('TDS section updated');
     await loadData();
+  }
+
+  // One-click active toggle, matching the legacy page and the sibling config
+  // pages (Taxes, Journals, Payment Terms, Product Catalog, Expense Categories).
+  async function toggleActive(row) {
+    const isActive = row.active !== false;
+    try {
+      await invoicingApi.updateTdsConfig(orgSlug, row._id, { active: !isActive });
+      setRows(prev => prev.map(r => r._id === row._id ? { ...r, active: !isActive } : r));
+      showToast(isActive ? 'TDS section deactivated' : 'TDS section activated');
+    } catch (err) {
+      showToast(err.message || 'Failed to update status', 'error');
+    }
   }
 
   async function handleDelete(row) {
@@ -228,6 +241,17 @@ export default function TdsConfigV2() {
       onCreate={handleCreate}
       onUpdate={handleUpdate}
       onDelete={handleDelete}
+      rowActions={(r) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => toggleActive(r)}
+          title={r.active !== false ? 'Deactivate' : 'Activate'}
+          aria-label={r.active !== false ? 'Deactivate' : 'Activate'}
+        >
+          <Power size={14} />
+        </Button>
+      )}
       deleteConfirm={(r) => ({
         title: 'Delete TDS section?',
         message: `Delete TDS section "${r.sectionCode}"? Existing payments already tagged with it are unaffected, but new entries can no longer use it.`,

@@ -345,7 +345,7 @@ export default function AtsJobPositionsV2() {
         density={density}
         loading={loading}
         sort={dsSort}
-        onSortChange={isGrouped ? undefined : onSortChange}
+        onSortChange={onSortChange}
         onRowClick={goTo}
         empty={(
           <EmptyState

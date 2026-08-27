@@ -33,7 +33,8 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
 import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
 import { TermHint, HowToRead } from '../../components/invoicing/TermHint';
-import { Loader2, Receipt, Info, Columns3, Download, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Loader2, Receipt, Info, Columns3, Download, RefreshCw, AlertTriangle, HelpCircle, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button, EmptyState, PageHeader, PageSpinner, Select, Spinner } from '../../components/ds';
 import { useToast } from '../../context/ToastContext';
 
@@ -88,6 +89,7 @@ function Kpi({ label, amount, tone = 'blue', hint }) {
 export default function GstReportV2() {
   const { currentOrg, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
+  const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
   const isAdmin = getAppRole('invoicing') === 'admin';
 
@@ -195,6 +197,9 @@ export default function GstReportV2() {
         }
         actions={
           <>
+            <Button variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft size={16} />
+            </Button>
             {data?.gstn?.enabled && (
               <Button
                 variant="secondary"

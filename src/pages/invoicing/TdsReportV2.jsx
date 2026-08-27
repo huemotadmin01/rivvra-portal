@@ -29,7 +29,8 @@ import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModa
 import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
 import { StatusChip } from './GstReport';
 import { TermHint, HowToRead } from '../../components/invoicing/TermHint';
-import { Loader2, Percent, Info, Download } from 'lucide-react';
+import { Loader2, Percent, Info, Download, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button, EmptyState, PageHeader, PageSpinner, Select, Spinner } from '../../components/ds';
 import { useToast } from '../../context/ToastContext';
 
@@ -55,6 +56,7 @@ function Kpi({ label, amount, tone, hint }) {
 export default function TdsReportV2() {
   const { currentOrg, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
+  const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
   const isAdmin = getAppRole('invoicing') === 'admin';
 
@@ -139,8 +141,13 @@ export default function TdsReportV2() {
       <PageHeader
         title="TDS Report"
         sub={`Deducted, deposited and receivable TDS for ${data?.company?.name || currentCompany?.name || 'this company'}`}
-        actions={data && (
+        actions={(
           <>
+            <Button variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft size={16} />
+            </Button>
+            {data && (
+            <>
             <Select value={fy || data.fy || ''} onChange={(e) => setFy(e.target.value)} aria-label="Financial year">
               {(data.fyOptions || (data.fy ? [data.fy] : [])).map((o) => <option key={o} value={o}>FY {o}</option>)}
             </Select>
@@ -160,6 +167,8 @@ export default function TdsReportV2() {
             >
               24Q CSV
             </Button>
+            </>
+            )}
           </>
         )}
       />

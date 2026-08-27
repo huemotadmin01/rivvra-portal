@@ -64,12 +64,28 @@ function MatchedSkills({ candidate, search }) {
   }
   if (matched.length === 0 && aiMatched.length === 0) return null;
 
+  // Underline the matching substring inside each chip, like V1 — the chip
+  // alone says "this skill matched", the underline says WHERE it matched.
+  const renderHighlighted = (text) => {
+    const i = text.toLowerCase().indexOf(lowerTerm);
+    if (i < 0) return text;
+    return (
+      <>
+        {text.slice(0, i)}
+        <span style={{ textDecoration: 'underline', textUnderlineOffset: 2, fontWeight: 600 }}>
+          {text.slice(i, i + lowerTerm.length)}
+        </span>
+        {text.slice(i + lowerTerm.length)}
+      </>
+    );
+  };
+
   return (
     <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 3 }}>
       <span style={{ font: "600 9.5px/1 'Inter', system-ui, sans-serif", letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--fg-4)' }}>Matched</span>
-      {matched.map((n) => <Chip key={n} tone="brand">{n}</Chip>)}
+      {matched.map((n) => <Chip key={n} tone="brand">{renderHighlighted(n)}</Chip>)}
       {aiMatched.map((n) => (
-        <Chip key={`ai-${n}`} tone="warn" title="Extracted from resume by AI — not yet confirmed by a recruiter">AI · {n}</Chip>
+        <Chip key={`ai-${n}`} tone="warn" title="Extracted from resume by AI — not yet confirmed by a recruiter">AI · {renderHighlighted(n)}</Chip>
       ))}
     </span>
   );
@@ -384,7 +400,7 @@ export default function AtsCandidatesV2() {
         density={density}
         loading={loading}
         sort={dsSort}
-        onSortChange={isGrouped ? undefined : onSortChange}
+        onSortChange={onSortChange}
         onRowClick={goTo}
         empty={emptyState}
       >

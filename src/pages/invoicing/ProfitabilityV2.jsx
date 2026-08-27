@@ -32,6 +32,7 @@
 // Visibility is enforced server-side too; this page guards the UI as well.
 // ============================================================================
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -429,6 +430,7 @@ export default function ProfitabilityV2() {
   const { currentOrg, isOrgOwner, membership } = useOrg();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
   // Owner / super-admin, or a member explicitly granted profitability access.
   const allowed = isOrgOwner || user?.superAdmin || membership?.appAccess?.invoicing?.viewProfitability === true;
@@ -508,6 +510,9 @@ export default function ProfitabilityV2() {
         }
         actions={
           <>
+            <Button variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft size={16} />
+            </Button>
             {canManageAccess && (
               <Button variant="secondary" size="sm" onClick={() => setShowAccess(true)} iconLeft={<Users size={15} />}>
                 Manage access
