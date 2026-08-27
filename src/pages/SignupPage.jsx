@@ -503,10 +503,15 @@ function SignupPage() {
   };
 
   // Calculate progress against the steps THIS user will actually see.
+  // The +1 denominator keeps the final step below 100% — the bar only fills
+  // while the workspace is actually being created. (100% with work left to
+  // do reads as a lie.)
   const getProgress = () => {
     const steps = [STEPS.AUTH, STEPS.OTP, STEPS.PASSWORD, ...questionnaireOrder];
     const currentIndex = steps.indexOf(currentStep);
-    return Math.round(((currentIndex + 1) / steps.length) * 100);
+    const isFinalStep = currentStep === questionnaireOrder[questionnaireOrder.length - 1];
+    if (isFinalStep && loading) return 100;
+    return Math.round(((currentIndex + 1) / (steps.length + 1)) * 100);
   };
 
   const inQuestionnaire = questionnaireOrder.includes(currentStep);
