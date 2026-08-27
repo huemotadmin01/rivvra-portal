@@ -994,7 +994,7 @@ function SignupPage() {
                     className="input-field pl-12"
                   />
                 </div>
-                <p className="text-xs text-dark-500 mt-1">Used in email templates as {'{{senderTitle}}'}</p>
+                <p className="text-xs text-dark-500 mt-1">Appears in your email signature when you contact candidates and clients.</p>
               </div>
 
               {/* Country — sets the default company's country & currency.
@@ -1342,6 +1342,9 @@ function SignupPage() {
               </div>
             ))}
           </div>
+          <p className="text-xs text-dark-500">
+            + 8 more — To-Do, Documents, Expenses, Leave, Timesheets, Assets, Knowledge Base, Careers site
+          </p>
 
           {/* Value Props */}
           <div className="space-y-2">
