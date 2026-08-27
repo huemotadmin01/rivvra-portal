@@ -39,13 +39,15 @@ const TEAM_SIZES = [
   { id: '100+', label: '100+', description: 'Large org' },
 ];
 
-// Primary goals (multi-select) — each maps to apps the backend enables.
+// Primary goals (multi-select) — each maps to apps the backend enables
+// (mirror of GOAL_APPS in the API). `apps` is shown to the user so app
+// enablement is a visible choice, not a surprise.
 const GOAL_OPTIONS = [
-  { id: 'recruit', label: 'Fill roles / recruit', icon: '🎯' },
-  { id: 'clients', label: 'Manage clients & deals', icon: '🤝' },
-  { id: 'payroll', label: 'Run payroll & HR', icon: '💸' },
-  { id: 'outreach', label: 'Outbound outreach', icon: '📣' },
-  { id: 'invoicing', label: 'Invoicing & payments', icon: '🧾' },
+  { id: 'recruit', label: 'Fill roles / recruit', icon: '🎯', apps: 'ATS · Contacts' },
+  { id: 'clients', label: 'Manage clients & deals', icon: '🤝', apps: 'CRM · Contacts' },
+  { id: 'payroll', label: 'Run payroll & HR', icon: '💸', apps: 'Payroll · Employees · Timesheets' },
+  { id: 'outreach', label: 'Outbound outreach', icon: '📣', apps: 'Outreach · Contacts' },
+  { id: 'invoicing', label: 'Invoicing & payments', icon: '🧾', apps: 'Invoicing' },
 ];
 
 const HEARD_FROM_OPTIONS = [
@@ -136,11 +138,6 @@ function SignupPage() {
     seedSampleData: false, // opt-in: seed removable example data (default = clean)
   });
 
-  // Company autocomplete
-  const [companySuggestions, setCompanySuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [searchingCompanies, setSearchingCompanies] = useState(false);
-
   // Domain-based workspace detection
   const [domainMatch, setDomainMatch] = useState(null);
 
@@ -172,6 +169,8 @@ function SignupPage() {
 
   // Track company name from invite context (either inviteData or user's existing company)
   const [inviteCompanyName, setInviteCompanyName] = useState('');
+  // Google-auth invitees have no inviteToken in the URL — detect them by source.
+  const [joinedViaInvite, setJoinedViaInvite] = useState(false);
 
   // Pre-fill company name from invite data when available
   useEffect(() => {
@@ -191,6 +190,7 @@ function SignupPage() {
         setFormData(prev => ({ ...prev, companyName: prev.companyName || storedUser.companyName }));
       } else if (storedUser.companyId && storedUser.source?.includes('invite')) {
         // User was created via invite (Google auth) — fetch their company name from profile
+        setJoinedViaInvite(true);
         api.getProfile().then(res => {
           if (res.success && res.user?.companyName) {
             setInviteCompanyName(res.user.companyName);
@@ -438,59 +438,34 @@ function SignupPage() {
     loadGoogleScript();
   }, [currentStep, handleGoogleCredential]);
 
-  // Handle company name change with autocomplete
-  const handleCompanyNameChange = async (value) => {
-    setFormData({ ...formData, companyName: value });
-    
-    if (value.length < 2) {
-      setCompanySuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
+  // Company autocomplete REMOVED: it surfaced other customers' company names
+  // from the shared directory during signup — confusing, and matching an
+  // existing name grants nothing (the domain-match banner already covers
+  // "your team is here"). New workspaces just type their own name.
 
-    setSearchingCompanies(true);
-    try {
-      const response = await api.searchCompanies(value);
-      if (response.success && response.companies.length > 0) {
-        setCompanySuggestions(response.companies);
-        setShowSuggestions(true);
-      } else {
-        setCompanySuggestions([]);
-        setShowSuggestions(false);
-      }
-    } catch (err) {
-      console.error('Company search error:', err);
-      setCompanySuggestions([]);
-    } finally {
-      setSearchingCompanies(false);
-    }
-  };
-
-  // Select company from suggestions
-  const selectCompany = (company) => {
-    setFormData({ ...formData, companyName: company.name });
-    setShowSuggestions(false);
-    setCompanySuggestions([]);
-  };
+  // Invitees join an EXISTING workspace: the founder questionnaire (business
+  // type, team size, goals, sample data) doesn't apply to them — they get a
+  // single confirm-your-details step instead.
+  const isInviteFlow = !!(inviteToken || inviteData || joinedViaInvite);
 
   // Handle questionnaire navigation
+  const questionnaireOrder = isInviteFlow
+    ? [STEPS.COMPANY]
+    : [STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
+
   const handleQuestionnaireNext = () => {
-    const stepOrder = [STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
-    const currentIndex = stepOrder.indexOf(currentStep);
-    
-    if (currentIndex < stepOrder.length - 1) {
-      setCurrentStep(stepOrder[currentIndex + 1]);
+    const currentIndex = questionnaireOrder.indexOf(currentStep);
+    if (currentIndex < questionnaireOrder.length - 1) {
+      setCurrentStep(questionnaireOrder[currentIndex + 1]);
     } else {
       handleComplete();
     }
   };
 
   const handleQuestionnaireBack = () => {
-    const stepOrder = [STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
-    const currentIndex = stepOrder.indexOf(currentStep);
-    
+    const currentIndex = questionnaireOrder.indexOf(currentStep);
     if (currentIndex > 0) {
-      setCurrentStep(stepOrder[currentIndex - 1]);
+      setCurrentStep(questionnaireOrder[currentIndex - 1]);
     }
   };
 
@@ -527,12 +502,17 @@ function SignupPage() {
     }
   };
 
-  // Calculate progress
+  // Calculate progress against the steps THIS user will actually see.
   const getProgress = () => {
-    const steps = [STEPS.AUTH, STEPS.OTP, STEPS.PASSWORD, STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
+    const steps = [STEPS.AUTH, STEPS.OTP, STEPS.PASSWORD, ...questionnaireOrder];
     const currentIndex = steps.indexOf(currentStep);
     return Math.round(((currentIndex + 1) / steps.length) * 100);
   };
+
+  const inQuestionnaire = questionnaireOrder.includes(currentStep);
+  const progressLabel = isInviteFlow
+    ? `Join ${inviteData?.companyName || inviteCompanyName || 'your team'}`
+    : (inQuestionnaire ? 'Set up your workspace' : 'Create account');
 
   const passwordStrength = checkPasswordStrength(password);
 
@@ -583,7 +563,7 @@ function SignupPage() {
           {/* Progress */}
           <div className="mb-8">
             <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-dark-400">Create account</span>
+              <span className="text-dark-400">{progressLabel}</span>
               <span className="text-rivvra-400">{getProgress()}%</span>
             </div>
             <div className="h-1 bg-dark-800 rounded-full overflow-hidden">
@@ -722,6 +702,7 @@ function SignupPage() {
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
+                      autoFocus={index === 0}
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value.replace(/\D/g, ''))}
                       onPaste={index === 0 ? handleOtpPaste : undefined}
@@ -937,15 +918,19 @@ function SignupPage() {
             </div>
           )}
 
-          {/* Step 4: Company Name + Title (both required) */}
+          {/* Step 4: Company Name + Title (both required).
+              Invite flow: this is the ONLY questionnaire step — confirm
+              details and finish; the founder questionnaire is skipped. */}
           {currentStep === STEPS.COMPANY && (
             <div className="space-y-6">
               <div>
                 <h1 className="text-3xl font-bold text-white mb-2">
-                  Tell us about your work
+                  {isInviteFlow ? 'Almost there' : 'Tell us about your work'}
                 </h1>
                 <p className="text-dark-400">
-                  This helps us set up your workspace.
+                  {isInviteFlow
+                    ? `Confirm your details to join ${inviteData?.companyName || inviteCompanyName || 'your team'}.`
+                    : 'This helps us set up your workspace.'}
                 </p>
               </div>
 
@@ -985,48 +970,13 @@ function SignupPage() {
                     <input
                       type="text"
                       value={formData.companyName}
-                      onChange={(e) => handleCompanyNameChange(e.target.value)}
-                      onFocus={() => companySuggestions.length > 0 && setShowSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                       placeholder="Acme Inc."
                       className="input-field pl-12"
-                      autoComplete="off"
+                      autoComplete="organization"
                     />
                   )}
-                  {searchingCompanies && (
-                    <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500 animate-spin" />
-                  )}
                 </div>
-
-                {/* Company Suggestions Dropdown */}
-                {!inviteToken && !inviteCompanyName && showSuggestions && companySuggestions.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-dark-800 border border-dark-700 rounded-xl shadow-xl overflow-hidden">
-                    {companySuggestions.map((company) => (
-                      <button
-                        key={company._id}
-                        type="button"
-                        onClick={() => selectCompany(company)}
-                        className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
-                      >
-                        {company.logo ? (
-                          <img src={company.logo} alt="" className="w-8 h-8 rounded object-cover" />
-                        ) : (
-                          <div className="w-8 h-8 rounded bg-dark-600 flex items-center justify-center">
-                            <Building2 className="w-4 h-4 text-dark-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-white font-medium truncate">{company.name}</div>
-                          {(company.industry || company.domain) && (
-                            <div className="text-sm text-dark-400 truncate">
-                              {company.industry || company.domain}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Title / Designation (required) */}
@@ -1047,7 +997,9 @@ function SignupPage() {
                 <p className="text-xs text-dark-500 mt-1">Used in email templates as {'{{senderTitle}}'}</p>
               </div>
 
-              {/* Country — sets the default company's country & currency */}
+              {/* Country — sets the default company's country & currency.
+                  Invitees join an existing workspace, so no country question. */}
+              {!isInviteFlow && (
               <div>
                 <label className="block text-sm font-medium text-dark-300 mb-2">
                   Where is your company based? <span className="text-red-400">*</span>
@@ -1076,14 +1028,24 @@ function SignupPage() {
                 </div>
                 <p className="text-xs text-dark-500 mt-1">Sets your company&apos;s currency and regional defaults. You can change it later.</p>
               </div>
+              )}
 
               <button
                 onClick={handleQuestionnaireNext}
-                disabled={!formData.companyName.trim() || !formData.senderTitle.trim() || !formData.country}
+                disabled={loading
+                  || !(formData.companyName || inviteCompanyName).trim()
+                  || !formData.senderTitle.trim()
+                  || (!isInviteFlow && !formData.country)}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
-                Continue
-                <ArrowRight className="w-5 h-5" />
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    {isInviteFlow ? 'Finish' : 'Continue'}
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -1153,7 +1115,7 @@ function SignupPage() {
                   How big is your team?
                 </h1>
                 <p className="text-dark-400">
-                  We'll recommend the right plan for you.
+                  Helps us size your workspace defaults.
                 </p>
               </div>
 
@@ -1207,6 +1169,8 @@ function SignupPage() {
                 </h1>
                 <p className="text-dark-400">
                   Pick all that apply — we'll switch on the right apps for you.
+                  To-Do and Documents are always included, and admins can enable
+                  any app later in Settings.
                 </p>
               </div>
 
@@ -1229,7 +1193,10 @@ function SignupPage() {
                       }`}
                     >
                       <span className="text-2xl">{g.icon}</span>
-                      <span className="font-medium text-white flex-1">{g.label}</span>
+                      <span className="flex-1">
+                        <span className="font-medium text-white block">{g.label}</span>
+                        <span className="text-xs text-dark-500">Enables {g.apps}</span>
+                      </span>
                       <span className={`w-5 h-5 rounded border flex items-center justify-center ${selected ? 'bg-rivvra-500 border-rivvra-500' : 'border-dark-600'}`}>
                         {selected && <Check className="w-3.5 h-3.5 text-dark-950" />}
                       </span>
@@ -1321,7 +1288,10 @@ function SignupPage() {
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
                 {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Creating your workspace…
+                  </>
                 ) : (
                   <>
                     Create my workspace
@@ -1329,6 +1299,9 @@ function SignupPage() {
                   </>
                 )}
               </button>
+              <p className="text-xs text-dark-500 text-center">
+                We'll set up your company, pipelines and defaults — takes a few seconds.
+              </p>
             </div>
           )}
         </div>
@@ -1349,20 +1322,21 @@ function SignupPage() {
             <p className="text-dark-400">Outreach, hiring, timesheets, payroll, invoicing &amp; more — built for staffing agencies.</p>
           </div>
 
-          {/* App Preview Cards */}
+          {/* App Preview Cards — every one of these is LIVE. This panel used
+              to mark ATS and CRM "Soon", telling staffing agencies the two
+              apps they came for weren't ready. */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { name: 'Outreach', desc: 'Find & email leads', color: 'rivvra', live: true },
-              { name: 'ESS', desc: 'Hours, payroll & approvals', color: 'blue', live: true },
-              { name: 'Invoicing', desc: 'Invoices & payments', color: 'amber', live: true },
-              { name: 'Sign', desc: 'E-signatures', color: 'indigo', live: true },
-              { name: 'CRM', desc: 'Deals & pipeline', color: 'purple', live: false },
-              { name: 'ATS', desc: 'Recruiting & placements', color: 'orange', live: false },
+              { name: 'ATS', desc: 'Recruiting & placements' },
+              { name: 'CRM', desc: 'Deals & pipeline' },
+              { name: 'Outreach', desc: 'Find & email leads' },
+              { name: 'Invoicing', desc: 'Invoices & payments' },
+              { name: 'Payroll & ESS', desc: 'Hours, payslips & approvals' },
+              { name: 'Sign', desc: 'E-signatures' },
             ].map((app, i) => (
-              <div key={i} className={`card p-4 text-left ${!app.live ? 'opacity-50' : ''}`}>
+              <div key={i} className="card p-4 text-left">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-white">{app.name}</span>
-                  {!app.live && <span className="text-[10px] text-dark-500">Soon</span>}
                 </div>
                 <p className="text-xs text-dark-400">{app.desc}</p>
               </div>
