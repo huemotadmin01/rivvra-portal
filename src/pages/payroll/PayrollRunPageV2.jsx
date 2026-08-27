@@ -672,18 +672,6 @@ export default function PayrollRunPageV2() {
             {processing ? 'Processing...' : 'Process'}
           </Button>
         )}
-        {/* A run stays 'processing' only while a process call is in flight; if the
-            server died mid-process the status wedges here and every other action
-            (ad-hoc, payslips, finalize) disappears with it. The API accepts
-            re-processing a 'processing' run precisely for this recovery, so the
-            button must exist — without it the only way out is DB surgery. */}
-        {run.status === 'processing' && (
-          <Button size="sm" onClick={handleProcess} disabled={processing}
-            title="This run looks stuck mid-processing (the server may have restarted). Re-process to recompute and unstick it."
-            iconLeft={processing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}>
-            {processing ? 'Processing...' : 'Resume Processing'}
-          </Button>
-        )}
         {run.status === 'processed' && (
           <>
             {/* Disabled with a reason, never hidden. A partially-released run
