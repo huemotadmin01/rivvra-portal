@@ -98,7 +98,12 @@ export function nextAction(run) {
   }
 
   if (run.status === 'processing') {
-    return { key: 'wait', label: null, headline: 'Processing…', why: 'Figures are being recomputed.' };
+    return {
+      key: 'wait',
+      label: null,
+      headline: 'Processing…',
+      why: 'Figures are being recomputed. If the run has been sitting like this for more than a few minutes, the server likely restarted mid-process — use Resume Processing to recompute and unstick it.',
+    };
   }
 
   if (run.status === 'draft') {
