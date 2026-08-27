@@ -76,8 +76,53 @@ export default function WorkspaceGetStarted({ data, orgPath, enabledApps, orgNam
       cta: 'Manage',
     }] : []),
   ];
-  const doneCount = steps.filter(s => s.done).length;
-  if (doneCount === steps.length) return null;
+  // Setup steps — the configuration that actually gates value. Tracked
+  // separately from the content steps above because these are the items that
+  // silently block or degrade an app (careers off → publish 400; no GSTIN →
+  // invoice isn't a valid tax invoice; no structure → payroll skips people;
+  // Gmail off → sequences pause). Only shown when relevant to enabled apps.
+  const cfg = data.config || {};
+  const setupSteps = [
+    ...(apps.has('invoicing') || apps.has('ats') ? [{
+      label: cfg.companyProfileNeedsGstin ? 'Add your GSTIN and company address' : 'Complete your company profile',
+      desc: 'Address, GSTIN and bank details appear on every invoice you send',
+      done: !!cfg.companyProfileComplete,
+      to: orgPath('/settings/companies'),
+      cta: 'Complete',
+    }] : []),
+    ...(apps.has('ats') ? [{
+      label: 'Turn on your careers page',
+      desc: 'Required before a job can be published publicly',
+      done: !!cfg.careersEnabled,
+      to: orgPath('/settings/ats'),
+      cta: 'Enable',
+    }] : []),
+    ...(apps.has('payroll') ? [{
+      label: 'Create a salary structure',
+      desc: 'Payroll skips employees who have no structure to calculate from',
+      done: !!cfg.salaryStructureExists,
+      to: orgPath('/payroll/salary-structures'),
+      cta: 'Create',
+    }] : []),
+    ...(apps.has('timesheet') ? [{
+      label: 'Add a client and project',
+      desc: 'Contractors can only log time against a project they are assigned to',
+      done: !!cfg.timesheetProjectExists,
+      to: orgPath('/timesheet/projects'),
+      cta: 'Set up',
+    }] : []),
+    ...(apps.has('outreach') ? [{
+      label: 'Connect Gmail for outreach',
+      desc: 'Sequences pause until your sending account is connected',
+      done: !!cfg.gmailConnected,
+      to: orgPath('/outreach/engage'),
+      cta: 'Connect',
+    }] : []),
+  ];
+
+  const allSteps = [...steps, ...setupSteps];
+  const doneCount = allSteps.filter(s => s.done).length;
+  if (doneCount === allSteps.length) return null;
 
   return (
     <Panel style={{ marginBottom: 32, ...style }}>
@@ -93,7 +138,7 @@ export default function WorkspaceGetStarted({ data, orgPath, enabledApps, orgNam
           <div style={{ flex: 1, minWidth: 0 }}>
             <h3 style={h3Style}>Welcome to your new workspace</h3>
             <p style={{ ...metaStyle, marginTop: 2 }}>
-              {orgName} is set up and ready — {doneCount} of {steps.length} steps done. You can skip this and explore.
+              {orgName} is set up and ready — {doneCount} of {allSteps.length} steps done. You can skip this and explore.
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onDismiss} style={{ flexShrink: 0 }}>
@@ -101,7 +146,7 @@ export default function WorkspaceGetStarted({ data, orgPath, enabledApps, orgNam
           </Button>
         </div>
         <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
-          {steps.map((step, i) => (
+          {allSteps.map((step, i) => (
             <div
               key={i}
               style={{

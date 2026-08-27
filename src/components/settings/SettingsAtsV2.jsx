@@ -372,6 +372,17 @@ export default function SettingsAtsV2() {
               )}
             />
             <SettingRow
+              label="Require signed Rate Confirmation"
+              description="Block forward stage moves until a Rate Confirmation envelope is signed by both parties. Leave off unless rate confirmations are part of your standard placement workflow."
+              control={(
+                <Switch
+                  label="Require signed Rate Confirmation"
+                  checked={settings?.requireRateConfirmation ?? false}
+                  onChange={v => update('requireRateConfirmation', v)}
+                />
+              )}
+            />
+            <SettingRow
               label="Suggest candidates across companies"
               description="Let this company's job suggestions also draw from other companies in your organization (shown in a separate section). Use when this company has a small candidate pool."
               control={(

@@ -1643,6 +1643,14 @@ export default function InvoiceDetailV2() {
       if (missingDates) {
         return showToast('Start Date and End Date are required on all line items', 'error');
       }
+      // India company with no GSTIN set: the PDF will say "Invoice", not
+      // "Tax Invoice", and carry no GSTIN — warn-and-confirm rather than
+      // block (export/composition-scheme cases legitimately proceed).
+      if (isIndia && !invoice.companyGstin && !opts._skipGstinWarn) {
+        setPendingSendOpts(opts);
+        setShowNoGstinConfirm(true);
+        return;
+      }
     }
     try {
       setActionLoading('send');
@@ -1668,6 +1676,8 @@ export default function InvoiceDetailV2() {
 
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showDuplicateBillConfirm, setShowDuplicateBillConfirm] = useState(false);
+  const [showNoGstinConfirm, setShowNoGstinConfirm] = useState(false);
+  const [pendingSendOpts, setPendingSendOpts] = useState({});
   const handleCancel = async () => {
     try {
       setActionLoading('cancel');
@@ -3626,6 +3636,14 @@ export default function InvoiceDetailV2() {
         onCancel={() => setShowCancelConfirm(false)}
       />
 
+      <ConfirmDialog
+        open={showNoGstinConfirm}
+        title="No GSTIN on your company profile"
+        message="This will be sent as a plain Invoice — not a GST Tax Invoice — with no GSTIN on the document. Add your GSTIN in Settings → Companies first, or send anyway (fine for exports or composition-scheme billing)."
+        confirmLabel="Send anyway"
+        onCancel={() => setShowNoGstinConfirm(false)}
+        onConfirm={() => { setShowNoGstinConfirm(false); handleSend({ ...pendingSendOpts, _skipGstinWarn: true }); }}
+      />
       <ConfirmDialog
         open={showDuplicateBillConfirm}
         title="Duplicate Vendor Bill?"

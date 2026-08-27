@@ -777,6 +777,27 @@ export default function PayrollRunPageV2() {
           </Callout>
         )}
 
+        {/* Run warnings (server-detected) — currently NO_SALARY_STRUCTURE:
+            employees excluded from the run because no salary structure exists.
+            A run that silently under-counts headcount is the worst payroll
+            failure mode; this makes it loud with names and the fix. */}
+        {(run?.warnings || []).map((w) => (
+          <Callout
+            key={w.code}
+            tone="warn"
+            icon={<AlertTriangle size={15} />}
+            title={w.code === 'NO_SALARY_STRUCTURE'
+              ? `${w.employees?.length || 0} employee${(w.employees?.length || 0) === 1 ? ' was' : 's were'} skipped — no salary structure`
+              : 'Run warning'}
+            style={{ marginBottom: 14 }}
+          >
+            <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+              {w.employees?.length ? `${w.employees.join(', ')} — ` : ''}
+              {w.message}
+            </p>
+          </Callout>
+        ))}
+
         {/* Frozen-row drift — a released employee's inputs changed after they
             were paid, so the last re-process kept the paid figure and recorded
             what it would otherwise have become. Not an error: you file what you

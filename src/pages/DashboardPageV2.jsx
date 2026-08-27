@@ -53,7 +53,7 @@ import HiringSignalsCard from '../components/outreach/HiringSignalsCard';
 import WorkspaceGetStarted, { useGettingStarted } from '../components/WorkspaceGetStarted';
 import {
   Panel, Chip, Button, Input, Select, Field, Modal,
-  EmptyState, Meter, Pagination, Avatar, Stat,
+  EmptyState, Meter, Pagination, Avatar, Stat, Callout,
 } from '../components/ds';
 
 // ── Shared render tokens ────────────────────────────────────────────────────
@@ -893,6 +893,20 @@ function DashboardPageV2() {
           ) : (
             /* ==================== DEFAULT DASHBOARD VIEW ==================== */
             <>
+              {/* Gmail disconnected while sequences exist: enrollments pause
+                  SILENTLY server-side (no Resend fallback for outreach) — this
+                  banner is the only user-visible signal that sending stopped. */}
+              {!loading && gmailStatus && !gmailStatus.connected && (sequencesCount || 0) > 0 && (
+                <Callout tone="warn" style={{ marginBottom: 16 }} title="Gmail is not connected — your sequences are paused">
+                  <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '0 0 8px' }}>
+                    Enrollments won't send any emails until Gmail is reconnected. They resume automatically once connected.
+                  </p>
+                  <Button as="a" href={orgPath('/outreach/engage')} variant="secondary" size="sm">
+                    Connect Gmail
+                  </Button>
+                </Callout>
+              )}
+
               {/* Workspace Get Started (first-run, platform-wide) */}
               {gettingStarted && (
                 <WorkspaceGetStarted

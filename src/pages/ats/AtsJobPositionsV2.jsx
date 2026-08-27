@@ -13,6 +13,7 @@ import {
   SelectChipV2, GroupByChipV2, ArchivedToggleV2, MoreFiltersV2, PageHeaderV2,
 } from '../../components/platform/v2/listkit';
 import { Plus, Briefcase } from 'lucide-react';
+import AtsEmailsDisabledBanner from '../../components/ats/AtsEmailsDisabledBanner';
 
 const PAGE_SIZE = 25;
 
@@ -298,6 +299,7 @@ export default function AtsJobPositionsV2() {
 
   return (
     <div>
+      <AtsEmailsDisabledBanner orgSlug={orgSlug} />
       <PageHeaderV2
         title="Job Positions"
         sub={`${total} ${total === 1 ? 'position' : 'positions'} total`}
