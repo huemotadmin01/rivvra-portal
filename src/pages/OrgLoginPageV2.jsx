@@ -500,9 +500,15 @@ export default function OrgLoginPageV2() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  // A bare 16px eye icon is a 16x16 tap target. This one is
+                  // `absolute`, so it pads itself to 24x24 rather than using
+                  // the `hit-24` overlay (that class sets `position: relative`
+                  // and would break the anchoring). `right` drops 10 -> 6 to
+                  // absorb the new 4px padding, so the icon does not move.
                   style={{
-                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    display: 'flex', alignItems: 'center', color: 'var(--fg-4)', background: 'none',
+                    position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                    display: 'flex', alignItems: 'center', padding: 4,
+                    color: 'var(--fg-4)', background: 'none',
                   }}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}

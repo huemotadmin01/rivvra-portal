@@ -124,7 +124,11 @@ export function DataTable({
                         <button
                           type="button"
                           onClick={(e) => { cycleSort(c); e.currentTarget.blur(); }}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: 0, font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', color: state ? 'var(--brand, #22c55e)' : 'inherit' }}
+                          // Same ~11px-tall sort control as ds SortableHeader —
+                          // `hit-24` gives it a 24x24 tap target inside the
+                          // head cell's existing padding.
+                          className="hit-24"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: 0, font: 'inherit', position: 'relative', letterSpacing: 'inherit', textTransform: 'inherit', color: state ? 'var(--brand, #22c55e)' : 'inherit' }}
                         >
                           {c.header}
                           <SortGlyph state={state} />

@@ -345,10 +345,15 @@ export default function UniversalLoginPage() {
                     className="input-field pl-12 pr-12"
                     disabled={loading}
                   />
+                  {/* `p-1` lifts a bare 20px icon to a 28px tap target, and
+                      right-4 -> right-3 absorbs the padding so the icon stays
+                      put. It also had no accessible name at all — a screen
+                      reader announced an unlabelled button. */}
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-dark-500 hover:text-dark-300"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>

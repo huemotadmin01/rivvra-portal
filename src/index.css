@@ -445,3 +445,34 @@
 ):not([class*="bg-dark"] *) {
   color: var(--warn, #b45309) !important;
 }
+
+/* ── Touch-target floor (2026-08-29) ─────────────────────────────────────
+   WCAG 2.2 AA "Target Size (Minimum)" wants 24x24 CSS px. A mobile audit at
+   392px found several controls well under it: the ✕ on a filter chip is
+   18x18, and a sortable column header is ~51x11 because its button carries
+   `padding: 0` inside the `th`'s own padding.
+
+   Growing those boxes would move layout on every list page in the product,
+   which is exactly the kind of change a QA pass should not be making blind.
+   So this expands the HIT AREA only — a centred, transparent pseudo-element
+   that is at least 24x24 and never smaller than the control itself. Nothing
+   shifts, nothing repaints differently; the control simply stops being a
+   13px tap target.
+
+   `position: relative` is part of the contract, so do NOT put this class on an
+   already-positioned element (the login password toggle is `absolute` and pads
+   itself instead). The overlay is a child of the control, so it cannot steal
+   clicks from anything except by a few px of overlap with its own neighbours —
+   which is the right trade when the neighbour is the larger target. */
+.hit-24 { position: relative; }
+.hit-24::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  min-width: 24px;
+  min-height: 24px;
+  transform: translate(-50%, -50%);
+}

@@ -56,7 +56,13 @@ export function FilterChip({
         type="button"
         onClick={onClick}
         disabled={!onClick}
-        style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, font: 'inherit', color: 'inherit', cursor: onClick ? 'pointer' : 'default', padding: 0 }}
+        // `alignSelf: stretch` makes this fill the chip's 26px height instead
+        // of hugging its 13px of text — it is the chip's PRIMARY action (it
+        // opens the filter) and was the smallest target on most list pages.
+        // Stretching costs nothing visually: `alignItems` moves baseline ->
+        // center, and label and value are the same font-size, so the text
+        // lands in exactly the same place.
+        style={{ display: 'inline-flex', alignSelf: 'stretch', alignItems: 'center', gap: 5, font: 'inherit', color: 'inherit', cursor: onClick ? 'pointer' : 'default', padding: 0 }}
       >
         {label && <span style={{ color: active ? 'inherit' : 'var(--fg-4, #828e9f)', fontWeight: 500 }}>{label}</span>}
         <span style={{ fontWeight: 600 }}>{value ?? children}</span>
@@ -66,7 +72,12 @@ export function FilterChip({
           type="button"
           aria-label={`Remove ${label || ''} filter`}
           onClick={onRemove}
-          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, color: 'inherit', opacity: 0.6, flexShrink: 0 }}
+          // The visible circle stays 18px — widening it would fatten every
+          // chip on every list page. `hit-24` adds a transparent 24x24 overlay
+          // so the tap target meets the WCAG 2.2 AA floor while the chip keeps
+          // its size. `position: relative` is the class's contract.
+          className="hit-24"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: 18, height: 18, borderRadius: 999, color: 'inherit', opacity: 0.6, flexShrink: 0 }}
           onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = 'var(--surface-4, #253040)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.background = 'transparent'; }}
         >

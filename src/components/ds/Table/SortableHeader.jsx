@@ -26,8 +26,14 @@ export function SortableHeader({
       <button
         type="button"
         onClick={cycle}
+        // 10.5px uppercase text with `padding: 0` makes this button about 11px
+        // tall, so the sort control was a ~51x11 tap target. `hit-24` overlays
+        // a transparent 24x24 hit area; the extra height is absorbed by the
+        // th's own 9px vertical padding, so no header row grows.
+        className="hit-24"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, padding: 0, font: 'inherit',
+          position: 'relative',
           letterSpacing: 'inherit', textTransform: 'inherit',
           color: state ? 'var(--brand, #22c55e)' : 'inherit',
           justifyContent: align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start',
