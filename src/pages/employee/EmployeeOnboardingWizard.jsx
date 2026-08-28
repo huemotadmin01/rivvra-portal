@@ -339,10 +339,19 @@ export default function EmployeeOnboardingWizard() {
 
   if (!employee) {
     return (
+      /* Same dead end as the V2 wizard: the onboarding gate replaces /home
+         with this route, so without a link out there is no way back. */
       <div className="flex flex-col items-center justify-center h-96 text-dark-400">
         <User size={48} className="mb-4 opacity-40" />
         <p className="text-lg">No employee profile found</p>
-        <p className="text-sm mt-1">Please contact your administrator.</p>
+        <p className="text-sm mt-1">Ask your administrator to add you as an employee, then reload this page.</p>
+        <button
+          type="button"
+          onClick={() => navigate(orgPath('/home'))}
+          className="mt-5 px-4 py-2 rounded-lg border border-dark-700 text-sm text-dark-200 hover:text-white hover:border-dark-600 transition-colors"
+        >
+          Back to workspace
+        </button>
       </div>
     );
   }

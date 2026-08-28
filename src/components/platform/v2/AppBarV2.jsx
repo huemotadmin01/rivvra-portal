@@ -5,6 +5,7 @@ import { usePlatform } from '../../../context/PlatformContext';
 import { useCompany } from '../../../context/CompanyContext';
 import { useOrg } from '../../../context/OrgContext';
 import { useBreadcrumbs } from '../../../hooks/useBreadcrumbs';
+import RivvraLogo from '../../RivvraLogo';
 import { useFromEntity } from '../../../hooks/useFromEntity';
 import { ThemeToggle, useTheme } from '../../ds';
 import KbHelpButton from '../../KbHelpButton';
@@ -54,6 +55,27 @@ function AppBarV2({ onMenu }) {
       <button className="icon-btn mobile-only" onClick={onMenu} aria-label="Open navigation">
         <Menu style={{ width: 17, height: 17 }} />
       </button>
+
+      {/* Home link — the always-available way out. Legacy TopBar has had this
+          logo→/home link all along; V2 shipped without it, which turned every
+          sidebar-less page (upgrade, my-documents, my-policies, the onboarding
+          hub) into a dead end whose only exit was the browser back button.
+          Shown only when the sidebar is absent, so app pages keep their
+          breadcrumb-led layout unchanged. */}
+      {!currentApp && (
+        <Link
+          to={orgPath('/home')}
+          title="Back to workspace"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0,
+            marginRight: 12, textDecoration: 'none', color: 'var(--fg-2)',
+            font: "600 13.5px/1 'Inter', system-ui, sans-serif",
+          }}
+        >
+          <RivvraLogo className="w-5 h-5" />
+          <span>Rivvra</span>
+        </Link>
+      )}
 
       <nav className="crumbs grow" aria-label="Breadcrumb">
         {crumbs.map((c, i) => (

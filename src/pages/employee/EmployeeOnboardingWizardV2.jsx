@@ -376,10 +376,21 @@ export default function EmployeeOnboardingWizardV2() {
   if (loading) return <PageSpinner label="Loading your profile…" />;
 
   if (!employee) {
+    // Hard dead end without the action: the onboarding gate redirects /home
+    // here with `replace`, so there's no sidebar, no crumbs, and the browser
+    // back button lands nowhere either.
     return (
       <Panel>
-        <EmptyState icon={<User size={22} />} title="No employee profile found">
-          Please contact your administrator.
+        <EmptyState
+          icon={<User size={22} />}
+          title="No employee profile found"
+          actions={(
+            <Button variant="secondary" onClick={() => navigate(orgPath('/home'))}>
+              Back to workspace
+            </Button>
+          )}
+        >
+          Ask your administrator to add you as an employee, then reload this page.
         </EmptyState>
       </Panel>
     );

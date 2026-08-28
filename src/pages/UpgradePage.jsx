@@ -179,6 +179,14 @@ function UpgradePage() {
             Still not active after a while? Email team@rivvra.com and we'll sort it out.
           </p>
         )}
+        {/* This page has no sidebar, and waiting on a webhook shouldn't trap
+            anyone — activation completes whether or not they sit here. */}
+        <Link
+          to={`/org/${orgSlug}/home`}
+          className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg font-medium transition-colors border border-dark-600"
+        >
+          Go to workspace
+        </Link>
       </div>
     );
   }

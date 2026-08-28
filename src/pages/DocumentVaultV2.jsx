@@ -33,7 +33,8 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { Vault, FileText, Loader2, Download, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Vault, FileText, Loader2, Download, Building2, ArrowLeft } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import employeeApi from '../utils/employeeApi';
 import { Panel, Button, Chip, EmptyState, Spinner } from '../components/ds';
@@ -50,6 +51,7 @@ function formatBytes(bytes) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 function DocumentVaultV2() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [workspaces, setWorkspaces] = useState([]);
@@ -89,6 +91,20 @@ function DocumentVaultV2() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: 'clamp(16px, 3vw, 40px) clamp(12px, 2vw, 16px)' }}>
       <div style={{ maxWidth: 768, margin: '0 auto' }}>
+        {/* This page routes OUTSIDE the platform layout — no sidebar, no
+            app bar, no avatar menu — so without this link the browser back
+            button is the only way out. */}
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            font: "500 13px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-3)',
+          }}
+        >
+          <ArrowLeft size={15} /> Back
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
           <span style={{
             width: 44, height: 44, borderRadius: 'var(--r-3, 14px)', flexShrink: 0,
