@@ -222,6 +222,15 @@
 .ds-shell .avatar-ring { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--brand-line); }
 .ds-shell .avatar img { width: 100%; height: 100%; object-fit: cover; }
 
+/* Onboarding "Setup N%" pill. Same rule as `.company-btn` above: the display
+   lives HERE, not in an inline style, or `desktop-only` below cannot hide it —
+   an inline `display` beats any stylesheet. Shipped inline once and the chip
+   stayed visible on phones at 96px, which is what pushed the appbar to 490px
+   inside a 392px viewport and made every timesheet/payroll page scroll
+   sideways. Must stay above the `desktop-only` rule: both selectors are
+   0-2-0, so source order is what lets `display: none` win. */
+.ds-shell .setup-chip { display: inline-flex; }
+
 .ds-shell .mobile-only { display: none; }
 @media (max-width: 767px) {
   .ds-shell .mobile-only { display: grid; }

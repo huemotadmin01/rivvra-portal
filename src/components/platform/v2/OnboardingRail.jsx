@@ -32,12 +32,20 @@ export default function OnboardingRail({ collapsed, variant }) {
       // `icon-btn` sizes for a square icon, so the label wrapped onto two
       // lines and sat under the theme toggle. This is a pill, not an icon
       // button: it needs its own box, a fixed height and nowrap.
+      //
+      // `display` deliberately lives in `.setup-chip` (shell.css) rather than
+      // in the inline style below. An inline `display` beats any stylesheet,
+      // so declaring it here silently defeated the `desktop-only` class this
+      // element already carries: the pill kept rendering on phones at 96px,
+      // pushing the 392px appbar to 490px and making every page that also
+      // shows the month/FY chip scroll sideways. Same trap the `.company-btn`
+      // comment in shell.css documents. Do not move it back inline.
       <Link
         to={orgPath('/getting-started')}
-        className="desktop-only"
+        className="setup-chip desktop-only"
         title={`Finish setting up your workspace — ${pct}% complete`}
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          alignItems: 'center', gap: 6, flexShrink: 0,
           height: 30, padding: '0 10px', marginRight: 4,
           borderRadius: 999, whiteSpace: 'nowrap',
           background: 'var(--surface-2)', boxShadow: 'inset 0 0 0 1px var(--line-2)',
