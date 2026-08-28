@@ -99,24 +99,36 @@ export default function UniversalLoginPage() {
 
   // Initialize Google Sign-In (universal page always offers Google)
   useEffect(() => {
+    // `resolving` / `orgChoices` / `noAccess` each render a branch with no
+    // button container, and each must be a dependency too — the target guard
+    // below only helps if the effect actually runs again once the form mounts.
+    if (resolving || orgChoices || noAccess) return;
     if (googleInitialized.current || isAuthenticated) return;
 
+    // Resolve the target BEFORE latching the ref — same defect fixed in
+    // OrgLoginPage. This page also renders a container-less branch ("Loading
+    // your workspace…" while orgs resolve), and a null element makes
+    // renderButton a silent no-op. Latching first would spend the single
+    // attempt on a container that does not exist yet and leave the button
+    // permanently missing; returning unlatched lets the next run retry.
     const initializeGoogle = () => {
-      if (window.google?.accounts && !googleInitialized.current) {
-        googleInitialized.current = true;
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response) => {
-            if (response.credential) {
-              handleGoogleCredential(response.credential);
-            }
-          },
-        });
-        window.google.accounts.id.renderButton(
-          document.getElementById('universal-google-signin-button'),
-          { theme: 'filled_black', size: 'large', width: 400, text: 'signin_with' }
-        );
-      }
+      if (!window.google?.accounts || googleInitialized.current) return;
+      const target = document.getElementById('universal-google-signin-button');
+      if (!target) return;
+
+      googleInitialized.current = true;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response) => {
+          if (response.credential) {
+            handleGoogleCredential(response.credential);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(
+        target,
+        { theme: 'filled_black', size: 'large', width: 400, text: 'signin_with' }
+      );
     };
 
     if (window.google?.accounts) {
@@ -129,7 +141,7 @@ export default function UniversalLoginPage() {
     script.defer = true;
     script.onload = initializeGoogle;
     document.head.appendChild(script);
-  }, [isAuthenticated, handleGoogleCredential]);
+  }, [isAuthenticated, resolving, orgChoices, noAccess, handleGoogleCredential]);
 
   // ──────────────────────────────────────────────────────────────────────
   // Email + Password login

@@ -156,8 +156,27 @@ export default function OrgLoginPage() {
   const passwordAuthEnabled = allowedMethods.includes('password');
 
   // Initialize Google Sign-In
+  //
+  // The guard list must name EVERY state that renders a branch without the
+  // form in it, and `initializeGoogle` must not latch until the button's
+  // container actually exists. Both halves are load-bearing:
+  //
+  // `#org-google-signin-button` lives only in the final return. Four early
+  // returns above it render something else — orgLoading, orgError,
+  // checkingMembership, membershipError — and the guard used to list only the
+  // first two. So for a visitor who was ALREADY SIGNED IN, the membership
+  // check at the top of this file put us on the `checkingMembership` branch
+  // exactly while the effect ran: it set `googleInitialized.current = true`
+  // and handed `renderButton` a null element, which GIS ignores silently.
+  // When the check finished and the form finally mounted, the ref was already
+  // latched, so the effect returned early forever and the container stayed
+  // empty — a blank gap above a stranded "Or" divider, with no error anywhere.
+  //
+  // Signed-out visitors never saw it (no membership check, so the form is the
+  // first branch rendered), which is why it survived a full QA sweep.
   useEffect(() => {
-    if (orgLoading || orgError || googleInitialized.current || !googleAuthEnabled) return;
+    if (orgLoading || orgError || checkingMembership || membershipError) return;
+    if (googleInitialized.current || !googleAuthEnabled) return;
 
     const loadGoogleScript = () => {
       if (window.google?.accounts) {
@@ -173,25 +192,30 @@ export default function OrgLoginPage() {
     };
 
     const initializeGoogle = () => {
-      if (window.google?.accounts && !googleInitialized.current) {
-        googleInitialized.current = true;
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response) => {
-            if (response.credential) {
-              handleGoogleCredential(response.credential);
-            }
-          },
-        });
-        window.google.accounts.id.renderButton(
-          document.getElementById('org-google-signin-button'),
-          { theme: 'filled_black', size: 'large', width: 400, text: 'signin_with' }
-        );
-      }
+      if (!window.google?.accounts || googleInitialized.current) return;
+      // Resolve the target BEFORE latching. A null element makes renderButton
+      // a silent no-op, and latching first would burn the one attempt we get.
+      // Returning unlatched lets the next effect run retry once the form is up.
+      const target = document.getElementById('org-google-signin-button');
+      if (!target) return;
+
+      googleInitialized.current = true;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response) => {
+          if (response.credential) {
+            handleGoogleCredential(response.credential);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(
+        target,
+        { theme: 'filled_black', size: 'large', width: 400, text: 'signin_with' }
+      );
     };
 
     loadGoogleScript();
-  }, [orgLoading, orgError, handleGoogleCredential]);
+  }, [orgLoading, orgError, checkingMembership, membershipError, googleAuthEnabled, handleGoogleCredential]);
 
   // ──────────────────────────────────────────────────────────────────────
   // Email + Password login
