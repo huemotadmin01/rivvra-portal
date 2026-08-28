@@ -18,7 +18,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { X, ArrowRight, Lightbulb } from 'lucide-react';
+import { X, ArrowRight, Lightbulb, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 
@@ -163,18 +163,34 @@ export default function AppIntro({ appId, appName, orgSlug, orgPath }) {
         <p style={line}><span style={lead}>Why it helps: </span>{intro.why}</p>
       </div>
 
-      {intro.firstStep && (
+      {/* Two exits, deliberately different jobs: the first step is for someone
+          ready to act; the guide is for someone who wants depth. The card
+          stays three lines — anything longer belongs in the Knowledge Base,
+          which is where this link goes (filtered to this app). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginTop: 14 }}>
+        {intro.firstStep && (
+          <Link
+            to={orgPath(intro.firstStep.to)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              font: "550 13px/1 'Inter', system-ui, sans-serif",
+              color: 'var(--brand-ink)', textDecoration: 'none',
+            }}
+          >
+            {intro.firstStep.label} <ArrowRight size={14} />
+          </Link>
+        )}
         <Link
-          to={orgPath(intro.firstStep.to)}
+          to={orgPath(`/knowledge-base?app=${encodeURIComponent(appId)}`)}
           style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14,
-            font: "550 13px/1 'Inter', system-ui, sans-serif",
-            color: 'var(--brand-ink)', textDecoration: 'none',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            font: "450 13px/1 'Inter', system-ui, sans-serif",
+            color: 'var(--fg-3)', textDecoration: 'none',
           }}
         >
-          {intro.firstStep.label} <ArrowRight size={14} />
+          <BookOpen size={14} /> Read the full guide
         </Link>
-      )}
+      </div>
     </div>
   );
 }
