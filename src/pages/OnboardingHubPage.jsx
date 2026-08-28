@@ -24,7 +24,7 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Circle, ArrowRight, Sparkles, Rocket } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowRight, ArrowLeft, Sparkles, Rocket } from 'lucide-react';
 import { useOrg } from '../context/OrgContext';
 import { usePlatform } from '../context/PlatformContext';
 import { Panel, Button, PageSpinner, EmptyState } from '../components/ds';
@@ -180,6 +180,20 @@ export default function OnboardingHubPage() {
 
   return (
     <div style={{ maxWidth: 940, margin: '0 auto', padding: '32px 24px 64px' }}>
+      {/* This page renders in the launcher-style shell (no sidebar), so it
+          must carry its own way out — otherwise the only exit is the browser
+          back button. */}
+      <Link
+        to={orgPath('/home')}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,
+          font: "500 13px/1 'Inter', system-ui, sans-serif",
+          color: 'var(--fg-3)', textDecoration: 'none',
+        }}
+      >
+        <ArrowLeft size={15} /> Back to workspace
+      </Link>
+
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 8 }}>
         <span style={{
           width: 42, height: 42, borderRadius: 'var(--r-2, 12px)', flexShrink: 0,
