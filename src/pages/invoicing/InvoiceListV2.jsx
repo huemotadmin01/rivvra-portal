@@ -470,7 +470,7 @@ export default function InvoiceListV2() {
             emptyMessage="No invoices found"
             columns={[
               {
-                key: 'number', width: 220, minWidth: 140, sticky: 'left',
+                key: 'number', width: 170, minWidth: 130, sticky: 'left',
                 label: 'Number',
                 render: (inv) => (
                   <span className="inline-flex items-center gap-1.5">
@@ -513,7 +513,7 @@ export default function InvoiceListV2() {
                 ),
               },
               {
-                key: 'amountDue', width: 160, minWidth: 130, align: 'right',
+                key: 'amountDue', width: 130, minWidth: 110, align: 'right',
                 label: 'Amount Due',
                 render: (inv) => {
                   // Reversed invoices have no real receivable — the stored
@@ -530,7 +530,7 @@ export default function InvoiceListV2() {
                 },
               },
               {
-                key: 'status', width: 180, minWidth: 120, sticky: 'right', align: 'center',
+                key: 'status', width: 130, minWidth: 110, sticky: 'right', align: 'center',
                 label: 'Status',
                 render: (inv) => <StatusChips invoice={inv} />,
               },

@@ -29,17 +29,23 @@ export default function OnboardingRail({ collapsed, variant }) {
   // "an Outreach feature"). Compact by design — the hub holds the detail.
   if (variant === 'appbar') {
     return (
+      // `icon-btn` sizes for a square icon, so the label wrapped onto two
+      // lines and sat under the theme toggle. This is a pill, not an icon
+      // button: it needs its own box, a fixed height and nowrap.
       <Link
         to={orgPath('/getting-started')}
-        className="icon-btn desktop-only"
+        className="desktop-only"
         title={`Finish setting up your workspace — ${pct}% complete`}
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
-          textDecoration: 'none', color: 'var(--fg-2)', paddingInline: 10,
+          display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          height: 30, padding: '0 10px', marginRight: 4,
+          borderRadius: 999, whiteSpace: 'nowrap',
+          background: 'var(--surface-2)', boxShadow: 'inset 0 0 0 1px var(--line-2)',
+          textDecoration: 'none', color: 'var(--fg-2)',
           font: "550 12px/1 'Inter', system-ui, sans-serif",
         }}
       >
-        <Rocket style={{ width: 14, height: 14, color: 'var(--brand-ink)' }} />
+        <Rocket style={{ width: 13, height: 13, color: 'var(--brand-ink)', flexShrink: 0 }} />
         <span>Setup {pct}%</span>
       </Link>
     );
