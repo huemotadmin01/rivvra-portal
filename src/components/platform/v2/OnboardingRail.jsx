@@ -11,7 +11,7 @@ import { buildOnboardingGroups } from '../../../pages/OnboardingHubPage';
 
    Hidden once every step is done (or when the server says the org is past the
    onboarding window), so it never becomes furniture for an established org. */
-export default function OnboardingRail({ collapsed }) {
+export default function OnboardingRail({ collapsed, variant }) {
   const { orgPath } = usePlatform();
   const { currentOrg } = useOrg();
   const { data } = useGettingStarted(currentOrg?.slug);
@@ -23,6 +23,27 @@ export default function OnboardingRail({ collapsed }) {
   const done = tasks.filter((t) => t.done).length;
   if (done === tasks.length) return null;
   const pct = Math.round((done / tasks.length) * 100);
+
+  // App-bar variant: onboarding is platform-level, so it belongs in the
+  // platform chrome rather than inside one app's sidebar (where it read as
+  // "an Outreach feature"). Compact by design — the hub holds the detail.
+  if (variant === 'appbar') {
+    return (
+      <Link
+        to={orgPath('/getting-started')}
+        className="icon-btn desktop-only"
+        title={`Finish setting up your workspace — ${pct}% complete`}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
+          textDecoration: 'none', color: 'var(--fg-2)', paddingInline: 10,
+          font: "550 12px/1 'Inter', system-ui, sans-serif",
+        }}
+      >
+        <Rocket style={{ width: 14, height: 14, color: 'var(--brand-ink)' }} />
+        <span>Setup {pct}%</span>
+      </Link>
+    );
+  }
 
   if (collapsed) {
     return (

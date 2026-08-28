@@ -6,6 +6,7 @@ import { useCompany } from '../../../context/CompanyContext';
 import { useOrg } from '../../../context/OrgContext';
 import { useBreadcrumbs } from '../../../hooks/useBreadcrumbs';
 import RivvraLogo from '../../RivvraLogo';
+import OnboardingRail from './OnboardingRail';
 import { useFromEntity } from '../../../hooks/useFromEntity';
 import { ThemeToggle, useTheme } from '../../ds';
 import KbHelpButton from '../../KbHelpButton';
@@ -87,6 +88,10 @@ function AppBarV2({ onMenu }) {
           </span>
         ))}
       </nav>
+
+      {/* Onboarding progress — platform-level, so it lives in the platform
+          chrome rather than inside any one app's sidebar. */}
+      <OnboardingRail variant="appbar" />
 
       {/* Company switcher — only when the org has multiple legal entities */}
       {hasMultipleCompanies && (

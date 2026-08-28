@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import AppIntro from '../AppIntro';
 import { useAuth } from '../../../context/AuthContext';
 import { usePlatform } from '../../../context/PlatformContext';
 import { useCompany } from '../../../context/CompanyContext';
+import { useOrg } from '../../../context/OrgContext';
 import { TimesheetProvider } from '../../../context/TimesheetContext';
 import { BreadcrumbProvider } from '../../../context/BreadcrumbContext';
 import { PeriodProvider } from '../../../context/PeriodContext';
@@ -13,6 +15,7 @@ import SampleDataBanner from '../../SampleDataBanner';
 import UsageWarningBanner from '../../UsageWarningBanner';
 import AnnouncementBanner from '../AnnouncementBanner';
 import { ArrowLeftRight, X, Loader2 } from 'lucide-react';
+import { stripOrgPrefix } from '../../../config/apps';
 import './shell.css';
 import './legacy-bridge.css';
 
@@ -52,7 +55,8 @@ const storageKeyForApp = (appId) => `${SIDEBAR_COLLAPSED_KEY_PREFIX}${appId || '
 const defaultCollapsedFor = (appId) => APPS_DEFAULT_COLLAPSED.has(appId);
 
 function PlatformLayoutV2() {
-  const { currentApp } = usePlatform();
+  const { currentApp, orgPath } = usePlatform();
+  const { currentOrg } = useOrg();
   const { currentCompanyId, hydrated } = useCompany();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -92,6 +96,11 @@ function PlatformLayoutV2() {
   // If that reads as heavy, the fix is to give KB more sidebar items or fold
   // its article tree INTO the rail — not to special-case the shell again.
   const showSidebar = currentApp && !isFullScreenPage;
+  // The app's own landing route — where a first-visit explainer belongs.
+  // Deep pages never show it: someone on a candidate detail page has already
+  // worked out what ATS is.
+  const isAppLanding = !!currentApp?.defaultRoute
+    && stripOrgPrefix(location.pathname) === currentApp.defaultRoute;
 
   return (
     <TimesheetProvider>
@@ -119,6 +128,16 @@ function PlatformLayoutV2() {
                       legacy shell — see PlatformLayout.jsx for the why. */}
                   {hydrated ? (
                     <div key={`co-${currentCompanyId || 'none'}`}>
+                      {/* First-visit explainer, on the app's landing route
+                          only — "what is this app, who uses it, why". */}
+                      {isAppLanding && (
+                        <AppIntro
+                          appId={currentApp.id}
+                          appName={currentApp.label || currentApp.name}
+                          orgSlug={currentOrg?.slug}
+                          orgPath={orgPath}
+                        />
+                      )}
                       <Outlet />
                     </div>
                   ) : (

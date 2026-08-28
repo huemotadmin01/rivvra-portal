@@ -9,7 +9,6 @@ import { stripOrgPrefix, getActiveApps, resolveDefaultRoute } from '../../../con
 import { BrandMark, BRAND_MARK_IDS } from '../../ds';
 import { ChevronDown, PanelLeftClose, LayoutGrid, LogOut } from 'lucide-react';
 import DocumentsFolderNav from '../DocumentsFolderNav';
-import OnboardingRail from './OnboardingRail';
 
 /* App id → semantic accent token (per-app accents from the handoff;
    apps without a token fall back to brand green). */
@@ -170,7 +169,6 @@ function SidebarV2({ mobileOpen, onCloseMobile, collapsed, onToggleCollapsed }) 
         </nav>
 
         <div className="sb-foot">
-          <OnboardingRail collapsed={collapsed} />
           <button className="sb-item" onClick={onToggleCollapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <span className="ico" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform var(--d-3) var(--e-out)' }}>
               <PanelLeftClose style={{ width: 16, height: 16 }} />
