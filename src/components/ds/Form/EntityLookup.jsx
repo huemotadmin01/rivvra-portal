@@ -335,7 +335,12 @@ export function EntityLookup({
           onClick={editable ? startEdit : undefined}
           className={editable ? 'ds-lookup-inline' : undefined}
           style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
+            // Fills the caller's box rather than hugging its text. This variant
+            // exists to sit inside a field box the caller has styled, and the
+            // click target is this span — sized to the text it would leave most
+            // of a full-width box dead, so the control reads as an input but
+            // only responds on the few characters of the value itself.
+            display: 'flex', width: '100%', alignItems: 'center', gap: 6, minWidth: 0,
             cursor: editable ? 'pointer' : 'default',
             font: `450 13px/1.5 ${FONT}`, color: 'var(--fg, #eef2f6)',
           }}
