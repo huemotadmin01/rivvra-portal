@@ -406,7 +406,7 @@ function DashboardPageV2() {
   const [emailsToday, setEmailsToday] = useState(null);
 
   // First-run checklist for new workspaces (shared with the home launcher).
-  const { data: gettingStarted, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug);
+  const { data: gettingStarted, dismissed: gsDismissed, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug);
 
   // Search state
   const [searchMode, setSearchMode] = useState('contacts');
@@ -910,7 +910,7 @@ function DashboardPageV2() {
 
               {/* Onboarding hub teaser — the task list itself lives on
                   /getting-started, reachable from the sidebar rail. */}
-              {gettingStarted && (
+              {gettingStarted && !gsDismissed && (
                 <OnboardingHubTeaser
                   data={gettingStarted}
                   orgPath={orgPath}

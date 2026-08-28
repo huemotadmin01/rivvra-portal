@@ -163,7 +163,7 @@ export default function OnboardingHubPage() {
   const { orgPath } = usePlatform();
   // The hub is a permanent destination: it renders even once dismissed, so
   // read the endpoint directly rather than through the card's show/hide.
-  const { data } = useGettingStarted(currentOrg?.slug);
+  const { data, dismissed, restore } = useGettingStarted(currentOrg?.slug);
 
   const apps = useMemo(() => new Set(currentOrg?.enabledApps || []), [currentOrg?.enabledApps]);
   const groups = useMemo(
@@ -210,6 +210,22 @@ export default function OnboardingHubPage() {
           <div style={{ height: '100%', width: `${pct}%`, background: 'var(--brand)', transition: 'width var(--d-3, 240ms) ease' }} />
         </div>
       </div>
+
+      {/* The teaser was hidden from the launcher — offer it back here, so
+          "Hide" is never a one-way door. */}
+      {dismissed && (
+        <Panel style={{ marginBottom: 16 }}>
+          <div style={{ padding: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ ...taskLabel, color: 'var(--fg)' }}>Hidden from your home page</p>
+              <p style={taskDesc}>This hub stays available in the sidebar. Show the reminder on Home again?</p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={restore} style={{ flexShrink: 0 }}>
+              Show on Home
+            </Button>
+          </div>
+        </Panel>
+      )}
 
       {allDone && (
         <Panel style={{ marginBottom: 24 }}>

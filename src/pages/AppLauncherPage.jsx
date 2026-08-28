@@ -20,7 +20,7 @@ function AppLauncherPage() {
   const { pendingCount: policyPending } = usePolicyAck();
   const { slug } = useParams();
   // First-run checklist for new workspaces (server decides visibility).
-  const { data: gettingStarted, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug || slug);
+  const { data: gettingStarted, dismissed: gsDismissed, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug || slug);
   const firstName = user?.name?.split(' ')[0] || 'there';
 
   const companyLogoUrl = currentCompany?.hasLogo && currentCompany?._id
@@ -115,7 +115,7 @@ function AppLauncherPage() {
         {/* Compact entry to the onboarding hub. The full task list lives on
             /getting-started (a destination that survives dismissal) — the
             launcher only advertises it and shows progress. */}
-        {gettingStarted && (
+        {gettingStarted && !gsDismissed && (
           <OnboardingHubTeaser
             data={gettingStarted}
             orgPath={orgPath}
