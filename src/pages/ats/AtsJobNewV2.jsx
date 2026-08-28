@@ -58,6 +58,19 @@ import { Panel, Button, Field, Input, Select, Textarea, EmptyState } from '../..
 // ── Shared render tokens ────────────────────────────────────────────────────
 const microStyle = { font: "450 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' };
 
+// The Approver picker is an inline EntityLookup, which renders bare text (read)
+// or a bare search input (edit) and draws no box of its own. These are ds
+// `Input`'s own box tokens — height, radius, surface and hairline — so the
+// field lines up with the Inputs and Selects stacked above it instead of
+// floating as loose text. Vertical padding stays 0 and the content is centred,
+// so the taller edit-mode input sits inside the same 38px without the box
+// jumping when you click into it.
+const approverBoxStyle = {
+  minHeight: 38, display: 'flex', alignItems: 'center', padding: '0 6px', width: '100%',
+  borderRadius: 'var(--r-2, 12px)', background: 'var(--surface-2, #141b24)',
+  boxShadow: '0 0 0 1px var(--line, rgba(255,255,255,.07))',
+};
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 function AtsJobNewV2() {
   const { currentOrg, getAppRole } = useOrg();
@@ -237,15 +250,34 @@ function AtsJobNewV2() {
                 placeholder="e.g. Indore (Hybrid)" />
             </Field>
 
-            <PersonLookup
-              orgSlug={orgSlug}
-              label="Approver"
-              confirmsSave={false}
-              currentValue={form.approverId}
-              currentName={form.approverName}
-              placeholder="Search employees… (leave empty to assign later)"
-              onSelect={(id, name) => setForm((p) => ({ ...p, approverId: id || '', approverName: name || '' }))}
-            />
+            {/* `variant="inline"` inside our own Field, NOT the default `row`.
+                The row variant draws its own 140px label gutter and renders the
+                value as bare text, so on this form Approver was the one control
+                with its label beside it instead of above and no input box at
+                all — it read as a read-only summary line and gave no hint it
+                was clickable. Inline drops the gutter and lets Field supply the
+                label, matching every other control here. Same pattern as
+                AtsApplicationNewV2's Recruiter and QuickAddClientModalV2's
+                Salesperson.
+
+                `allowClear` matters here because Approver is optional: having
+                picked someone you must be able to go back to none. */}
+            <Field label="Approver">
+              <div style={approverBoxStyle}>
+                <PersonLookup
+                  orgSlug={orgSlug}
+                  variant="inline"
+                  label=""
+                  editable
+                  allowClear
+                  confirmsSave={false}
+                  currentValue={form.approverId}
+                  currentName={form.approverName}
+                  placeholder="Search employees… (leave empty to assign later)"
+                  onSelect={(id, name) => setForm((p) => ({ ...p, approverId: id || '', approverName: name || '' }))}
+                />
+              </div>
+            </Field>
           </div>
         </Panel>
 

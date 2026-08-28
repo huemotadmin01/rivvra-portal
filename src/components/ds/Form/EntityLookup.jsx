@@ -199,7 +199,11 @@ export function EntityLookup({
       background: 'var(--surface-1, #0e131a)', borderRadius: 'var(--r-2, 10px)',
       boxShadow: `0 0 0 1px var(--line-2, rgba(255,255,255,.11)), var(--sh-3, 0 14px 34px -10px rgba(0,0,0,.6))`,
     }}>
-      {variant === 'row' && allowClear && (
+      {/* Honoured for `row` AND `inline`. It used to be gated on `row` alone,
+          which made `allowClear` a silently-ignored prop everywhere else —
+          three inline call sites pass it and got no clear entry. `button` is
+          excluded because it has no current value to clear. */}
+      {variant !== 'button' && allowClear && (
         <button type="button" onClick={() => commit('')}
           style={{
             width: '100%', textAlign: 'left', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
