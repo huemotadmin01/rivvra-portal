@@ -293,6 +293,29 @@ export default function EmployeeDetail() {
   const [sepSaving, setSepSaving] = useState(false);
   // Audit M1 — confirm modal before firing an irreversible separation.
   const [showSeparationConfirm, setShowSeparationConfirm] = useState(false);
+  // Handover prompt — the PROMPTED half of offboarding. Access revocation is
+  // automatic on the server; who inherits the leaver's records is a decision
+  // only a human can make (this employee had no manager on record, which is
+  // exactly why it can't be inferred).
+  const [handover, setHandover] = useState(null);   // { owned, members, to, saving, done }
+  const openHandover = useCallback(async (userId) => {
+    if (!userId || !currentOrg?.slug) return;
+    setHandover({ loading: true });
+    try {
+      const [sum, mem] = await Promise.all([
+        api.getMemberDataSummary(currentOrg.slug, userId),
+        api.getOrgMembers(currentOrg.slug),
+      ]);
+      const owned = sum?.owned || {};
+      if (!owned.total) { setHandover(null); return; }   // nothing to hand over
+      setHandover({
+        userId,
+        owned,
+        members: (mem?.members || []).filter(m => m.status === 'active' && String(m.userId) !== String(userId)),
+        to: '',
+      });
+    } catch (_) { setHandover(null); }
+  }, [currentOrg?.slug]);
   // Audit M2 — separation reasons from platform settings (not hardcoded).
   const [separationReasons, setSeparationReasons] = useState([
     'Better opportunity', 'Personal reasons', 'Performance',
@@ -329,6 +352,8 @@ export default function EmployeeDetail() {
         } : prev);
         showToast(effStatus === 'active' ? 'Exit scheduled' : `Employee marked as ${effStatus}`, 'success');
         setShowSeparationConfirm(false);
+        // Only for an actual separation, not a scheduled future exit.
+        if (effStatus !== 'active' && employee.linkedUserId) openHandover(employee.linkedUserId);
       } else {
         showToast(res.error || res.message || 'Failed to update', 'error');
       }
@@ -2079,7 +2104,8 @@ export default function EmployeeDetail() {
             </p>
             <ul className="text-xs text-dark-400 space-y-1 mb-4 list-disc list-inside">
               <li>All active assignments will be ended.</li>
-              {emp.linkedUserId && <li>Linked portal user will be unlinked and timesheet access blocked.</li>}
+              {emp.linkedUserId && <li>Their login sessions end and stored Gmail access is revoked. They keep read-only alumni access to payslips and tax documents.</li>}
+              {emp.linkedUserId && <li>You&apos;ll be asked who should take over their records.</li>}
               <li>Last working date: <span className="text-white">{sepForm.lwd || '—'}</span></li>
               {sepForm.reason && <li>Reason: <span className="text-white">{sepForm.reason}</span></li>}
             </ul>
@@ -2103,6 +2129,83 @@ export default function EmployeeDetail() {
                 Confirm Separation
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Handover Prompt (offboarding: prompted ownership) ─────────── */}
+      {handover && !handover.loading && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-lg border border-dark-700 shadow-xl">
+            <h3 className="text-white font-semibold text-lg mb-1">Who takes over their records?</h3>
+            <p className="text-dark-400 text-sm mb-4">
+              {emp.fullName}&apos;s access is already revoked. These records still belong to them —
+              until they&apos;re handed over, nobody can work them.
+            </p>
+
+            <div className="rounded-lg border border-dark-700 bg-dark-900/60 p-3 mb-4 max-h-44 overflow-y-auto">
+              {Object.entries({
+                leads: 'Outreach leads', sequences: 'Sequences', lists: 'Lead lists',
+                atsCandidates: 'Candidates (as manager)', atsApplications: 'Applications',
+                atsJobs: 'Jobs (as recruiter)', crmOpportunities: 'CRM opportunities',
+                invoices: 'Invoices (as salesperson)', todos: 'Tasks',
+                activities: 'Activities', directReports: 'Direct reports',
+              }).filter(([k]) => handover.owned?.[k] > 0).map(([k, label]) => (
+                <div key={k} className="flex justify-between text-sm py-1">
+                  <span className="text-dark-300">{label}</span>
+                  <span className="text-white font-medium">{handover.owned[k]}</span>
+                </div>
+              ))}
+            </div>
+
+            <label className="block text-sm text-dark-300 mb-2">Hand over to</label>
+            <select
+              value={handover.to}
+              onChange={(e) => setHandover(h => ({ ...h, to: e.target.value }))}
+              className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-white text-sm mb-4"
+            >
+              <option value="">Select a team member…</option>
+              {(handover.members || []).map(m => (
+                <option key={m.userId} value={m.userId}>{m.name || m.email}</option>
+              ))}
+            </select>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={handover.saving}
+                onClick={() => setHandover(null)}
+                className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors disabled:opacity-40"
+              >Do this later</button>
+              <button
+                type="button"
+                disabled={!handover.to || handover.saving}
+                onClick={async () => {
+                  setHandover(h => ({ ...h, saving: true }));
+                  try {
+                    const res = await api.reassignMemberRecords(currentOrg.slug, handover.userId, handover.to);
+                    if (res?.success) {
+                      const n = Object.values(res.moved || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+                      showToast(`${n} records handed over`, 'success');
+                      setHandover(null);
+                    } else {
+                      showToast(res?.error || 'Handover failed', 'error');
+                      setHandover(h => ({ ...h, saving: false }));
+                    }
+                  } catch (err) {
+                    showToast(err.message || 'Handover failed', 'error');
+                    setHandover(h => ({ ...h, saving: false }));
+                  }
+                }}
+                className="px-4 py-2 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-40"
+              >
+                {handover.saving && <Loader2 size={14} className="animate-spin" />}
+                Hand over records
+              </button>
+            </div>
+            <p className="text-[11px] text-dark-500 mt-3">
+              Every transferred record keeps a link back to {emp.fullName}, so this can be traced or reversed.
+            </p>
           </div>
         </div>
       )}

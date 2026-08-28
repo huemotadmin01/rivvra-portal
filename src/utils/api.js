@@ -867,6 +867,16 @@ class ApiClient {
     return this.request(`/api/org/${orgSlug}/members/${userId}/data-summary`);
   }
 
+  // Transfer everything a departing member owns to a colleague. Distinct from
+  // removeOrgMember, which also deletes the membership — wrong for a leaver,
+  // who keeps read-only alumni access.
+  async reassignMemberRecords(orgSlug, userId, reassignTo) {
+    return this.request(`/api/org/${orgSlug}/members/${userId}/reassign-records`, {
+      method: 'POST',
+      body: JSON.stringify({ reassignTo }),
+    });
+  }
+
   async inviteOrgMember(orgSlug, data) {
     return this.request(`/api/org/${orgSlug}/invite`, {
       method: 'POST',
