@@ -530,7 +530,22 @@ export default function InvoiceListV2() {
                 },
               },
               {
-                key: 'status', width: 130, minWidth: 110, sticky: 'right', align: 'center',
+                // NOT sticky. A right-pinned column paints an opaque background
+                // over whatever sits under it at the current scroll offset, and
+                // at rest (scrollLeft 0) that is the tail of Total — a
+                // right-aligned money value whose digits end exactly at the
+                // pinned edge. Seven columns need 1090px; a 1180px window gives
+                // the table 884px, so Status covered the last 76px of Total and
+                // "₹70,800.00" rendered as "₹7(". That reads as a corrupted
+                // figure, not as something you can scroll to.
+                //
+                // Trimming widths was tried first (92681140) and could not fix
+                // it: the overlap is inherent to sticky-right at any width
+                // where the table scrolls, and a user widening a column via
+                // ResizableTable's drag handles reintroduces it regardless.
+                // Unpinned, the table scrolls honestly — every column stays
+                // reachable, nothing is painted over, and the scrollbar says so.
+                key: 'status', width: 130, minWidth: 110, align: 'center',
                 label: 'Status',
                 render: (inv) => <StatusChips invoice={inv} />,
               },

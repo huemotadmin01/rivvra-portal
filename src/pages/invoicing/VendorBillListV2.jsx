@@ -786,7 +786,14 @@ export default function VendorBillListV2({ mode = 'vendor' } = {}) {
               ),
             },
             {
-              key: 'status', width: 180, minWidth: 120, sticky: 'right',
+              // NOT sticky — same reason as Customer Invoices (see the note on
+              // the status column in InvoiceListV2). A right-pinned column
+              // paints over whatever is under it at scrollLeft 0, and here that
+              // is again the right-aligned Total. This one is worse on paper:
+              // the pin is 180px wide, so it covers more of the amount. It only
+              // escaped the QA sweep because this workspace has no vendor bills
+              // yet — an empty table cannot show the overlap.
+              key: 'status', width: 180, minWidth: 120,
               headerRender: () => <span className="text-xs font-medium text-dark-400">Status</span>,
               render: (b) => <StatusChips bill={b} />,
             },
