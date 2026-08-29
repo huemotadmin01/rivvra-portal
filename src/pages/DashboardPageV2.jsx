@@ -409,7 +409,20 @@ function DashboardPageV2() {
   const { data: gettingStarted, dismissed: gsDismissed, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug);
 
   // Search state
-  const [searchMode, setSearchMode] = useState('contacts');
+  //
+  // There used to be a `searchMode` toggle here — Contacts / Companies. The
+  // Companies half is gone (2026-08-29). It searched `/api/companies/search`,
+  // which reads the platform-wide `companies` collection: no org scope, and in
+  // practice holding nothing but tenant-identity records written at signup
+  // (measured on prod: 16 docs, 15 `onboarding` + 1 `profile_update`, zero
+  // enrichment). So the mode let any user enumerate every other workspace's
+  // company name — it was a cross-tenant leak wearing a feature's clothes, and
+  // the endpoint itself was unauthenticated until API `6d90f7f`.
+  //
+  // That fix excludes tenant-identity records, which leaves the mode returning
+  // empty for every query, so the toggle is removed rather than left as dead
+  // UI. Contacts search is untouched: it goes through `searchAllLeads`, which
+  // is org-scoped server-side.
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -564,36 +577,23 @@ function DashboardPageV2() {
     setIsSearchActive(true);
 
     try {
-      if (searchMode === 'contacts') {
-        const params = { page, limit: 25, sort: sortBy, sortDir };
-        if (searchQuery.trim().length >= 2) params.search = searchQuery.trim();
-        Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+      const params = { page, limit: 25, sort: sortBy, sortDir };
+      if (searchQuery.trim().length >= 2) params.search = searchQuery.trim();
+      Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
 
-        const response = await api.searchAllLeads(params);
-        if (response.success) {
-          setSearchResults(response.leads || []);
-          setSearchTotal(response.total || 0);
-          setSearchPage(response.page || 1);
-          setSearchTotalPages(response.totalPages || 0);
-        }
-      } else {
-        // Companies mode
-        if (searchQuery.trim().length >= 2) {
-          const response = await api.searchCompanies(searchQuery.trim());
-          if (response.success) {
-            setSearchResults(response.companies || []);
-            setSearchTotal(response.companies?.length || 0);
-            setSearchPage(1);
-            setSearchTotalPages(1);
-          }
-        }
+      const response = await api.searchAllLeads(params);
+      if (response.success) {
+        setSearchResults(response.leads || []);
+        setSearchTotal(response.total || 0);
+        setSearchPage(response.page || 1);
+        setSearchTotalPages(response.totalPages || 0);
       }
     } catch (err) {
       console.error('Search failed:', err);
     } finally {
       setSearchLoading(false);
     }
-  }, [searchQuery, searchMode, filters, sortBy, sortDir]);
+  }, [searchQuery, filters, sortBy, sortDir]);
 
   // Debounced search
   useEffect(() => {
@@ -609,7 +609,7 @@ function DashboardPageV2() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, filters, searchMode, sortBy, sortDir]);
+  }, [searchQuery, filters, sortBy, sortDir]);
 
   const clearSearch = () => {
     setSearchQuery('');
@@ -730,20 +730,10 @@ function DashboardPageV2() {
               borderRadius: 'var(--r-3, 14px)', background: 'var(--surface-2)',
               boxShadow: '0 0 0 1px var(--line)',
             }}>
-              <Select
-                value={searchMode}
-                onChange={(e) => { setSearchMode(e.target.value); setSearchResults([]); }}
-                aria-label="Search mode"
-                style={{ width: 'auto', height: 32, background: 'transparent', boxShadow: 'none', paddingLeft: 0 }}
-              >
-                <option value="contacts">Contacts</option>
-                <option value="companies">Companies</option>
-              </Select>
-              <span style={{ width: 1, height: 20, background: 'var(--line-2)', flexShrink: 0 }} />
               <Search size={20} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder={searchMode === 'contacts' ? 'Search by name, email, company, title...' : 'Search companies by name...'}
+                placeholder="Search by name, email, company, title..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && performSearch(1)}
@@ -762,17 +752,15 @@ function DashboardPageV2() {
           {isSearchActive ? (
             /* ==================== SEARCH RESULTS VIEW ==================== */
             <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-              {/* LEFT: Filters Panel (contacts only) */}
-              {searchMode === 'contacts' && (
-                <div className="hidden lg:block" style={{ width: 288, flexShrink: 0 }}>
-                  <FiltersPanel
-                    filters={filters}
-                    setFilters={setFilters}
-                    lists={lists}
-                    onClear={() => setFilters({ location: '', title: '', profileType: '', company: '', emailStatus: '', listName: '' })}
-                  />
-                </div>
-              )}
+              {/* LEFT: Filters Panel */}
+              <div className="hidden lg:block" style={{ width: 288, flexShrink: 0 }}>
+                <FiltersPanel
+                  filters={filters}
+                  setFilters={setFilters}
+                  lists={lists}
+                  onClear={() => setFilters({ location: '', title: '', profileType: '', company: '', emailStatus: '', listName: '' })}
+                />
+              </div>
 
               {/* RIGHT: Results */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -785,12 +773,11 @@ function DashboardPageV2() {
                     {searchLoading ? 'Searching...' : (
                       <>
                         <span style={{ fontWeight: 600, color: 'var(--fg)' }}>{searchTotal.toLocaleString()}</span>
-                        {' '}{searchMode === 'contacts' ? 'contacts' : 'companies'} found
+                        {' '}contacts found
                       </>
                     )}
                   </p>
-                  {searchMode === 'contacts' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -817,8 +804,7 @@ function DashboardPageV2() {
                         <option value="name_asc">Name A-Z</option>
                         <option value="name_desc">Name Z-A</option>
                       </Select>
-                    </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Results Grid */}
@@ -831,7 +817,7 @@ function DashboardPageV2() {
                   <EmptyState icon={<Search size={28} />} title="No results found">
                     Try adjusting your search or filters
                   </EmptyState>
-                ) : searchMode === 'contacts' ? (
+                ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
                     {searchResults.map(lead => (
                       <LeadSearchCard
@@ -845,40 +831,11 @@ function DashboardPageV2() {
                       />
                     ))}
                   </div>
-                ) : (
-                  /* Companies results */
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-                    {searchResults.map(company => (
-                      <Panel key={company._id}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 4 }}>
-                          {company.logo ? (
-                            <img src={company.logo} alt="" style={{ width: 40, height: 40, borderRadius: 'var(--r-2, 12px)', objectFit: 'cover', flexShrink: 0 }} />
-                          ) : (
-                            <span style={{
-                              width: 40, height: 40, borderRadius: 'var(--r-2, 12px)', flexShrink: 0,
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              background: 'var(--surface-3)', color: 'var(--fg-4)',
-                            }}>
-                              <Building2 size={20} />
-                            </span>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ ...bodyStyle, fontWeight: 550, color: 'var(--fg)', ...truncate }}>{company.name}</p>
-                            {company.industry && <p style={{ ...metaStyle, ...truncate }}>{company.industry}</p>}
-                            {company.employeeCount && <p style={metaStyle}>{company.employeeCount} employees</p>}
-                            {company.domain && (
-                              <p style={{ ...metaStyle, color: 'var(--brand-ink)', marginTop: 4, ...truncate }}>{company.domain}</p>
-                            )}
-                          </div>
-                        </div>
-                      </Panel>
-                    ))}
-                  </div>
                 )}
 
                 {/* Pagination — ds range + prev/next. `searchTotalPages` keeps
                     the legacy `if (totalPages <= 1) return null;` gate. */}
-                {searchMode === 'contacts' && searchTotalPages > 1 && (
+                {searchTotalPages > 1 && (
                   <div style={{ marginTop: 32 }}>
                     <Pagination
                       page={searchPage}

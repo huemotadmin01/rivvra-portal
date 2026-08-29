@@ -761,8 +761,17 @@ function DashboardPage() {
                 onChange={(e) => { setSearchMode(e.target.value); setSearchResults([]); }}
                 className="bg-transparent text-white text-sm border-r border-dark-600 pr-3 outline-none cursor-pointer"
               >
+                {/* Companies option removed 2026-08-29 — it searched the
+                    platform-wide `companies` collection, which holds only
+                    tenant-identity records, so it let any user enumerate other
+                    workspaces. Fully removed from DashboardPageV2 (the served
+                    page); here only the option is dropped, so the mode cannot
+                    be selected. The now-unreachable `searchMode === 'companies'`
+                    branches below are left alone deliberately: this file is
+                    legacy, has zero users since uiV2 went org-wide, and is due
+                    for the legacy purge — restructuring it earns nothing and
+                    risks breaking a page nobody can exercise. */}
                 <option value="contacts">Contacts</option>
-                <option value="companies">Companies</option>
               </select>
               <Search className="w-5 h-5 text-dark-500 flex-shrink-0" />
               <input
