@@ -19,7 +19,7 @@
 // ============================================================================
 
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import api from '../utils/api';
 
@@ -62,6 +62,8 @@ function clearCache() {
 export function OrgProvider({ children }) {
   const { user } = useAuth();
   const params = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Org slug from URL (for /org/:slug/* routes) or from user's JWT/profile
   const urlSlug = params.slug;
@@ -81,8 +83,43 @@ export function OrgProvider({ children }) {
   const fetchedRef = useRef(false);
   const lastUserIdRef = useRef(null);
 
-  // Determine effective slug: URL takes precedence, then user's default
+  // The slug in the path does NOT choose the workspace. `fetchOrg` below calls
+  // `/api/org/by-user/me`, which takes no slug and resolves `defaultOrgId`, and
+  // the API scopes every request the same way (`helpers/orgHelper.getOrgId`).
+  // So `effectiveSlug` is a display fallback, not a selector — the old comment
+  // here claimed "URL takes precedence", which was never true.
   const effectiveSlug = urlSlug || userSlug || null;
+
+  // ── Keep the address bar honest ────────────────────────────────────────
+  // Because the slug is ignored, `/org/<any-slug>/…` renders the user's own
+  // workspace under whatever name is in the path. That is not a data leak —
+  // you only ever receive your own org — but the URL asserts a workspace the
+  // page is not showing, and bookmarks and shared links inherit the lie.
+  //
+  // It bit hard during the 2026-08-28 QA pass: the path read
+  // `/org/huemot-technology-private-limited/…` while the session was the REAL
+  // org, and because both orgs carry the same `name`, nothing on screen
+  // contradicted it. A write nearly landed in the live business.
+  //
+  // So rewrite the path to the org actually loaded. This does not add
+  // multi-workspace routing (that needs the API to scope by slug — a separate
+  // piece of work); it makes the mismatch impossible to sit in.
+  //
+  // Safe to live here: `/org/:slug/login` and `/org/:slug/invite` are mounted
+  // OUTSIDE OrgProvider (see App.jsx), so switching accounts and accepting an
+  // invite for another workspace are untouched. Guarded on `loading` so a
+  // transient null never bounces anyone, and `replace` keeps Back working.
+  useEffect(() => {
+    if (loading || !urlSlug || !currentOrg?.slug || urlSlug === currentOrg.slug) return;
+
+    // Rebuild from segments rather than string-replacing, so a slug that also
+    // appears later in the path (an id, a filter value) cannot be rewritten.
+    const segments = location.pathname.split('/');
+    if (segments[1] !== 'org' || segments[2] !== urlSlug) return;
+    segments[2] = currentOrg.slug;
+
+    navigate(segments.join('/') + location.search + location.hash, { replace: true });
+  }, [loading, urlSlug, currentOrg?.slug, location.pathname, location.search, location.hash, navigate]);
 
   // Fetch org data. `silent` skips the loading flag so a background refresh
   // doesn't blank out cached UI.
