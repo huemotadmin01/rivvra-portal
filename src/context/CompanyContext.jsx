@@ -17,7 +17,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from './OrgContext';
 import { usePlatform } from './PlatformContext';
-import api from '../utils/api';
+import api, { getActiveCompanyKey } from '../utils/api';
 
 const CompanyContext = createContext(null);
 
@@ -79,9 +79,9 @@ export function CompanyProvider({ children }) {
   useEffect(() => {
     const effectiveId = currentCompany?._id || null;
     if (effectiveId) {
-      localStorage.setItem('rivvra_current_company', String(effectiveId));
+      localStorage.setItem(getActiveCompanyKey(), String(effectiveId));
     } else {
-      localStorage.removeItem('rivvra_current_company');
+      localStorage.removeItem(getActiveCompanyKey());
     }
   }, [currentCompany]);
 
@@ -127,14 +127,23 @@ export function CompanyProvider({ children }) {
   // If the user has no membership (e.g. not in any org), we still hydrate
   // so PlatformLayout can render — currentCompanyId stays null and api.js
   // skips the header entirely, which is the correct behaviour.
+  //
+  // 2026-08-29: the key is now namespaced per workspace
+  // (`rivvra_current_company:<slug>`), because the URL can switch workspaces
+  // and one global key would offer workspace A's company inside workspace B.
+  // No migration is needed — `membership.currentCompanyId` is the server-side
+  // source of truth and is rewritten here on every load, so a user whose only
+  // stored value is under the old key is re-seeded correctly on first paint.
+  // The stale global key is dropped so it doesn't linger indefinitely.
   useEffect(() => {
     if (orgLoading) return;
+    try { localStorage.removeItem('rivvra_current_company'); } catch (_) { /* ignore */ }
     if (membership?.currentCompanyId) {
       const newId = String(membership.currentCompanyId);
-      try { localStorage.setItem('rivvra_current_company', newId); } catch (_) { /* ignore */ }
+      try { localStorage.setItem(getActiveCompanyKey(), newId); } catch (_) { /* ignore */ }
       setCurrentCompanyId(newId);
     } else {
-      try { localStorage.removeItem('rivvra_current_company'); } catch (_) { /* ignore */ }
+      try { localStorage.removeItem(getActiveCompanyKey()); } catch (_) { /* ignore */ }
     }
     if (typeof window !== 'undefined') window.__rivvra_company_hydrated = true;
     setHydrated(true);
@@ -180,7 +189,7 @@ export function CompanyProvider({ children }) {
     //     request under the previous company — that's the "switch shows
     //     stale data" bug. Writing here removes the race.
     try {
-      localStorage.setItem('rivvra_current_company', newId);
+      localStorage.setItem(getActiveCompanyKey(), newId);
     } catch (_) { /* private mode etc. — ignore */ }
 
     // (1) Instant UI update — dropdown reflects the new company immediately.
@@ -205,8 +214,8 @@ export function CompanyProvider({ children }) {
       console.error('Failed to switch company:', err);
       // Roll back both the optimistic state AND the localStorage write.
       try {
-        if (prevCompanyId) localStorage.setItem('rivvra_current_company', String(prevCompanyId));
-        else localStorage.removeItem('rivvra_current_company');
+        if (prevCompanyId) localStorage.setItem(getActiveCompanyKey(), String(prevCompanyId));
+        else localStorage.removeItem(getActiveCompanyKey());
       } catch (_) {}
       setCurrentCompanyId(prevCompanyId);
     } finally {

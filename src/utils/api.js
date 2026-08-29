@@ -18,8 +18,73 @@ import { API_BASE_URL } from './config';
 export function getActiveCompanyId() {
   if (typeof window === 'undefined') return null;
   if (!window.__rivvra_company_hydrated) return null;
-  try { return localStorage.getItem('rivvra_current_company') || null; }
+  try { return localStorage.getItem(companyKey()) || null; }
   catch { return null; }
+}
+
+/**
+ * The workspace this request belongs to, read straight from the URL.
+ *
+ * `/org/:slug/` is authoritative: the portal resolves its OrgContext through
+ * `GET /api/org/:slug/context`, and this mirrors the same slug onto every
+ * request as `X-Org-Slug` so the ~200 API routes that carry no slug in their
+ * path (`/api/timesheet/*`, `/api/sequences/*`, `/api/portal/*`, `/api/teams/*`,
+ * `/api/lists/*`, `/api/engage/*`, `/api/dashboard`, `/api/me/*`,
+ * `/api/org-company/*`) scope to the same workspace instead of the token's
+ * defaultOrgId. The API verifies membership on every one of them — the header
+ * selects among workspaces you already belong to, it never grants access.
+ *
+ * Read from `window.location.pathname` rather than React state on purpose: this
+ * runs outside the component tree, and the app uses BrowserRouter, so the path
+ * is the real path. Returns null off an /org/ route (marketing, auth, /admin/*,
+ * the public signing page) — and no header means the API behaves exactly as it
+ * did before, which is what keeps the Chrome extension working.
+ *
+ * Exported so the utility clients that build their own headers (timesheetApi,
+ * employeeApi, the settings company pages) use identical logic.
+ */
+export function getActiveOrgSlug() {
+  if (typeof window === 'undefined') return null;
+  const m = window.location.pathname.match(/^\/org\/([^/]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+/**
+ * localStorage key for the active company, namespaced per workspace.
+ *
+ * It used to be one global key. Harmless while a session only ever had one
+ * workspace; now that the URL switches workspaces, the un-namespaced key means
+ * the company picked in workspace A is offered as the active company in
+ * workspace B. The API rejects that (a company must belong to the org), so the
+ * request still resolves — but the user's choice silently resets, and the
+ * source of the reset is invisible. Keep them separate instead.
+ */
+function companyKey() {
+  const slug = getActiveOrgSlug();
+  return slug ? `rivvra_current_company:${slug}` : 'rivvra_current_company';
+}
+
+export { companyKey as getActiveCompanyKey };
+
+/**
+ * The workspace to declare for a specific request.
+ *
+ * An endpoint that already names a workspace in its path (`/api/org/<slug>/…`)
+ * declares THAT one; everything else falls back to the workspace in the browser
+ * URL. The API rejects a request whose path slug and `X-Org-Slug` disagree with
+ * a 400, so deriving the header from the path when there is one makes that
+ * mismatch structurally impossible rather than merely unlikely — a caller that
+ * builds a URL for one workspace can't accidentally label it as another.
+ */
+export function orgSlugForRequest(pathOrUrl) {
+  const m = String(pathOrUrl || '').match(/\/api\/org\/([^/?#]+)/);
+  if (m) {
+    const slug = decodeURIComponent(m[1]);
+    // `/api/org/by-user/me` is not a workspace path — it resolves the caller's
+    // default. Declaring "by-user" as a workspace would 404.
+    if (slug !== 'by-user') return slug;
+  }
+  return getActiveOrgSlug();
 }
 
 class ApiClient {
@@ -83,6 +148,15 @@ class ApiClient {
     const companyId = getActiveCompanyId();
     if (companyId) {
       config.headers['X-Company-Id'] = companyId;
+    }
+
+    // Add the active workspace. See getActiveOrgSlug() — this is what makes
+    // /org/:slug/ authoritative for the API routes that carry no slug in their
+    // path. Not gated on hydration: it comes from the URL, which is correct the
+    // moment the route renders.
+    const orgSlug = orgSlugForRequest(endpoint);
+    if (orgSlug) {
+      config.headers['X-Org-Slug'] = orgSlug;
     }
 
     try {
@@ -178,6 +252,10 @@ class ApiClient {
     // upload made right after a company switch could land in the WRONG company.
     const companyId = getActiveCompanyId();
     if (companyId) headers['X-Company-Id'] = companyId;
+    // Same for the workspace — an upload must land in the workspace the URL
+    // names, not the token's default.
+    const orgSlug = orgSlugForRequest(endpoint);
+    if (orgSlug) headers['X-Org-Slug'] = orgSlug;
     // Do NOT set Content-Type — browser sets it with boundary for multipart
 
     // Bound the request: a stalled server/Cloudinary upload would otherwise leave

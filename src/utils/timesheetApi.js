@@ -1,5 +1,5 @@
 import { TIMESHEET_API_URL } from './config';
-import { getActiveCompanyId } from './api';
+import { getActiveCompanyId, getActiveOrgSlug } from './api';
 
 // ─── Fetch-based API client (replaces axios) ────────────────────────────────
 
@@ -37,6 +37,13 @@ async function request(method, url, { body, params, signal, responseType } = {})
   // the caller's employee record per company. Same hydration gate as api.js.
   const companyId = getActiveCompanyId();
   if (companyId) headers['X-Company-Id'] = companyId;
+
+  // Active workspace. /api/timesheet/* is the largest block of routes with no
+  // :slug in the path — 108 of them — so without this header every ESS and
+  // leave request would resolve against the token's defaultOrgId regardless of
+  // the workspace the URL names. See getActiveOrgSlug() in ./api.
+  const orgSlug = getActiveOrgSlug();
+  if (orgSlug) headers['X-Org-Slug'] = orgSlug;
 
   // Create an AbortController for timeout (30s)
   const timeoutController = new AbortController();

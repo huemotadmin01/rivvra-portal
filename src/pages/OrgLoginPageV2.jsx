@@ -128,32 +128,50 @@ export default function OrgLoginPageV2() {
   // ──────────────────────────────────────────────────────────────────────
   // Check org membership — used after login and on mount if already authed
   // ──────────────────────────────────────────────────────────────────────
+  // Name a workspace the caller CAN open, so "No Access" always offers a way
+  // out. Only needed on the failure path, hence the separate call.
+  const ownWorkspace = useCallback(async () => {
+    try {
+      const mine = await api.request('/api/org/by-user/me');
+      return { userOrgSlug: mine.org?.slug || null, userOrgName: mine.org?.name || null };
+    } catch {
+      return { userOrgSlug: null, userOrgName: null };
+    }
+  }, []);
+
   const checkMembership = useCallback(async () => {
     setCheckingMembership(true);
     setMembershipError(null);
     setError('');
     try {
-      const res = await api.request('/api/org/by-user/me');
+      // Ask about THIS workspace, not the caller's default. `by-user/me`
+      // resolves defaultOrgId, so a user who belongs to two workspaces was told
+      // "No Access" on the second one's login page purely because it wasn't
+      // their default — the membership was real. `/api/org/:slug/context`
+      // answers for the slug in the URL: 200 member, 403 not, 404 unknown.
+      const res = await api.request(`/api/org/${encodeURIComponent(slug)}/context`);
       if (res.success && res.org?.slug === slug) {
         // User is in this org — redirect to home
         navigate(`/org/${slug}/home`, { replace: true });
         return true;
       } else {
-        // User is authenticated but not in this org
-        setMembershipError({
-          email: user?.email,
-          userOrgSlug: res.org?.slug || null,
-          userOrgName: res.org?.name || null,
-        });
+        // Authenticated, but the server did not hand back this workspace.
+        setMembershipError({ email: user?.email, ...(await ownWorkspace()) });
         return false;
       }
-    } catch {
+    } catch (err) {
+      // 403 (not a member) / 404 (no such workspace) are ANSWERS, not failures —
+      // show the No Access card with a way back to a workspace they do have.
+      if (err.status === 403 || err.status === 404) {
+        setMembershipError({ email: user?.email, ...(await ownWorkspace()) });
+        return false;
+      }
       setError('Failed to verify organization access. Please try again.');
       return false;
     } finally {
       setCheckingMembership(false);
     }
-  }, [slug, navigate, user?.email]);
+  }, [slug, navigate, user?.email, ownWorkspace]);
 
   // If already authenticated on mount, check membership immediately
   useEffect(() => {
