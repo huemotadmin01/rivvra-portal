@@ -5,7 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { API_BASE_URL } from '../../utils/config';
-import api from '../../utils/api';
+import api, { getActiveCompanyKey } from '../../utils/api';
 import {
   Building2, Plus, Loader2, Trash2, Save, Star,
   ChevronLeft, ChevronRight, Camera, Image, PenTool, Upload, X,
@@ -391,7 +391,7 @@ export default function SettingsCompanies() {
       formData.append('logo', file);
 
       const token = localStorage.getItem('rivvra_token');
-      const companyId = localStorage.getItem('rivvra_current_company');
+      const companyId = localStorage.getItem(getActiveCompanyKey());
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
       if (companyId) headers['X-Company-Id'] = companyId;
@@ -439,7 +439,7 @@ export default function SettingsCompanies() {
       formData.append('signature', file);
 
       const token = localStorage.getItem('rivvra_token');
-      const companyId = localStorage.getItem('rivvra_current_company');
+      const companyId = localStorage.getItem(getActiveCompanyKey());
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
       if (companyId) headers['X-Company-Id'] = companyId;

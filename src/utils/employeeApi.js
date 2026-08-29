@@ -2,7 +2,7 @@
  * Employee App API utility
  * Uses the main ApiClient for org-scoped employee endpoints.
  */
-import api, { getActiveCompanyId } from './api';
+import api, { getActiveCompanyId, orgSlugForRequest } from './api';
 import { API_BASE_URL } from './config';
 
 const employeeApi = {
@@ -335,6 +335,12 @@ const employeeApi = {
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (companyId) headers['X-Company-Id'] = companyId;
+    // Active workspace. This is the one builder here that serves URLs with no
+    // slug in the path (`/api/me/document-vault/…`), so it needs the header;
+    // for `/api/org/<slug>/…` URLs orgSlugForRequest reads the slug back out of
+    // the URL itself, so path and header can never disagree.
+    const orgSlug = orgSlugForRequest(url);
+    if (orgSlug) headers['X-Org-Slug'] = orgSlug;
     const res = await fetch(url, { headers });
     if (!res.ok) {
       const ct = res.headers.get('content-type') || '';

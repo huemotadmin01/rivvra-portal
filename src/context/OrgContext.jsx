@@ -19,35 +19,50 @@
 // ============================================================================
 
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import api from '../utils/api';
+import WorkspaceNoAccess from '../components/WorkspaceNoAccess';
 
 const OrgContext = createContext(null);
 
 // Stale-while-revalidate cache: hydrate from localStorage so the app launcher
 // renders instantly on revisit while the network refresh runs in the background.
-const CACHE_KEY = 'rivvra_org_cache_v1';
+//
+// KEYED BY USER **AND** WORKSPACE. It used to be keyed by user alone, which was
+// fine while everyone only ever had one workspace — but the slug now selects
+// the workspace, so a user in two of them would open /org/b/ and see workspace
+// A's name, apps and role painted from cache for the ~1s before the network
+// landed. That is precisely the "right data, wrong label" failure this whole
+// change exists to remove, so the slug is part of the identity.
+const CACHE_KEY = 'rivvra_org_cache_v2';
+// v1 was the user-only shape. Drop it on sight rather than migrating: it holds
+// no workspace identity, so there is no safe way to decide which slug it was for.
+const LEGACY_CACHE_KEY = 'rivvra_org_cache_v1';
 
-function readCache(userIdentity) {
+function cacheIdentity(userIdentity, slug) {
+  return `${userIdentity}::${slug || '(default)'}`;
+}
+
+function readCache(userIdentity, slug) {
   if (!userIdentity || typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed?.userIdentity !== userIdentity) return null;
+    if (parsed?.identity !== cacheIdentity(userIdentity, slug)) return null;
     return parsed;
   } catch {
     return null;
   }
 }
 
-function writeCache(userIdentity, org, membership) {
+function writeCache(userIdentity, slug, org, membership) {
   if (!userIdentity || typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(
       CACHE_KEY,
-      JSON.stringify({ userIdentity, org, membership, savedAt: Date.now() })
+      JSON.stringify({ identity: cacheIdentity(userIdentity, slug), org, membership, savedAt: Date.now() })
     );
   } catch {
     // localStorage full / disabled — silently skip
@@ -56,14 +71,15 @@ function writeCache(userIdentity, org, membership) {
 
 function clearCache() {
   if (typeof window === 'undefined') return;
-  try { window.localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
+  try {
+    window.localStorage.removeItem(CACHE_KEY);
+    window.localStorage.removeItem(LEGACY_CACHE_KEY);
+  } catch { /* ignore */ }
 }
 
 export function OrgProvider({ children }) {
   const { user } = useAuth();
   const params = useParams();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   // Org slug from URL (for /org/:slug/* routes) or from user's JWT/profile
   const urlSlug = params.slug;
@@ -83,43 +99,37 @@ export function OrgProvider({ children }) {
   const fetchedRef = useRef(false);
   const lastUserIdRef = useRef(null);
 
-  // The slug in the path does NOT choose the workspace. `fetchOrg` below calls
-  // `/api/org/by-user/me`, which takes no slug and resolves `defaultOrgId`, and
-  // the API scopes every request the same way (`helpers/orgHelper.getOrgId`).
-  // So `effectiveSlug` is a display fallback, not a selector — the old comment
-  // here claimed "URL takes precedence", which was never true.
+  // The slug in the path IS the workspace selector. When it is present,
+  // `fetchOrg` resolves context through `GET /api/org/:slug/context`, which
+  // verifies membership server-side, and `utils/api.js` mirrors it onto every
+  // request as `X-Org-Slug` so the ~200 routes that carry no slug in their path
+  // scope the same way. `userSlug` is the fallback for the slug-less legacy
+  // routes (`/home`, `/outreach/*`), which `OrgRedirect` then canonicalises.
   const effectiveSlug = urlSlug || userSlug || null;
 
-  // ── Keep the address bar honest ────────────────────────────────────────
-  // Because the slug is ignored, `/org/<any-slug>/…` renders the user's own
-  // workspace under whatever name is in the path. That is not a data leak —
-  // you only ever receive your own org — but the URL asserts a workspace the
-  // page is not showing, and bookmarks and shared links inherit the lie.
-  //
-  // It bit hard during the 2026-08-28 QA pass: the path read
-  // `/org/huemot-technology-private-limited/…` while the session was the REAL
-  // org, and because both orgs carry the same `name`, nothing on screen
-  // contradicted it. A write nearly landed in the live business.
-  //
-  // So rewrite the path to the org actually loaded. This does not add
-  // multi-workspace routing (that needs the API to scope by slug — a separate
-  // piece of work); it makes the mismatch impossible to sit in.
-  //
-  // Safe to live here: `/org/:slug/login` and `/org/:slug/invite` are mounted
-  // OUTSIDE OrgProvider (see App.jsx), so switching accounts and accepting an
-  // invite for another workspace are untouched. Guarded on `loading` so a
-  // transient null never bounces anyone, and `replace` keeps Back working.
-  useEffect(() => {
-    if (loading || !urlSlug || !currentOrg?.slug || urlSlug === currentOrg.slug) return;
+  // Set when the slug named a workspace we can't open: 403 (not a member) or
+  // 404 (no such slug). Renders a blocking page instead of the app — see the
+  // provider return below for why this is not a redirect.
+  const [accessError, setAccessError] = useState(null); // { reason, slug }
 
-    // Rebuild from segments rather than string-replacing, so a slug that also
-    // appears later in the path (an id, a filter value) cannot be rewritten.
-    const segments = location.pathname.split('/');
-    if (segments[1] !== 'org' || segments[2] !== urlSlug) return;
-    segments[2] = currentOrg.slug;
-
-    navigate(segments.join('/') + location.search + location.hash, { replace: true });
-  }, [loading, urlSlug, currentOrg?.slug, location.pathname, location.search, location.hash, navigate]);
+  // ── The address bar used to need policing; now it decides ──────────────
+  //
+  // Until 2026-08-29 the slug was decorative: context came from the token's
+  // defaultOrgId, so `/org/<any-slug>/…` rendered your own workspace under
+  // whatever name was in the path. A canonical-redirect effect lived here and
+  // rewrote the URL to match the org that had loaded, which kept the address
+  // bar from lying but could never let you *choose* a workspace.
+  //
+  // That effect is deliberately GONE. With the slug authoritative it would be
+  // actively wrong: on a resolved path `urlSlug` and `currentOrg.slug` are
+  // equal by construction, and on a genuine cross-workspace navigation the
+  // effect would fight the navigation and bounce the user back. The slug-less
+  // legacy routes are still canonicalised — by `OrgRedirect`, which is where
+  // that belongs.
+  //
+  // Still true, and still load-bearing: `/org/:slug/login` and
+  // `/org/:slug/invite` mount OUTSIDE OrgProvider (see App.jsx), so switching
+  // accounts and accepting another workspace's invite never reach this code.
 
   // Fetch org data. `silent` skips the loading flag so a background refresh
   // doesn't blank out cached UI.
@@ -133,50 +143,94 @@ export function OrgProvider({ children }) {
       if (!silent) setLoading(true);
       setError(null);
 
-      const response = await api.request('/api/org/by-user/me');
+      // The URL picks the workspace when it names one. `/api/org/:slug/context`
+      // resolves it server-side and verifies membership (404 unknown slug, 403
+      // non-member, alumni still admitted). Slug-less legacy routes fall back to
+      // `/api/org/by-user/me`, which resolves the caller's defaultOrgId.
+      //
+      // Both endpoints return the SAME payload shape (see
+      // buildOrgContextPayload in the API's src/org.js) — `uiV2`, `companies`
+      // and the full membership all have to be there, or the v2 shell and
+      // CompanyContext silently degrade.
+      const response = urlSlug
+        ? await api.request(`/api/org/${encodeURIComponent(urlSlug)}/context`)
+        : await api.request('/api/org/by-user/me');
 
       const userIdentity = user?.email || user?.id || null;
+      setAccessError(null);
       if (response.success && response.org) {
         setCurrentOrg(response.org);
         setMembership(response.membership);
-        writeCache(userIdentity, response.org, response.membership);
+        writeCache(userIdentity, urlSlug, response.org, response.membership);
       } else {
         // User has no org — standalone user
         setCurrentOrg(null);
         setMembership(null);
-        writeCache(userIdentity, null, null);
+        writeCache(userIdentity, urlSlug, null, null);
       }
       // Live server response landed — UI gating on `membershipVerified`
       // (privileged actions like ATS RC-gate bypass) can now trust the role.
       setMembershipVerified(true);
     } catch (err) {
-      console.error('Failed to fetch org context:', err);
-      setError(err.message);
-      // Keep whatever we have (cached or null) — don't blank out the UI on
-      // transient network errors.
+      // 403/404 on a slug-resolved fetch is an ANSWER, not a failure: the URL
+      // named a workspace this account cannot open. Drop whatever cached org is
+      // in state — continuing to render workspace A while the URL says B is the
+      // exact defect being fixed — and let the provider render the blocking
+      // page below.
+      if (urlSlug && (err.status === 403 || err.status === 404)) {
+        setCurrentOrg(null);
+        setMembership(null);
+        setMembershipVerified(true);
+        setAccessError({ reason: err.status === 404 ? 'notFound' : 'forbidden', slug: urlSlug });
+        clearCache();
+      } else {
+        console.error('Failed to fetch org context:', err);
+        setError(err.message);
+        // Keep whatever we have (cached or null) — don't blank out the UI on
+        // transient network errors.
+      }
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, urlSlug]);
 
   // Fetch on mount and re-fetch when user changes (e.g., impersonation / Login As)
   // Use email as the identity key — it's always present and unique per user
   const userIdentity = user?.email || user?.id || null;
 
-  useEffect(() => {
-    if (user && (!fetchedRef.current || lastUserIdRef.current !== userIdentity)) {
-      fetchedRef.current = true;
-      lastUserIdRef.current = userIdentity;
+  // Refetch on a change of EITHER identity — the user (impersonation / Login As)
+  // or the workspace in the URL. The slug half is what makes cross-workspace
+  // navigation work at all: without it, moving from /org/a/… to /org/b/… would
+  // keep rendering workspace A because the user never changed.
+  const contextKey = `${userIdentity}::${urlSlug || '(default)'}`;
 
-      // Hydrate from cache first so the launcher renders immediately.
-      const cached = readCache(userIdentity);
+  useEffect(() => {
+    if (user && (!fetchedRef.current || lastUserIdRef.current !== contextKey)) {
+      fetchedRef.current = true;
+      const isWorkspaceSwitch = lastUserIdRef.current !== null && lastUserIdRef.current !== contextKey;
+      lastUserIdRef.current = contextKey;
+
+      // Hydrate from cache first so the launcher renders immediately. The cache
+      // is keyed by user AND slug, so a miss here means we genuinely have
+      // nothing to show for THIS workspace.
+      const cached = readCache(userIdentity, urlSlug);
       if (cached) {
         setCurrentOrg(cached.org);
         setMembership(cached.membership);
+        setAccessError(null);
         setLoading(false);
         // Background revalidation — silent so we don't flicker the cached UI.
         fetchOrg(true);
       } else {
+        // Switching workspaces with nothing cached: clear the previous org
+        // first. Leaving it in place would paint workspace A's name, apps and
+        // role under workspace B's URL for the length of the round-trip.
+        if (isWorkspaceSwitch) {
+          setCurrentOrg(null);
+          setMembership(null);
+          setMembershipVerified(false);
+          setAccessError(null);
+        }
         fetchOrg(false);
       }
     }
@@ -188,10 +242,11 @@ export function OrgProvider({ children }) {
       setCurrentOrg(null);
       setMembership(null);
       setMembershipVerified(false);
+      setAccessError(null);
       setLoading(false);
       clearCache();
     }
-  }, [user, userIdentity, fetchOrg]);
+  }, [user, userIdentity, urlSlug, contextKey, fetchOrg]);
 
   // Helper: check if user has access to a specific app
   const hasAppAccess = useCallback((appId) => {
@@ -247,9 +302,22 @@ export function OrgProvider({ children }) {
     alumniDaysRemaining,
     refetchOrg: () => {
       fetchedRef.current = false;
+      setAccessError(null);
       fetchOrg(false);
     },
   }), [currentOrg, membership, membershipVerified, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
+
+  // The URL named a workspace this account cannot open. Render the answer
+  // INSTEAD of the app — not a redirect, and not the app with an error toast.
+  // Anything that still mounted underneath would be showing another workspace's
+  // data under this workspace's URL, which is the whole defect.
+  if (accessError) {
+    return (
+      <OrgContext.Provider value={value}>
+        <WorkspaceNoAccess slug={accessError.slug} reason={accessError.reason} />
+      </OrgContext.Provider>
+    );
+  }
 
   return (
     <OrgContext.Provider value={value}>
