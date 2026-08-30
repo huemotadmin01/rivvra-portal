@@ -98,7 +98,12 @@ export function buildOnboardingGroups({ data, apps, orgPath }) {
           label: 'Add your first client',
           desc: 'Or import your existing client list from a CSV',
           done: (c.contacts || 0) > 0,
-          to: orgPath('/contacts'), cta: 'Add client',
+          // `/contacts` is the app's basePath, NOT a route — App.jsx only
+          // defines /contacts/list, /companies, /individuals, /config. Linking
+          // the bare basePath fell through the catch-all and redirected a
+          // signed-in user to the public marketing page, which reads as being
+          // logged out. Use the app's own defaultRoute (config/apps.jsx).
+          to: orgPath('/contacts/list'), cta: 'Add client',
         },
       ],
     }] : []),
