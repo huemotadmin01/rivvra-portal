@@ -115,13 +115,20 @@ function Legend({ children }) {
 }
 
 /** Label + right-aligned number input, used by every amount field. */
-function AmountRow({ label, value, onChange, labelWidth = 160 }) {
+// Declared amounts. Coerce on blur AND again in handleSave — never on
+// keystroke, which forced a 0 into every field the moment it was cleared.
+// The save path spreads the form wholesale into `declarations` and the admin
+// backend sums section80C with Object.values(), so a raw string must never
+// reach it. Negatives and blanks both read as 0, matching the old `|| 0`.
+const amt = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+
+function AmountRow({ label, value, onChange, onBlur, labelWidth = 160 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
       <label style={{ font: "400 11.5px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', width: labelWidth, flexShrink: 0 }}>
         {label}
       </label>
-      <Input type="number" value={value} onChange={onChange} aria-label={label} style={{ width: 128, textAlign: 'right' }} />
+      <Input type="number" value={value} onChange={onChange} onBlur={onBlur} aria-label={label} style={{ width: 128, textAlign: 'right' }} />
     </div>
   );
 }
@@ -199,19 +206,33 @@ export default function TaxDeclarationsPageV2() {
     setSaving(true);
     try {
       const { _stored, ...clean } = form;
-      const items = clean.section80C;
+      // Every declared amount goes through `amt` before it leaves this
+      // function. A field still focused when Save is clicked holds the raw
+      // string, and the backend sums section80C with Object.values() — one
+      // string would turn the total into concatenation or NaN.
+      const mapAmounts = (obj) => Object.fromEntries(
+        Object.entries(obj || {}).map(([k, v]) => [k, amt(v)])
+      );
+      const items = mapAmounts(clean.section80C);
       await upsertTaxDeclaration(orgSlug, selectedEmp._id.toString(), fy, {
         regime: form.regime,
         declarations: {
           ...(_stored || {}),
           ...clean,
+          section80E: amt(clean.section80E),
+          section80G: amt(clean.section80G),
+          section24b: amt(clean.section24b),
           // `section80C` stays an OBJECT because the admin backend route
           // (payroll.js ~1373) computes section80CTotal via Object.values().
           // `section80CItems` is the canonical breakdown both pages read.
           section80C: items,
           section80CItems: items,
-          section80D: clean.section80D,
-          hra: { ...(_stored?.hra || {}), ...clean.hra },
+          section80D: mapAmounts(clean.section80D),
+          hra: {
+            ...(_stored?.hra || {}),
+            ...clean.hra,
+            rentPaidAnnual: amt(clean.hra?.rentPaidAnnual),
+          },
         },
       });
       showToast('Declarations saved — payroll TDS recalculated', 'success');
@@ -523,7 +544,8 @@ export default function TaxDeclarationsPageV2() {
                   </Legend>
                   {SECTION_80C_KEYS.map(([key, label]) => (
                     <AmountRow key={key} label={label} value={form.section80C[key]}
-                      onChange={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: Number(e.target.value) || 0 } }))} />
+                      onChange={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: e.target.value } }))}
+                      onBlur={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: amt(e.target.value) } }))} />
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, paddingTop: 8, borderTop: '1px solid var(--line-2)' }}>
                     <span style={{ font: "500 11.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>Total 80C (capped)</span>
@@ -538,7 +560,8 @@ export default function TaxDeclarationsPageV2() {
                   <Legend>Section 80D (Medical Insurance)</Legend>
                   {SECTION_80D_KEYS.map(([key, label]) => (
                     <AmountRow key={key} label={label} value={form.section80D[key]}
-                      onChange={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: Number(e.target.value) || 0 } }))} />
+                      onChange={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: e.target.value } }))}
+                      onBlur={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: amt(e.target.value) } }))} />
                   ))}
                 </div>
 
@@ -547,7 +570,8 @@ export default function TaxDeclarationsPageV2() {
                   <Legend>Other Deductions</Legend>
                   {[['section80E', '80E (Education Loan Interest)'], ['section80G', '80G (Donations)'], ['section24b', '24(b) (Home Loan Interest)']].map(([key, label]) => (
                     <AmountRow key={key} label={label} labelWidth={192} value={form[key]}
-                      onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) || 0 }))} />
+                      onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                      onBlur={e => setForm(f => ({ ...f, [key]: amt(e.target.value) }))} />
                   ))}
                 </div>
 
@@ -555,7 +579,8 @@ export default function TaxDeclarationsPageV2() {
                 <div style={{ display: 'grid', gap: 8 }}>
                   <Legend>HRA Exemption</Legend>
                   <AmountRow label="Annual Rent Paid" value={form.hra.rentPaidAnnual}
-                    onChange={e => setForm(f => ({ ...f, hra: { ...f.hra, rentPaidAnnual: Number(e.target.value) || 0 } }))} />
+                    onChange={e => setForm(f => ({ ...f, hra: { ...f.hra, rentPaidAnnual: e.target.value } }))}
+                    onBlur={e => setForm(f => ({ ...f, hra: { ...f.hra, rentPaidAnnual: amt(e.target.value) } }))} />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <label htmlFor="td-city" style={{ font: "400 11.5px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', width: 160, flexShrink: 0 }}>City Type</label>
                     <Select id="td-city" value={form.hra.cityType}

@@ -4038,6 +4038,16 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
   const [tdsConfigId, setTdsConfigId] = useState('');
   const [tdsBase, setTdsBase] = useState(subtotal || 0);
   const [tdsAmount, setTdsAmount] = useState(0);
+  // `tdsAmount` holds the raw input string while the field is focused, so a
+  // decimal point survives typing — `Number('100.')` is 100, which used to
+  // rewrite the field and swallow the '.', making 100.50 unenterable on a
+  // step="any" field. Everything downstream reads `tds`, never the raw state:
+  // `+` on a string concatenates, so `form.amount + tdsAmount` would have
+  // produced "10050" instead of 150 and silently mis-stated the settlement.
+  const tds = (() => {
+    const n = Number(tdsAmount);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  })();
 
   const selectedTds = tdsConfigs.find(t => t._id === tdsConfigId);
   const tdsRate = selectedTds ? (Number(selectedTds.rateIndividual) || 0) : 0;
@@ -4085,7 +4095,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
     if (!tdsEnabled) {
       setForm(f => ({ ...f, amount: amountDue || 0 }));
     } else {
-      const net = Math.max(0, Math.round(((Number(amountDue) || 0) - tdsAmount) * 100) / 100);
+      const net = Math.max(0, Math.round(((Number(amountDue) || 0) - tds) * 100) / 100);
       setForm(f => ({ ...f, amount: net }));
     }
   }, [tdsEnabled, tdsAmount, amountDue]);
@@ -4107,13 +4117,13 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
         showToast('Select a TDS section', 'error');
         return;
       }
-      if (!tdsAmount || tdsAmount <= 0) {
+      if (tds <= 0) {
         showToast('TDS amount must be positive', 'error');
         return;
       }
     }
     // Block overpayment — payment (+ TDS) must not exceed the amount due.
-    const settling = (Number(form.amount) || 0) + (tdsEnabled ? tdsAmount : 0);
+    const settling = (Number(form.amount) || 0) + (tdsEnabled ? tds : 0);
     if (settling > (Number(amountDue) || 0) + 0.005) {
       showToast(`Total exceeds amount due (${formatCurrency(amountDue, currency)}). Reduce the amount.`, 'error');
       return;
@@ -4129,7 +4139,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
       if (tdsEnabled && selectedTds) {
         const tdsRes = await invoicingApi.recordPayment(orgSlug, {
           invoiceId,
-          amount: tdsAmount,
+          amount: tds,
           method: 'tds',
           journal: 'TDS Deducted',
           date: form.date,
@@ -4167,7 +4177,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             // Orphan TDS payment left behind — surface it and refresh the page
             // state so the user can void it manually from the payments list.
             showToast(
-              `Payment failed AFTER the TDS entry of ${formatCurrency(tdsAmount, currency)} was recorded, and it could not be rolled back. Void the TDS payment on this ${isVendorBill ? 'bill' : 'invoice'} manually, then retry.`,
+              `Payment failed AFTER the TDS entry of ${formatCurrency(tds, currency)} was recorded, and it could not be rolled back. Void the TDS payment on this ${isVendorBill ? 'bill' : 'invoice'} manually, then retry.`,
               'error'
             );
             onSuccess();
@@ -4186,7 +4196,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
     }
   };
 
-  const totalSettled = (Number(form.amount) || 0) + (tdsEnabled ? tdsAmount : 0);
+  const totalSettled = (Number(form.amount) || 0) + (tdsEnabled ? tds : 0);
   const remaining = Math.max(0, Math.round(((Number(amountDue) || 0) - totalSettled) * 100) / 100);
 
   return (
@@ -4298,9 +4308,9 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
                     {isVendorBill ? 'TDS deducted on this payment' : 'Customer deducted TDS'}
                   </span>
                 </span>
-                {tdsEnabled && tdsAmount > 0 && (
+                {tdsEnabled && tds > 0 && (
                   <span style={{ font: "550 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--brand-ink)' }}>
-                    −{formatCurrency(tdsAmount, currency)}
+                    −{formatCurrency(tds, currency)}
                   </span>
                 )}
               </label>
@@ -4341,7 +4351,8 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
                             type="number"
                             step="any"
                             value={tdsAmount}
-                            onChange={(e) => setTdsAmount(Number(e.target.value) || 0)}
+                            onChange={(e) => setTdsAmount(e.target.value)}
+                            onBlur={() => setTdsAmount(tds)}
                           />
                         </Field>
                       </div>
@@ -4388,7 +4399,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             {tdsEnabled && (
               <div style={{ ...totalsRow, color: 'var(--fg-3)' }}>
                 <span>{isVendorBill ? 'TDS Deducted' : 'TDS Credit'}</span>
-                <span>−{formatCurrency(tdsAmount, currency)}</span>
+                <span>−{formatCurrency(tds, currency)}</span>
               </div>
             )}
             <div style={{ ...totalsRow, color: 'var(--fg-3)' }}>

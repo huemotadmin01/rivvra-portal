@@ -74,6 +74,13 @@ function StatusBadge({ statusKey }) {
   );
 }
 
+// Declared amounts. Coerce on blur AND again in handleSave — never on
+// keystroke, which forced a 0 into every field the moment it was cleared.
+// The save path spreads the form wholesale into `declarations` and the admin
+// backend sums section80C with Object.values(), so a raw string must never
+// reach it. Negatives and blanks both read as 0, matching the old `|| 0`.
+const amt = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+
 export default function TaxDeclarationsPage() {
   const { orgSlug } = usePlatform();
   const { currentCompany } = useCompany();
@@ -147,19 +154,33 @@ export default function TaxDeclarationsPage() {
     setSaving(true);
     try {
       const { _stored, ...clean } = form;
-      const items = clean.section80C;
+      // Every declared amount goes through `amt` before it leaves this
+      // function. A field still focused when Save is clicked holds the raw
+      // string, and the backend sums section80C with Object.values() — one
+      // string would turn the total into concatenation or NaN.
+      const mapAmounts = (obj) => Object.fromEntries(
+        Object.entries(obj || {}).map(([k, v]) => [k, amt(v)])
+      );
+      const items = mapAmounts(clean.section80C);
       await upsertTaxDeclaration(orgSlug, selectedEmp._id.toString(), fy, {
         regime: form.regime,
         declarations: {
           ...(_stored || {}),
           ...clean,
+          section80E: amt(clean.section80E),
+          section80G: amt(clean.section80G),
+          section24b: amt(clean.section24b),
           // `section80C` stays an OBJECT because the admin backend route
           // (payroll.js ~1373) computes section80CTotal via Object.values().
           // `section80CItems` is the canonical breakdown both pages read.
           section80C: items,
           section80CItems: items,
-          section80D: clean.section80D,
-          hra: { ...(_stored?.hra || {}), ...clean.hra },
+          section80D: mapAmounts(clean.section80D),
+          hra: {
+            ...(_stored?.hra || {}),
+            ...clean.hra,
+            rentPaidAnnual: amt(clean.hra?.rentPaidAnnual),
+          },
         },
       });
       showToast('Declarations saved — payroll TDS recalculated', 'success');
@@ -452,7 +473,8 @@ export default function TaxDeclarationsPage() {
                     {SECTION_80C_KEYS.map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
                         <label className="text-xs text-dark-400 w-40">{label}</label>
-                        <input type="number" value={form.section80C[key]} onChange={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: Number(e.target.value) || 0 } }))}
+                        <input type="number" value={form.section80C[key]} onChange={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: e.target.value } }))}
+                          onBlur={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: amt(e.target.value) } }))}
                           className="w-32 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white text-right focus:border-rivvra-500 focus:outline-none" />
                       </div>
                     ))}
@@ -468,7 +490,8 @@ export default function TaxDeclarationsPage() {
                     {SECTION_80D_KEYS.map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
                         <label className="text-xs text-dark-400 w-40">{label}</label>
-                        <input type="number" value={form.section80D[key]} onChange={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: Number(e.target.value) || 0 } }))}
+                        <input type="number" value={form.section80D[key]} onChange={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: e.target.value } }))}
+                          onBlur={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: amt(e.target.value) } }))}
                           className="w-32 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white text-right focus:border-rivvra-500 focus:outline-none" />
                       </div>
                     ))}
@@ -480,7 +503,8 @@ export default function TaxDeclarationsPage() {
                     {[['section80E', '80E (Education Loan Interest)'], ['section80G', '80G (Donations)'], ['section24b', '24(b) (Home Loan Interest)']].map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
                         <label className="text-xs text-dark-400 w-48">{label}</label>
-                        <input type="number" value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) || 0 }))}
+                        <input type="number" value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                          onBlur={e => setForm(f => ({ ...f, [key]: amt(e.target.value) }))}
                           className="w-32 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white text-right focus:border-rivvra-500 focus:outline-none" />
                       </div>
                     ))}
@@ -491,7 +515,8 @@ export default function TaxDeclarationsPage() {
                     <legend className="text-sm font-medium text-dark-300 border-b border-dark-700 pb-1 mb-2">HRA Exemption</legend>
                     <div className="flex items-center justify-between">
                       <label className="text-xs text-dark-400 w-40">Annual Rent Paid</label>
-                      <input type="number" value={form.hra.rentPaidAnnual} onChange={e => setForm(f => ({ ...f, hra: { ...f.hra, rentPaidAnnual: Number(e.target.value) || 0 } }))}
+                      <input type="number" value={form.hra.rentPaidAnnual} onChange={e => setForm(f => ({ ...f, hra: { ...f.hra, rentPaidAnnual: e.target.value } }))}
+                          onBlur={e => setForm(f => ({ ...f, hra: { ...f.hra, rentPaidAnnual: amt(e.target.value) } }))}
                         className="w-32 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white text-right focus:border-rivvra-500 focus:outline-none" />
                     </div>
                     <div className="flex items-center justify-between">

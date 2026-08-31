@@ -12,6 +12,15 @@ import { formatDateUTC } from '../../utils/dateUtils';
 const ALL_APPS = ['outreach', 'timesheet', 'employee', 'contacts', 'crm', 'ats'];
 const PLAN_OPTIONS = ['free', 'core', 'all_apps', 'pro', 'enterprise'];
 
+// Seat count holds the raw input string while the field is focused so it can
+// be cleared and retyped; `parseInt(x) || 1` per keystroke snapped it back to 1
+// the instant it went blank. Normalised on blur and again in handleSave — this
+// writes billing.seatsTotal, so a raw string must never reach the payload.
+const seatsOrOne = (v) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+};
+
 function AdminWorkspaceDetailPage() {
   const { orgId } = useParams();
   const { superImpersonate } = useAuth();
@@ -137,7 +146,7 @@ function AdminWorkspaceDetailPage() {
 
       await api.updateSuperAdminWorkspace(orgId, {
         plan: editPlan,
-        billing: { seatsTotal: editSeats },
+        billing: { seatsTotal: seatsOrOne(editSeats) },
         enabledApps: editApps,
         uiV2: editUiV2,
       });
@@ -236,7 +245,8 @@ function AdminWorkspaceDetailPage() {
                 type="number"
                 min={1}
                 value={editSeats}
-                onChange={(e) => setEditSeats(parseInt(e.target.value) || 1)}
+                onChange={(e) => setEditSeats(e.target.value)}
+                onBlur={(e) => setEditSeats(seatsOrOne(e.target.value))}
                 className="input-field text-sm"
               />
             </div>
