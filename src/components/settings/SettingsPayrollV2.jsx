@@ -625,6 +625,17 @@ const DEFAULT_TDS_RATES = {
   intern: 0,
 };
 
+// TDS percent. Runs on blur and again before save — NEVER per keystroke.
+// `parseFloat('7.')` is 7, so clamping on every keystroke rewrote the field
+// back to "7" and swallowed the decimal point: fractional rates like 7.5 or
+// 0.1 could not be typed at all, only reached by 75 clicks of a step="0.1"
+// spinner. A blank field normalises to 0, matching the previous behaviour —
+// 0% is a legitimate rate here, not a missing value.
+const normaliseTdsRate = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+};
+
 function StructureMappingTab() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
@@ -668,7 +679,12 @@ function StructureMappingTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updatePayrollSettings(orgSlug, { structureMapping: mapping, tdsRateByType });
+      // Rates hold the raw input string while focused; coerce every key before
+      // send so a mid-edit value can never be persisted as a tax rate.
+      const rates = Object.fromEntries(
+        Object.entries(tdsRateByType).map(([k, v]) => [k, normaliseTdsRate(v)])
+      );
+      await updatePayrollSettings(orgSlug, { structureMapping: mapping, tdsRateByType: rates });
       showToast('Structure mapping saved', 'success');
     } catch (err) {
       showToast('Failed to save structure mapping', 'error');
@@ -740,7 +756,11 @@ function StructureMappingTab() {
                               value={tdsRateByType[key] ?? DEFAULT_TDS_RATES[key] ?? 0}
                               onChange={(e) => setTdsRateByType(prev => ({
                                 ...prev,
-                                [key]: parseFloat(e.target.value) || 0,
+                                [key]: e.target.value,
+                              }))}
+                              onBlur={(e) => setTdsRateByType(prev => ({
+                                ...prev,
+                                [key]: normaliseTdsRate(e.target.value),
                               }))}
                               style={{ width: 72, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
                             />
