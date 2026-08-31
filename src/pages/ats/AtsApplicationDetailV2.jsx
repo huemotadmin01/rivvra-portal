@@ -247,6 +247,9 @@ export default function AtsApplicationDetail() {
           jobName: res.jobName || a.jobName,
           jobDepartment: res.jobDepartment || a.department,
           jobClient: res.jobClientName || null,
+          // 2026-08-31: linked JOB's employment type — offer modal salary
+          // units fall back to this when the app's own type is blank.
+          jobEmploymentType: res.jobEmploymentType || null,
           stageName: res.stageName || a.stageName,
           recruiterName: res.recruiterName || a.recruiterName || null,
           accountOwnerName: res.accountOwnerName || a.accountOwnerName || null,

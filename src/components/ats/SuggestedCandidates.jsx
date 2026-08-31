@@ -126,6 +126,12 @@ export default function SuggestedCandidates({
         jobPositionId: jobId,
         recruiterId,
         recruiterName,
+        // 2026-08-31 employment-type audit: this payload never sent
+        // employmentType, so every "Add to job" application stored null
+        // and the offer modal fell back to LPA units on day-rate roles.
+        // The server now derives it from the job anyway (job wins) —
+        // sending it here is belt-and-braces + self-documenting.
+        employmentType: job?.employmentType || null,
       });
       showToast(`${cand.name} added to this job`);
       setConfirmId(null);
@@ -154,6 +160,9 @@ export default function SuggestedCandidates({
         // The copy is now owned in THIS company by the acting recruiter.
         recruiterId: myEmployee?.id || job?.recruiterId || null,
         recruiterName: myEmployee?.name || job?.recruiterName || '',
+        // 2026-08-31: see handleCreate — belt-and-braces with the
+        // server-side derivation from the job.
+        employmentType: job?.employmentType || null,
       });
       showToast(`${cand.name} copied to this company and added to the job`);
       setConfirmId(null);

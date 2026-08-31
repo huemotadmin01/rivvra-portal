@@ -35,7 +35,12 @@ export const ATS_EMPLOYMENT_TYPES = {
 };
 
 export const ATS_EMPLOYMENT_TYPE_KEYS = Object.keys(ATS_EMPLOYMENT_TYPES);
-export const ATS_EMPLOYMENT_TYPE_FALLBACK = { employeeKey: 'confirmed', salaryUnit: 'lpa', salaryLabel: 'Annual salary (LPA)' };
+// 2026-08-31 employment-type audit: the fallback label used to read
+// "Annual salary (LPA)", which let a BLANK employment type masquerade as
+// a deliberate LPA field in the offer modal (wrong money units for
+// day-rate roles). Renamed so a blank type self-identifies. Mirrors
+// ATS_EMPLOYMENT_TYPE_FALLBACK_META in the API's src/ats.js.
+export const ATS_EMPLOYMENT_TYPE_FALLBACK = { employeeKey: 'confirmed', salaryUnit: 'lpa', salaryLabel: 'Salary — employment type not set' };
 
 // What kind of input the offer modal should render for a given salary
 // unit. Used both for the input's own placeholder and to interpret the
@@ -47,9 +52,21 @@ export const SALARY_UNIT_INPUT = {
   per_year:  { placeholder: 'e.g. 1200000', helper: 'Per year (gross)' },
 };
 
-// Look up the salary unit + label for an ATS employment type. Returns
-// a safe fallback (LPA) for legacy values not in the picklist so the
-// modal still renders something rather than crashing.
+// 2026-08-31 hardening: lowercased key index so a trimmed / case-drifted
+// value still resolves to the right salary meta instead of silently
+// hitting the fallback. Prod data has zero drift today (audit §2) —
+// this is future-proofing only. Mirrors the API's getEmploymentTypeMeta.
+const ATS_EMPLOYMENT_TYPES_NORM = Object.fromEntries(
+  Object.entries(ATS_EMPLOYMENT_TYPES).map(([k, v]) => [k.toLowerCase(), v]),
+);
+
+// Look up the salary unit + label for an ATS employment type. Exact key
+// match first, then a trim/whitespace-collapse/case-insensitive match.
+// Returns a safe fallback (LPA units, self-identifying label) for blank
+// or unknown values so the modal still renders something rather than
+// crashing.
 export function getEmploymentTypeMeta(employmentType) {
-  return ATS_EMPLOYMENT_TYPES[employmentType] || ATS_EMPLOYMENT_TYPE_FALLBACK;
+  if (employmentType && ATS_EMPLOYMENT_TYPES[employmentType]) return ATS_EMPLOYMENT_TYPES[employmentType];
+  const norm = String(employmentType || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return ATS_EMPLOYMENT_TYPES_NORM[norm] || ATS_EMPLOYMENT_TYPE_FALLBACK;
 }

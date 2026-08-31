@@ -119,7 +119,14 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // application's employment type. Contract → "Day rate" + per_day unit;
   // Full-Time / Internal Consultant → "Annual CTC (LPA)" + lpa unit.
   // Falls back to LPA for legacy applications without a picklist value.
-  const empMeta = getEmploymentTypeMeta(application?.employmentType);
+  // 2026-08-31 employment-type audit: when the application's own type is
+  // blank (legacy rows born before the create route derived it from the
+  // job), fall back to the linked JOB's type — the detail pages merge it
+  // onto the application as `jobEmploymentType` from the GET response.
+  // Only the label/unit config choice changes; save/compute logic is
+  // untouched.
+  const effectiveEmploymentType = application?.employmentType || application?.jobEmploymentType || null;
+  const empMeta = getEmploymentTypeMeta(effectiveEmploymentType);
   const salaryUnit = empMeta.salaryUnit;
   const salaryLabel = empMeta.salaryLabel;
   const salaryInputCfg = SALARY_UNIT_INPUT[salaryUnit] || SALARY_UNIT_INPUT.lpa;
@@ -633,7 +640,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
               className="input-field"
               required
             />
-            <p className="text-[11px] text-dark-500 mt-1">{salaryInputCfg.helper}{application?.employmentType ? ` · matches ${application.employmentType} job type` : ''}</p>
+            <p className="text-[11px] text-dark-500 mt-1">{salaryInputCfg.helper}{application?.employmentType ? ` · matches ${application.employmentType} job type` : (effectiveEmploymentType ? ` · derived from ${effectiveEmploymentType} job` : '')}</p>
             {errors.amount && <p className="text-xs text-red-400 mt-1">{errors.amount}</p>}
           </div>
 
