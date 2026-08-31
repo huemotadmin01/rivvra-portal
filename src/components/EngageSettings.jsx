@@ -4,6 +4,7 @@ import api from '../utils/api';
 import ToggleSwitch from './ToggleSwitch';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
+import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../utils/sendLimits';
 
 function EngageSettings({ gmailStatus }) {
   const { user } = useAuth();
@@ -63,7 +64,11 @@ function EngageSettings({ gmailStatus }) {
     setSaving(true);
     setSaveError('');
     try {
-      const res = await api.updateEngageSettings(settings);
+      const res = await api.updateEngageSettings({
+        ...settings,
+        dailySendLimit: clampSendLimit(settings.dailySendLimit, MAX_DAILY_SEND_LIMIT),
+        hourlySendLimit: clampSendLimit(settings.hourlySendLimit, MAX_HOURLY_SEND_LIMIT),
+      });
       if (res.success) {
         setSettings(res.settings);
         setSaved(true);
@@ -169,13 +174,10 @@ function EngageSettings({ gmailStatus }) {
               <input
                 type="number"
                 min="1"
-                max="200"
+                max={MAX_DAILY_SEND_LIMIT}
                 value={settings.dailySendLimit}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (isNaN(val)) return;
-                  setSettings({ ...settings, dailySendLimit: Math.min(200, Math.max(1, val)) });
-                }}
+                onChange={(e) => setSettings({ ...settings, dailySendLimit: parseSendLimitInput(e.target.value) })}
+                onBlur={(e) => setSettings({ ...settings, dailySendLimit: clampSendLimit(e.target.value, MAX_DAILY_SEND_LIMIT) })}
                 className="w-20 px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white text-center focus:outline-none focus:border-rivvra-500"
               />
               <span className="text-sm text-dark-500">per day</span>
@@ -198,13 +200,10 @@ function EngageSettings({ gmailStatus }) {
               <input
                 type="number"
                 min="1"
-                max="50"
+                max={MAX_HOURLY_SEND_LIMIT}
                 value={settings.hourlySendLimit}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (isNaN(val)) return;
-                  setSettings({ ...settings, hourlySendLimit: Math.min(50, Math.max(1, val)) });
-                }}
+                onChange={(e) => setSettings({ ...settings, hourlySendLimit: parseSendLimitInput(e.target.value) })}
+                onBlur={(e) => setSettings({ ...settings, hourlySendLimit: clampSendLimit(e.target.value, MAX_HOURLY_SEND_LIMIT) })}
                 className="w-20 px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white text-center focus:outline-none focus:border-rivvra-500"
               />
               <span className="text-sm text-dark-500">per hour</span>

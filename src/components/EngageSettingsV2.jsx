@@ -3,6 +3,7 @@ import { Info, Shield, RotateCcw, Save, Check, Loader2, AlertCircle } from 'luci
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
+import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../utils/sendLimits';
 import {
   Panel, Button, Input, Textarea, Switch, SettingRow, Callout, PageSpinner,
 } from './ds';
@@ -11,11 +12,13 @@ import {
 // Outreach send settings. Two things here are load-bearing and are spliced in
 // verbatim rather than retyped:
 //
-//   1. The send-limit clamps — `Math.min(200, Math.max(1, val))` daily and
-//      `Math.min(50, Math.max(1, val))` hourly, with the NaN early-return.
-//      These are what stop someone typing 5000 into a field that governs how
-//      many emails leave a real mailbox, which is a deliverability and
-//      domain-reputation problem, not a UI one.
+//   1. The send-limit clamps — `clampSendLimit` against MAX_DAILY_SEND_LIMIT
+//      and MAX_HOURLY_SEND_LIMIT (see utils/sendLimits.js). These are what stop
+//      someone typing 5000 into a field that governs how many emails leave a
+//      real mailbox, which is a deliverability and domain-reputation problem,
+//      not a UI one. Note they run on BLUR and again before save, never on
+//      keystroke — clamping per-keystroke ate digits and made the ceiling
+//      unreachable by typing.
 //   2. `starterSignature` and the `savedSig ? … : starterSignature` guard in
 //      loadSettings — the starter is a PREFILL for empty signatures only. It
 //      must never overwrite a signature a rep has already saved.
@@ -105,7 +108,11 @@ function EngageSettingsV2({ gmailStatus }) {
     setSaving(true);
     setSaveError('');
     try {
-      const res = await api.updateEngageSettings(settings);
+      const res = await api.updateEngageSettings({
+        ...settings,
+        dailySendLimit: clampSendLimit(settings.dailySendLimit, MAX_DAILY_SEND_LIMIT),
+        hourlySendLimit: clampSendLimit(settings.hourlySendLimit, MAX_HOURLY_SEND_LIMIT),
+      });
       if (res.success) {
         setSettings(res.settings);
         setSaved(true);
@@ -190,14 +197,11 @@ function EngageSettingsV2({ gmailStatus }) {
                 <Input
                   type="number"
                   min="1"
-                  max="200"
+                  max={MAX_DAILY_SEND_LIMIT}
                   value={settings.dailySendLimit}
                   aria-label="Daily send limit"
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (isNaN(val)) return;
-                    setSettings({ ...settings, dailySendLimit: Math.min(200, Math.max(1, val)) });
-                  }}
+                  onChange={(e) => setSettings({ ...settings, dailySendLimit: parseSendLimitInput(e.target.value) })}
+                  onBlur={(e) => setSettings({ ...settings, dailySendLimit: clampSendLimit(e.target.value, MAX_DAILY_SEND_LIMIT) })}
                   style={{ width: 78, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
                 />
                 <span style={{ font: "400 11.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>per day</span>
@@ -213,14 +217,11 @@ function EngageSettingsV2({ gmailStatus }) {
                 <Input
                   type="number"
                   min="1"
-                  max="50"
+                  max={MAX_HOURLY_SEND_LIMIT}
                   value={settings.hourlySendLimit}
                   aria-label="Hourly send limit"
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (isNaN(val)) return;
-                    setSettings({ ...settings, hourlySendLimit: Math.min(50, Math.max(1, val)) });
-                  }}
+                  onChange={(e) => setSettings({ ...settings, hourlySendLimit: parseSendLimitInput(e.target.value) })}
+                  onBlur={(e) => setSettings({ ...settings, hourlySendLimit: clampSendLimit(e.target.value, MAX_HOURLY_SEND_LIMIT) })}
                   style={{ width: 78, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
                 />
                 <span style={{ font: "400 11.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>per hour</span>

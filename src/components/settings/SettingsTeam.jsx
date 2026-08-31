@@ -26,6 +26,7 @@ import api from '../../utils/api';
 import { APP_REGISTRY } from '../../config/apps';
 import InviteTeamMemberModal from '../InviteTeamMemberModal';
 import ComboSelect from '../ComboSelect';
+import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../../utils/sendLimits';
 
 // Sentinel option representing "no team lead" in the searchable picker.
 // We use a literal "" _id so ComboSelect's onChange surfaces '' when picked.
@@ -113,7 +114,10 @@ export default function SettingsTeam() {
   async function handleSaveRateLimits(memberId) {
     setSavingRateLimits(true);
     try {
-      const res = await api.updateMemberRateLimits(memberId, rateLimitValues);
+      const res = await api.updateMemberRateLimits(memberId, {
+        dailySendLimit: clampSendLimit(rateLimitValues.dailySendLimit, MAX_DAILY_SEND_LIMIT),
+        hourlySendLimit: clampSendLimit(rateLimitValues.hourlySendLimit, MAX_HOURLY_SEND_LIMIT),
+      });
       if (res.success) {
         setMemberRateLimits(prev => ({ ...prev, [memberId]: res.settings }));
         setEditingRateLimits(null);
@@ -355,18 +359,20 @@ export default function SettingsTeam() {
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                           <label className="text-[11px] text-dark-400 whitespace-nowrap">Hourly:</label>
-                          <input type="number" min="1" max="50" value={rateLimitValues.hourlySendLimit}
-                            onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setRateLimitValues(p => ({ ...p, hourlySendLimit: Math.min(50, Math.max(1, v)) })); }}
+                          <input type="number" min="1" max={MAX_HOURLY_SEND_LIMIT} value={rateLimitValues.hourlySendLimit}
+                            onChange={(e) => setRateLimitValues(p => ({ ...p, hourlySendLimit: parseSendLimitInput(e.target.value) }))}
+                            onBlur={(e) => setRateLimitValues(p => ({ ...p, hourlySendLimit: clampSendLimit(e.target.value, MAX_HOURLY_SEND_LIMIT) }))}
                             onClick={(e) => e.stopPropagation()}
                             className="w-16 px-2 py-1 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white text-center focus:outline-none focus:border-rivvra-500" />
                           <span className="text-[11px] text-dark-500">/hr</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <label className="text-[11px] text-dark-400 whitespace-nowrap">Daily:</label>
-                          <input type="number" min="1" max="200" value={rateLimitValues.dailySendLimit}
-                            onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setRateLimitValues(p => ({ ...p, dailySendLimit: Math.min(200, Math.max(1, v)) })); }}
+                          <input type="number" min="1" max={MAX_DAILY_SEND_LIMIT} value={rateLimitValues.dailySendLimit}
+                            onChange={(e) => setRateLimitValues(p => ({ ...p, dailySendLimit: parseSendLimitInput(e.target.value) }))}
+                            onBlur={(e) => setRateLimitValues(p => ({ ...p, dailySendLimit: clampSendLimit(e.target.value, MAX_DAILY_SEND_LIMIT) }))}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-16 px-2 py-1 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white text-center focus:outline-none focus:border-rivvra-500" />
+                            className="w-20 px-2 py-1 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white text-center focus:outline-none focus:border-rivvra-500" />
                           <span className="text-[11px] text-dark-500">/day</span>
                         </div>
                         <div className="flex items-center gap-2 ml-auto">

@@ -27,6 +27,7 @@ import { APP_REGISTRY } from '../../config/apps';
 import InviteTeamMemberModal from '../InviteTeamMemberModal';
 import ComboSelect from '../ComboSelect';
 import { Panel, Chip, Button, Input, Avatar, Callout, EmptyState, PageSpinner, ConfirmDialog } from '../ds';
+import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../../utils/sendLimits';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚠️ Every mutation on this page was left alone during verification: Invite
@@ -44,9 +45,9 @@ import { Panel, Chip, Button, Input, Avatar, Callout, EmptyState, PageSpinner, C
 //     be offered for a recruitment team. The comment saying so is carried too.
 //   · The team-lead pool is NO_LEAD_OPTION + current members + eligible, which
 //     is why a lead can be picked from outside the team (the backend adds them).
-//   · The rate-limit clamps, `Math.min(50, Math.max(1, v))` hourly and
-//     `Math.min(200, Math.max(1, v))` daily — the same limits Outreach enforces
-//     per mailbox.
+//   · The rate-limit clamps — `clampSendLimit` against MAX_HOURLY_SEND_LIMIT /
+//     MAX_DAILY_SEND_LIMIT (utils/sendLimits.js), the same limits Outreach
+//     enforces per mailbox. They fire on blur and before save, not on keystroke.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Sentinel option representing "no team lead" in the searchable picker.
@@ -171,7 +172,10 @@ export default function SettingsTeamV2() {
   async function handleSaveRateLimits(memberId) {
     setSavingRateLimits(true);
     try {
-      const res = await api.updateMemberRateLimits(memberId, rateLimitValues);
+      const res = await api.updateMemberRateLimits(memberId, {
+        dailySendLimit: clampSendLimit(rateLimitValues.dailySendLimit, MAX_DAILY_SEND_LIMIT),
+        hourlySendLimit: clampSendLimit(rateLimitValues.hourlySendLimit, MAX_HOURLY_SEND_LIMIT),
+      });
       if (res.success) {
         setMemberRateLimits(prev => ({ ...prev, [memberId]: res.settings }));
         setEditingRateLimits(null);
@@ -406,18 +410,20 @@ export default function SettingsTeamV2() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <label htmlFor={`rl-hr-${member._id}`} style={{ font: "400 11px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>Hourly:</label>
-                            <Input id={`rl-hr-${member._id}`} type="number" min="1" max="50" value={rateLimitValues.hourlySendLimit}
-                              onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setRateLimitValues(p => ({ ...p, hourlySendLimit: Math.min(50, Math.max(1, v)) })); }}
+                            <Input id={`rl-hr-${member._id}`} type="number" min="1" max={MAX_HOURLY_SEND_LIMIT} value={rateLimitValues.hourlySendLimit}
+                              onChange={(e) => setRateLimitValues(p => ({ ...p, hourlySendLimit: parseSendLimitInput(e.target.value) }))}
+                              onBlur={(e) => setRateLimitValues(p => ({ ...p, hourlySendLimit: clampSendLimit(e.target.value, MAX_HOURLY_SEND_LIMIT) }))}
                               onClick={(e) => e.stopPropagation()}
                               style={{ width: 68, height: 30, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
                             <span style={{ font: "400 11px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>/hr</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <label htmlFor={`rl-day-${member._id}`} style={{ font: "400 11px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>Daily:</label>
-                            <Input id={`rl-day-${member._id}`} type="number" min="1" max="200" value={rateLimitValues.dailySendLimit}
-                              onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setRateLimitValues(p => ({ ...p, dailySendLimit: Math.min(200, Math.max(1, v)) })); }}
+                            <Input id={`rl-day-${member._id}`} type="number" min="1" max={MAX_DAILY_SEND_LIMIT} value={rateLimitValues.dailySendLimit}
+                              onChange={(e) => setRateLimitValues(p => ({ ...p, dailySendLimit: parseSendLimitInput(e.target.value) }))}
+                              onBlur={(e) => setRateLimitValues(p => ({ ...p, dailySendLimit: clampSendLimit(e.target.value, MAX_DAILY_SEND_LIMIT) }))}
                               onClick={(e) => e.stopPropagation()}
-                              style={{ width: 68, height: 30, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
+                              style={{ width: 80, height: 30, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
                             <span style={{ font: "400 11px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>/day</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
