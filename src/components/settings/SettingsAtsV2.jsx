@@ -25,9 +25,9 @@ import {
 //     and the `.slice(0, 160)` / `.slice(0, 500)` input caps.
 //   · The reporting-threshold block, which lives in the RENDER: the nested
 //     `updateThreshold` merge (a flat `update` would nuke the sibling
-//     thresholds) and the three `Number.isFinite` defaults, whose values 14 / 3
-//     / 24 mirror ATS_REPORTING_THRESHOLD_DEFAULTS in the API. The comment
-//     saying to keep them in sync is carried across with them.
+//     thresholds) and the `Number.isFinite` defaults, which now read from
+//     THRESHOLD_DEFAULTS below — that object mirrors
+//     ATS_REPORTING_THRESHOLD_DEFAULTS in the API and must stay in sync.
 //   · `autoCreateCandidate ?? true` — not `|| false`. A stored `false` must
 //     stay false; a missing key must read as true.
 //
@@ -268,6 +268,27 @@ function CareersCard({ orgSlug }) {
   );
 }
 
+// Defaults match ATS_REPORTING_THRESHOLD_DEFAULTS in the API (src/ats.js).
+// Keep these in sync if the server-side defaults change, so the field values
+// never disagree with what the dashboard actually scores against.
+const THRESHOLD_DEFAULTS = {
+  staleDays: 14,
+  awaitingResultDays: 3,
+  pendingApprovalHours: 24,
+  jobAgingTargetDays: 30,
+  jobNoSubmittalDays: 7,
+};
+
+// The threshold inputs hold the raw string while focused so the field can be
+// cleared and retyped. Applying `|| default` per keystroke snapped the value
+// back the instant the field went blank, so the next keystroke appended to the
+// default instead of replacing it (14 -> type "2" -> 142). Normalise on blur
+// and again on save.
+const normaliseThreshold = (key, v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : THRESHOLD_DEFAULTS[key];
+};
+
 export default function SettingsAtsV2() {
   const { currentOrg, isOrgAdmin, isOrgOwner, getAppRole } = useOrg();
   const { showToast } = useToast();
@@ -303,7 +324,15 @@ export default function SettingsAtsV2() {
     if (!settings) { showToast('No settings to save', 'error'); return; }
     setSaving(true);
     try {
-      await atsApi.updateSettings(currentOrg.slug, settings);
+      // Coerce only the thresholds actually present — a key that was never set
+      // must stay absent so the API keeps applying its own default.
+      const reportingThresholds = { ...(settings.reportingThresholds || {}) };
+      for (const key of Object.keys(THRESHOLD_DEFAULTS)) {
+        if (reportingThresholds[key] !== undefined) {
+          reportingThresholds[key] = normaliseThreshold(key, reportingThresholds[key]);
+        }
+      }
+      await atsApi.updateSettings(currentOrg.slug, { ...settings, reportingThresholds });
       showToast('Settings saved');
     } catch (err) {
       showToast(err.message || 'Failed to save settings', 'error');
@@ -340,18 +369,19 @@ export default function SettingsAtsV2() {
     ...prev,
     reportingThresholds: { ...(prev?.reportingThresholds || {}), [key]: value },
   }));
-  // Defaults match ATS_REPORTING_THRESHOLD_DEFAULTS in the API
-  // (src/ats.js). Keep these in sync if the server-side defaults
-  // change so the placeholder text never lies.
+  // Defaults come from THRESHOLD_DEFAULTS above, which mirrors
+  // ATS_REPORTING_THRESHOLD_DEFAULTS in the API (src/ats.js).
+  // Note these pass a raw '' straight through (Number('') is 0, which is
+  // finite) — that is what lets the field be cleared while focused.
   const thresholds = settings?.reportingThresholds || {};
-  const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : 14;
-  const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : 3;
-  const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : 24;
+  const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : THRESHOLD_DEFAULTS.staleDays;
+  const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : THRESHOLD_DEFAULTS.awaitingResultDays;
+  const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : THRESHOLD_DEFAULTS.pendingApprovalHours;
   // 2026-08-20 job-aging SLA (dashboard Job Aging card). Defaults must match
   // ATS_REPORTING_THRESHOLD_DEFAULTS in the API and the legacy page, or the
   // card scores against one number while this page shows another.
-  const jobAgingTargetDays = Number.isFinite(Number(thresholds.jobAgingTargetDays)) ? thresholds.jobAgingTargetDays : 30;
-  const jobNoSubmittalDays = Number.isFinite(Number(thresholds.jobNoSubmittalDays)) ? thresholds.jobNoSubmittalDays : 7;
+  const jobAgingTargetDays = Number.isFinite(Number(thresholds.jobAgingTargetDays)) ? thresholds.jobAgingTargetDays : THRESHOLD_DEFAULTS.jobAgingTargetDays;
+  const jobNoSubmittalDays = Number.isFinite(Number(thresholds.jobNoSubmittalDays)) ? thresholds.jobNoSubmittalDays : THRESHOLD_DEFAULTS.jobNoSubmittalDays;
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -432,7 +462,8 @@ export default function SettingsAtsV2() {
                 max="365"
                 value={staleDays}
                 aria-label="Stale applications, days"
-                onChange={(e) => updateThreshold('staleDays', Number(e.target.value) || 14)}
+                onChange={(e) => updateThreshold('staleDays', e.target.value)}
+                onBlur={(e) => updateThreshold('staleDays', normaliseThreshold('staleDays', e.target.value))}
               />
             </FieldBlock>
 
@@ -448,7 +479,8 @@ export default function SettingsAtsV2() {
                 max="60"
                 value={awaitingResultDays}
                 aria-label="Awaiting interview result, days"
-                onChange={(e) => updateThreshold('awaitingResultDays', Number(e.target.value) || 3)}
+                onChange={(e) => updateThreshold('awaitingResultDays', e.target.value)}
+                onBlur={(e) => updateThreshold('awaitingResultDays', normaliseThreshold('awaitingResultDays', e.target.value))}
               />
             </FieldBlock>
 
@@ -464,7 +496,8 @@ export default function SettingsAtsV2() {
                 max="720"
                 value={pendingApprovalHours}
                 aria-label="Pending job approvals, hours"
-                onChange={(e) => updateThreshold('pendingApprovalHours', Number(e.target.value) || 24)}
+                onChange={(e) => updateThreshold('pendingApprovalHours', e.target.value)}
+                onBlur={(e) => updateThreshold('pendingApprovalHours', normaliseThreshold('pendingApprovalHours', e.target.value))}
               />
             </FieldBlock>
             {/* Job-aging SLA. These two drive the dashboard's Job Aging &
@@ -482,7 +515,8 @@ export default function SettingsAtsV2() {
                 max="365"
                 value={jobAgingTargetDays}
                 aria-label="Job aging target, days"
-                onChange={(e) => updateThreshold('jobAgingTargetDays', Number(e.target.value) || 30)}
+                onChange={(e) => updateThreshold('jobAgingTargetDays', e.target.value)}
+                onBlur={(e) => updateThreshold('jobAgingTargetDays', normaliseThreshold('jobAgingTargetDays', e.target.value))}
               />
             </FieldBlock>
             <FieldBlock
@@ -497,7 +531,8 @@ export default function SettingsAtsV2() {
                 max="60"
                 value={jobNoSubmittalDays}
                 aria-label="Submittal window, days"
-                onChange={(e) => updateThreshold('jobNoSubmittalDays', Number(e.target.value) || 7)}
+                onChange={(e) => updateThreshold('jobNoSubmittalDays', e.target.value)}
+                onBlur={(e) => updateThreshold('jobNoSubmittalDays', normaliseThreshold('jobNoSubmittalDays', e.target.value))}
               />
             </FieldBlock>
           </div>

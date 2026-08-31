@@ -100,7 +100,16 @@ function FollowUpConfig({ orgSlug, showToast }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await invoicingApi.updateFollowUpConfig(orgSlug, config);
+      // delayDays holds the raw input string while focused; coerce before send
+      // so a mid-edit value never reaches the API.
+      const payload = {
+        ...config,
+        levels: (config.levels || []).map(l => ({
+          ...l,
+          delayDays: Math.max(1, parseInt(l.delayDays, 10) || 1),
+        })),
+      };
+      await invoicingApi.updateFollowUpConfig(orgSlug, payload);
       showToast('Follow-up config saved');
     } catch (err) {
       showToast(err.message || 'Failed to save config', 'error');
@@ -155,8 +164,9 @@ function FollowUpConfig({ orgSlug, showToast }) {
                         <input
                           type="number"
                           min="1"
-                          value={level.delayDays || ''}
-                          onChange={e => updateLevel(idx, 'delayDays', parseInt(e.target.value) || 0)}
+                          value={level.delayDays ?? ''}
+                          onChange={e => updateLevel(idx, 'delayDays', e.target.value)}
+                          onBlur={e => updateLevel(idx, 'delayDays', Math.max(1, parseInt(e.target.value, 10) || 1))}
                           className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
                         />
                       </div>

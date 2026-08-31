@@ -236,6 +236,27 @@ function ToggleSwitch({ checked, onChange, disabled }) {
   );
 }
 
+// Defaults match ATS_REPORTING_THRESHOLD_DEFAULTS in the API (src/ats.js).
+// Keep these in sync if the server-side defaults change, so the field values
+// never disagree with what the dashboard actually scores against.
+const THRESHOLD_DEFAULTS = {
+  staleDays: 14,
+  awaitingResultDays: 3,
+  pendingApprovalHours: 24,
+  jobAgingTargetDays: 30,
+  jobNoSubmittalDays: 7,
+};
+
+// The threshold inputs hold the raw string while focused so the field can be
+// cleared and retyped. Applying `|| default` per keystroke snapped the value
+// back the instant the field went blank, so the next keystroke appended to the
+// default instead of replacing it (14 -> type "2" -> 142). Normalise on blur
+// and again on save.
+const normaliseThreshold = (key, v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : THRESHOLD_DEFAULTS[key];
+};
+
 export default function SettingsAts() {
   const { currentOrg, isOrgAdmin, isOrgOwner, getAppRole } = useOrg();
   const { showToast } = useToast();
@@ -271,7 +292,15 @@ export default function SettingsAts() {
     if (!settings) { showToast('No settings to save', 'error'); return; }
     setSaving(true);
     try {
-      await atsApi.updateSettings(currentOrg.slug, settings);
+      // Coerce only the thresholds actually present — a key that was never set
+      // must stay absent so the API keeps applying its own default.
+      const reportingThresholds = { ...(settings.reportingThresholds || {}) };
+      for (const key of Object.keys(THRESHOLD_DEFAULTS)) {
+        if (reportingThresholds[key] !== undefined) {
+          reportingThresholds[key] = normaliseThreshold(key, reportingThresholds[key]);
+        }
+      }
+      await atsApi.updateSettings(currentOrg.slug, { ...settings, reportingThresholds });
       showToast('Settings saved');
     } catch (err) {
       showToast(err.message || 'Failed to save settings', 'error');
@@ -316,12 +345,12 @@ export default function SettingsAts() {
   // (src/ats.js). Keep these in sync if the server-side defaults
   // change so the placeholder text never lies.
   const thresholds = settings?.reportingThresholds || {};
-  const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : 14;
-  const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : 3;
-  const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : 24;
+  const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : THRESHOLD_DEFAULTS.staleDays;
+  const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : THRESHOLD_DEFAULTS.awaitingResultDays;
+  const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : THRESHOLD_DEFAULTS.pendingApprovalHours;
   // 2026-08-20 job-aging SLA (dashboard Job Aging card).
-  const jobAgingTargetDays = Number.isFinite(Number(thresholds.jobAgingTargetDays)) ? thresholds.jobAgingTargetDays : 30;
-  const jobNoSubmittalDays = Number.isFinite(Number(thresholds.jobNoSubmittalDays)) ? thresholds.jobNoSubmittalDays : 7;
+  const jobAgingTargetDays = Number.isFinite(Number(thresholds.jobAgingTargetDays)) ? thresholds.jobAgingTargetDays : THRESHOLD_DEFAULTS.jobAgingTargetDays;
+  const jobNoSubmittalDays = Number.isFinite(Number(thresholds.jobNoSubmittalDays)) ? thresholds.jobNoSubmittalDays : THRESHOLD_DEFAULTS.jobNoSubmittalDays;
 
   return (
     <div className="space-y-6">
@@ -389,7 +418,8 @@ export default function SettingsAts() {
                   min="1"
                   max="365"
                   value={staleDays}
-                  onChange={(e) => updateThreshold('staleDays', Number(e.target.value) || 14)}
+                  onChange={(e) => updateThreshold('staleDays', e.target.value)}
+                  onBlur={(e) => updateThreshold('staleDays', normaliseThreshold('staleDays', e.target.value))}
                   className="input-field w-24"
                 />
                 <span className="text-xs text-dark-500">days</span>
@@ -404,7 +434,8 @@ export default function SettingsAts() {
                   min="1"
                   max="60"
                   value={awaitingResultDays}
-                  onChange={(e) => updateThreshold('awaitingResultDays', Number(e.target.value) || 3)}
+                  onChange={(e) => updateThreshold('awaitingResultDays', e.target.value)}
+                  onBlur={(e) => updateThreshold('awaitingResultDays', normaliseThreshold('awaitingResultDays', e.target.value))}
                   className="input-field w-24"
                 />
                 <span className="text-xs text-dark-500">days</span>
@@ -419,7 +450,8 @@ export default function SettingsAts() {
                   min="1"
                   max="720"
                   value={pendingApprovalHours}
-                  onChange={(e) => updateThreshold('pendingApprovalHours', Number(e.target.value) || 24)}
+                  onChange={(e) => updateThreshold('pendingApprovalHours', e.target.value)}
+                  onBlur={(e) => updateThreshold('pendingApprovalHours', normaliseThreshold('pendingApprovalHours', e.target.value))}
                   className="input-field w-24"
                 />
                 <span className="text-xs text-dark-500">hours</span>
@@ -447,7 +479,8 @@ export default function SettingsAts() {
                   min="1"
                   max="365"
                   value={jobAgingTargetDays}
-                  onChange={(e) => updateThreshold('jobAgingTargetDays', Number(e.target.value) || 30)}
+                  onChange={(e) => updateThreshold('jobAgingTargetDays', e.target.value)}
+                  onBlur={(e) => updateThreshold('jobAgingTargetDays', normaliseThreshold('jobAgingTargetDays', e.target.value))}
                   className="input-field w-24"
                 />
                 <span className="text-xs text-dark-500">days</span>
@@ -462,7 +495,8 @@ export default function SettingsAts() {
                   min="1"
                   max="60"
                   value={jobNoSubmittalDays}
-                  onChange={(e) => updateThreshold('jobNoSubmittalDays', Number(e.target.value) || 7)}
+                  onChange={(e) => updateThreshold('jobNoSubmittalDays', e.target.value)}
+                  onBlur={(e) => updateThreshold('jobNoSubmittalDays', normaliseThreshold('jobNoSubmittalDays', e.target.value))}
                   className="input-field w-24"
                 />
                 <span className="text-xs text-dark-500">days</span>

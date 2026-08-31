@@ -771,7 +771,11 @@ function StepEditorModal({ step, stepIndex, sequenceId, onSave, onClose }) {
       if (!subject.trim()) { setError('Subject is required'); return; }
       if (isBodyEmpty(body)) { setError('Body is required'); return; }
     }
-    if (step.type === 'wait' && (!days || days < 1)) {
+    // `days` holds the raw input string while the field is focused, so parse
+    // before validating — a blank field must still fail the check rather than
+    // being silently coerced to 1.
+    const parsedDays = parseInt(days, 10);
+    if (step.type === 'wait' && (!Number.isFinite(parsedDays) || parsedDays < 1)) {
       setError('Wait days must be at least 1'); return;
     }
 
@@ -780,7 +784,7 @@ function StepEditorModal({ step, stepIndex, sequenceId, onSave, onClose }) {
       await onSave(stepIndex, {
         subject: subject.trim(),
         body,
-        days,
+        days: Number.isFinite(parsedDays) ? Math.min(30, Math.max(1, parsedDays)) : days,
       });
     } catch (err) {
       setError(err.message || 'Failed to save');
@@ -911,10 +915,11 @@ function StepEditorModal({ step, stepIndex, sequenceId, onSave, onClose }) {
                 min={1}
                 max={30}
                 value={days}
-                onChange={(e) => setDays(parseInt(e.target.value) || 1)}
+                onChange={(e) => setDays(e.target.value)}
+                onBlur={(e) => setDays(Math.min(30, Math.max(1, parseInt(e.target.value, 10) || 1)))}
                 className="w-20 px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white text-sm text-center focus:outline-none focus:border-rivvra-500"
               />
-              <span className="text-sm text-dark-300">day{days !== 1 ? 's' : ''}</span>
+              <span className="text-sm text-dark-300">day{Number(days) !== 1 ? 's' : ''}</span>
             </div>
           )}
         </div>
