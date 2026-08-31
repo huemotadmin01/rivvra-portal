@@ -513,6 +513,13 @@ export default function EmployeeDetail() {
     setAssignmentSaving(true);
     try {
       const { index, isNew, ...data } = editAssignment;
+      // The input holds a raw string while focused (so "1.5" can be typed at
+      // all — clamping per-keystroke ate the decimal point). Coerce back to a
+      // bounded number here; blur normally does it, but Save can fire first.
+      if (data.paidLeavePerMonth !== undefined) {
+        const plm = Number(data.paidLeavePerMonth);
+        data.paidLeavePerMonth = Number.isFinite(plm) ? Math.min(3, Math.max(0, plm)) : 0;
+      }
       const existing = employee.assignments || [];
       // Build cleaned assignments array — preserve server-managed fields
       // (rateHistory in particular) on rows we're not editing so we don't
@@ -2525,7 +2532,8 @@ export default function EmployeeDetail() {
                 <div>
                   <label className="block text-sm text-dark-400 mb-1">Paid Leave / Month</label>
                   <input type="number" min="0" max="3" step="0.5" value={editAssignment.paidLeavePerMonth}
-                    onChange={e => {
+                    onChange={e => setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: e.target.value }))}
+                    onBlur={e => {
                       const v = e.target.value;
                       const n = v === '' ? 0 : Math.min(3, Math.max(0, Number(v)));
                       setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: Number.isFinite(n) ? n : 0 }));

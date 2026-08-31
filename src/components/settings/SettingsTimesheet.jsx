@@ -58,10 +58,19 @@ export default function SettingsTimesheet() {
     ]).finally(() => { setLoading(false); setAppLoading(false); });
   }, [isTimesheetAdmin]);
 
+  // Reminder-day fields hold whatever was typed (including '') while focused so
+  // the field can be cleared and retyped; normalise here rather than clamping
+  // per-keystroke, which snaps the value out from under the cursor.
+  const reminderDayOrDefault = (v) => Math.min(10, Math.max(1, Number(v) || 5));
+
   const handleSaveAppSettings = async () => {
     setAppSaving(true);
     try {
-      await updateTimesheetAppSettings(appSettings);
+      await updateTimesheetAppSettings({
+        ...appSettings,
+        reminderDay: reminderDayOrDefault(appSettings?.reminderDay),
+        attendanceReminderDay: reminderDayOrDefault(appSettings?.attendanceReminderDay),
+      });
     } catch (err) {} finally { setAppSaving(false); }
   };
 
@@ -267,7 +276,8 @@ export default function SettingsTimesheet() {
                         <p className="text-xs text-dark-500 mb-2">Reminder emails will be sent this many days before the last day of each month</p>
                         <input type="number" min="1" max="10"
                           value={appSettings.reminderDay ?? 5}
-                          onChange={e => updateApp('reminderDay', Math.min(10, Math.max(1, Number(e.target.value) || 5)))}
+                          onChange={e => updateApp('reminderDay', e.target.value)}
+                          onBlur={e => updateApp('reminderDay', reminderDayOrDefault(e.target.value))}
                           className="input-field w-24" />
                       </div>
                       <div className="pt-3 border-t border-dark-700">
@@ -309,7 +319,8 @@ export default function SettingsTimesheet() {
                         <p className="text-xs text-dark-500 mb-2">Attendance reminder emails will be sent this many days before the last day of each month</p>
                         <input type="number" min="1" max="10"
                           value={appSettings.attendanceReminderDay ?? 5}
-                          onChange={e => updateApp('attendanceReminderDay', Math.min(10, Math.max(1, Number(e.target.value) || 5)))}
+                          onChange={e => updateApp('attendanceReminderDay', e.target.value)}
+                          onBlur={e => updateApp('attendanceReminderDay', reminderDayOrDefault(e.target.value))}
                           className="input-field w-24" />
                       </div>
                       <div className="pt-3 border-t border-dark-700">

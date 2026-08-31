@@ -134,10 +134,19 @@ export default function SettingsTimesheetV2() {
     ]).finally(() => { setLoading(false); setAppLoading(false); });
   }, [isTimesheetAdmin]);
 
+  // Reminder-day fields hold whatever was typed (including '') while focused so
+  // the field can be cleared and retyped; normalise here rather than clamping
+  // per-keystroke, which snaps the value out from under the cursor.
+  const reminderDayOrDefault = (v) => Math.min(10, Math.max(1, Number(v) || 5));
+
   const handleSaveAppSettings = async () => {
     setAppSaving(true);
     try {
-      await updateTimesheetAppSettings(appSettings);
+      await updateTimesheetAppSettings({
+        ...appSettings,
+        reminderDay: reminderDayOrDefault(appSettings?.reminderDay),
+        attendanceReminderDay: reminderDayOrDefault(appSettings?.attendanceReminderDay),
+      });
     } catch (err) {} finally { setAppSaving(false); }
   };
 
@@ -321,7 +330,8 @@ export default function SettingsTimesheetV2() {
                     <Field id="ts-reminder-day" label="Days Before Month End" hint="Reminder emails will be sent this many days before the last day of each month">
                       <Input id="ts-reminder-day" type="number" min="1" max="10"
                         value={appSettings.reminderDay ?? 5}
-                        onChange={e => updateApp('reminderDay', Math.min(10, Math.max(1, Number(e.target.value) || 5)))}
+                        onChange={e => updateApp('reminderDay', e.target.value)}
+                        onBlur={e => updateApp('reminderDay', reminderDayOrDefault(e.target.value))}
                         style={{ width: 100, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} />
                     </Field>
                     <div style={{ borderTop: '1px solid var(--line-2)', paddingTop: 12 }}>
@@ -353,7 +363,8 @@ export default function SettingsTimesheetV2() {
                     <Field id="ts-att-reminder-day" label="Days Before Month End" hint="Attendance reminder emails will be sent this many days before the last day of each month">
                       <Input id="ts-att-reminder-day" type="number" min="1" max="10"
                         value={appSettings.attendanceReminderDay ?? 5}
-                        onChange={e => updateApp('attendanceReminderDay', Math.min(10, Math.max(1, Number(e.target.value) || 5)))}
+                        onChange={e => updateApp('attendanceReminderDay', e.target.value)}
+                        onBlur={e => updateApp('attendanceReminderDay', reminderDayOrDefault(e.target.value))}
                         style={{ width: 100, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} />
                     </Field>
                     <div style={{ borderTop: '1px solid var(--line-2)', paddingTop: 12 }}>
