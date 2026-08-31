@@ -47,6 +47,12 @@ export const ATS_EMPLOYMENT_TYPE_FALLBACK = { employeeKey: 'confirmed', salaryUn
 // user's typed value before the API call.
 export const SALARY_UNIT_INPUT = {
   per_day:   { placeholder: 'e.g. 4500',   helper: 'Per working day' },
+  // 2026-08-31: rate-based (per_day meta) roles can be agreed per-HOUR
+  // (e.g. external consultants billed hourly). The offer modal offers a
+  // per_day/per_hour choice for those roles only; the chosen unit is
+  // stored on offer.offeredCTC.unit. Capture-side only — downstream
+  // (hire promotion, payroll) has no per_hour conversion yet.
+  per_hour:  { placeholder: 'e.g. 600',    helper: 'Per hour' },
   per_month: { placeholder: 'e.g. 80000',  helper: 'Per month (gross)' },
   lpa:       { placeholder: 'e.g. 12',     helper: 'Lakhs Per Annum (e.g. 12 = 12,00,000 INR/year)' },
   per_year:  { placeholder: 'e.g. 1200000', helper: 'Per year (gross)' },

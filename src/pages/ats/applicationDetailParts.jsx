@@ -127,8 +127,28 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // untouched.
   const effectiveEmploymentType = application?.employmentType || application?.jobEmploymentType || null;
   const empMeta = getEmploymentTypeMeta(effectiveEmploymentType);
-  const salaryUnit = empMeta.salaryUnit;
-  const salaryLabel = empMeta.salaryLabel;
+  // 2026-08-31 offer-capture hard gate (audit §6.3.3, authorized): when
+  // neither the application nor its linked job carries an employment type,
+  // the salary unit is unknowable (fallback meta = LPA) and an offer
+  // captured now would store wrong money units for rate-based roles.
+  // Save is disabled with an inline explanation pointing at the job; the
+  // API enforces the same gate server-side (PATCH /offer → 400
+  // EMPLOYMENT_TYPE_MISSING), so this is UX, not the security boundary.
+  const employmentTypeMissing = !effectiveEmploymentType;
+  // 2026-08-31 per-hour rates (Muneer Sunkesula case): rate-based types —
+  // meta salaryUnit 'per_day', i.e. External Consultant — can be agreed
+  // per-HOUR. Only those get a rate-unit choice; Intern (per_month) and
+  // LPA types have no meaningful hourly variant. The chosen unit flows
+  // into offer.offeredCTC.unit (validated server-side against the
+  // allowlist), so every offer self-describes its unit. Downstream
+  // computation (hire promotion ats.js monthlyGross, payroll) is
+  // deliberately NOT taught per_hour here — capture-side only.
+  const isRateBased = empMeta.salaryUnit === 'per_day';
+  const [rateUnit, setRateUnit] = useState(
+    initialOffer?.offeredCTC?.unit === 'per_hour' ? 'per_hour' : 'per_day',
+  );
+  const salaryUnit = isRateBased ? rateUnit : empMeta.salaryUnit;
+  const salaryLabel = (isRateBased && rateUnit === 'per_hour') ? 'Hourly rate' : empMeta.salaryLabel;
   const salaryInputCfg = SALARY_UNIT_INPUT[salaryUnit] || SALARY_UNIT_INPUT.lpa;
 
   // 2026-07-18: the progressive offerLevel gate ('salary' / 'signed'
@@ -234,6 +254,23 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
     setSignFetchNonce((n) => n + 1);
   };
 
+  // 2026-08-31: the Sign templates endpoint returns EVERY template in the
+  // org/company — MSAs, POs, relieving letters — all of which used to pile
+  // into the "Pick an offer template…" dropdown. Filter to templates
+  // carrying an "offer" tag (case-insensitive substring match on the tag
+  // NAME; GET /sign/templates enriches template.tags to {_id, name, color}
+  // objects). FALLBACK: when no template in this org/company carries an
+  // offer tag, show the full list — never strand the admin with an empty
+  // dropdown just because their templates aren't tagged yet.
+  const offerTemplates = useMemo(() => {
+    const list = Array.isArray(signTemplates) ? signTemplates : [];
+    const tagged = list.filter((t) =>
+      (Array.isArray(t?.tags) ? t.tags : []).some((tag) => /offer/i.test(String(tag?.name ?? tag ?? ''))),
+    );
+    return tagged.length > 0 ? tagged : list;
+  }, [signTemplates]);
+  const offerTemplatesFiltered = offerTemplates.length > 0 && offerTemplates.length < signTemplates.length;
+
   // Reset Sign-section state every time the modal opens so a fresh
   // open after a previous send doesn't carry stale data. signedOfferDocId
   // itself is reset by the existing initialOffer effect below.
@@ -290,6 +327,10 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       setJoiningDate(io?.joiningDate ? new Date(io.joiningDate).toISOString().slice(0, 10) : today);
       setCurrency(io?.offeredCTC?.currency || 'INR');
       setAmount(io?.offeredCTC?.amount ? String(io.offeredCTC.amount) : '');
+      // Re-prefill the rate unit from a prior capture; anything other than
+      // an explicit per_hour means the per_day default (incl. legacy offers
+      // captured before the unit choice existed).
+      setRateUnit(io?.offeredCTC?.unit === 'per_hour' ? 'per_hour' : 'per_day');
       setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : '30');
       setProbationMonths(io?.probationMonths != null ? String(io.probationMonths) : '6');
       setSignedOfferDocId(io?.signedOfferDocId || '');
@@ -324,6 +365,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
     if (!Number.isFinite(amt) || amt <= 0) return '';
     const formatted = amt.toLocaleString('en-IN');
     const unitLabel = salaryUnit === 'per_day' ? 'per day'
+      : salaryUnit === 'per_hour' ? 'per hour'
       : salaryUnit === 'per_month' ? 'per month'
       : salaryUnit === 'lpa' ? 'LPA'
       : salaryUnit === 'per_year' ? 'per year'
@@ -540,6 +582,10 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Hard gate (§6.3.3): no offer capture without a known employment type —
+    // the Save button is disabled, this is belt-and-braces for keyboard
+    // submits. The API rejects the same condition with 400.
+    if (employmentTypeMissing) return;
     const errs = {};
     // Salary block — required at every level (Offer Proposal, Hire).
     const amt = Number(amount);
@@ -591,6 +637,31 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
 
         <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
         <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer terms</div>
+        {/* 2026-08-31 §6.3.3 hard gate: blank effective employment type ⇒
+            the salary unit is unknowable, so offer capture is blocked (Save
+            disabled below + server-side 400). Explain and point the admin
+            at the job rather than silently disabling. */}
+        {employmentTypeMissing && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2">
+            <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-300" />
+            <div className="min-w-0 text-xs text-amber-200/90 leading-relaxed">
+              <span className="font-medium text-amber-200">Employment type not set — offer capture is blocked.</span>{' '}
+              Set the employment type on the job (or this application) first — the salary unit
+              (day rate vs annual CTC) depends on it.
+              {application?.jobPositionId && orgSlug && (
+                <>
+                  {' '}
+                  <Link
+                    to={`/org/${orgSlug}/ats/jobs/${application.jobPositionId}`}
+                    className="text-amber-300 underline underline-offset-2 hover:text-amber-100"
+                  >
+                    Open the job to set it
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-dark-300 mb-1">Joining date <span className="text-red-400">*</span></label>
@@ -627,9 +698,26 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              {salaryLabel} <span className="text-red-400">*</span>
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="block text-sm font-medium text-dark-300">
+                {salaryLabel} <span className="text-red-400">*</span>
+              </label>
+              {/* 2026-08-31: rate-based (per_day meta) roles only — the
+                  agreed unit can be per-day or per-hour. The choice lands
+                  in offer.offeredCTC.unit; label + helper follow it. */}
+              {isRateBased && (
+                <select
+                  value={rateUnit}
+                  onChange={(e) => setRateUnit(e.target.value)}
+                  title="Unit the rate was agreed in"
+                  aria-label="Rate unit"
+                  className="bg-dark-900 border border-dark-700 rounded-md text-[11px] text-dark-300 px-1.5 py-0.5 focus:outline-none focus:border-dark-500"
+                >
+                  <option value="per_day">Per day</option>
+                  <option value="per_hour">Per hour</option>
+                </select>
+              )}
+            </div>
             <input
               type="number"
               min="1"
@@ -875,10 +963,13 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                             ? 'No Sign templates available'
                             : 'Pick an offer template…'}
                     </option>
-                    {signTemplates.map((t) => (
+                    {offerTemplates.map((t) => (
                       <option key={t._id} value={String(t._id)}>{t.name}</option>
                     ))}
                   </select>
+                  {offerTemplatesFiltered && (
+                    <p className="text-[11px] text-dark-500 mt-1">Showing templates tagged “offer” only ({offerTemplates.length} of {signTemplates.length}).</p>
+                  )}
                   {signError && <p className="text-[11px] text-red-400 mt-1">{signError}</p>}
                 </div>
 
@@ -1001,7 +1092,12 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
 
         <div className="flex items-center gap-3 px-6 py-4 border-t border-dark-700/80 bg-dark-800/95">
           <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
-          <button type="submit" disabled={saving} className={`flex-1 flex items-center justify-center gap-2 ${submitClass} rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50`}>
+          <button
+            type="submit"
+            disabled={saving || employmentTypeMissing}
+            title={employmentTypeMissing ? 'Set the employment type on the job (or application) first — the salary unit depends on it' : undefined}
+            className={`flex-1 flex items-center justify-center gap-2 ${submitClass} rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50`}
+          >
             {saving && <Loader2 size={16} className="animate-spin" />}
             {submitLabel}
           </button>
