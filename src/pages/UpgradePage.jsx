@@ -9,6 +9,12 @@ import {
   Calendar, RefreshCw,
 } from 'lucide-react';
 
+// Seat bounds. These were previously only in the input's min/max attributes,
+// which browsers do not enforce against typed input — 5000 seats was accepted
+// and sent to Stripe. Clamp in JS as well as in the markup.
+const MIN_SEATS = 1;
+const MAX_SEATS = 1000;
+
 const PRICING = {
   growth: {
     name: 'Growth',
@@ -104,8 +110,14 @@ function UpgradePage() {
   }, [orgSlug, stripeSuccess]);
 
   const plan = PRICING[selectedPlan];
-  const monthlyEquivTotal = perSeatFor(plan, billingPeriod) * seatCount; // $/mo equivalent
-  const annualTotal = plan.price * 10 * seatCount;                       // $/yr if annual
+  // `seatCount` holds the raw input string while the field is focused so it can
+  // be cleared and retyped — clamping per-keystroke snapped it back to 1 the
+  // moment it went blank. `seats` is the normalised number: it is what the
+  // pricing, the copy, and the Stripe payload all read, so an empty field
+  // never reaches the money math.
+  const seats = Math.min(MAX_SEATS, Math.max(MIN_SEATS, parseInt(seatCount, 10) || MIN_SEATS));
+  const monthlyEquivTotal = perSeatFor(plan, billingPeriod) * seats; // $/mo equivalent
+  const annualTotal = plan.price * 10 * seats;                       // $/yr if annual
   const isPaid = ['growth', 'scale', 'core', 'all_apps', 'pro', 'enterprise'].includes(currentOrg?.plan);
 
   // Redirect to Stripe Checkout
@@ -114,7 +126,7 @@ function UpgradePage() {
       setError('Only organization owners or admins can upgrade.');
       return;
     }
-    if (seatCount < 1) {
+    if (seats < MIN_SEATS) {
       setError('At least 1 seat is required.');
       return;
     }
@@ -124,7 +136,7 @@ function UpgradePage() {
     try {
       const result = await api.createCheckoutSession(orgSlug, {
         plan: selectedPlan,
-        seats: seatCount,
+        seats,
         billingPeriod,
       });
       if (result.url) {
@@ -440,10 +452,11 @@ function UpgradePage() {
         <div className="flex items-center gap-4">
           <input
             type="number"
-            min={1}
-            max={1000}
+            min={MIN_SEATS}
+            max={MAX_SEATS}
             value={seatCount}
-            onChange={(e) => setSeatCount(Math.max(1, parseInt(e.target.value) || 1))}
+            onChange={(e) => setSeatCount(e.target.value)}
+            onBlur={() => setSeatCount(seats)}
             className="w-24 px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white text-center text-lg font-semibold focus:outline-none focus:border-rivvra-500"
           />
           <div className="text-dark-300">
@@ -456,7 +469,7 @@ function UpgradePage() {
           </div>
         </div>
         {billingPeriod === 'annual' && (
-          <p className="text-xs text-dark-500 mt-3">Billed annually as ${annualTotal}/year for {seatCount} seat{seatCount > 1 ? 's' : ''}.</p>
+          <p className="text-xs text-dark-500 mt-3">Billed annually as ${annualTotal}/year for {seats} seat{seats > 1 ? 's' : ''}.</p>
         )}
       </div>
 
