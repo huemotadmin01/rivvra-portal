@@ -10,6 +10,7 @@ import {
   Field, Input, Select, Button, Chip, Callout,
 } from '../../components/ds';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { currencySymbol } from '../../utils/currency';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A money page: it sets the daily/monthly pay rate and the client billing rate
@@ -21,10 +22,22 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog';
 // would silently change what stored numbers mean.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const RATE_TYPE_LABELS = {
-  daily: '₹/day · INR',
-  hourly: '$/hour · USD',
-  monthly: '₹/month · INR',
+// Label the CLIENT billing rate from the record's own clientBillingCurrency
+// instead of guessing it from the rate type. The old map hardcoded
+// daily → ₹ · INR and hourly → $ · USD, which described Huemot's data at the
+// time rather than the record: prod carries 50 INR / 36 USD on assignments, so
+// a USD client billed daily was labelled "₹/day · INR". The currency now comes
+// through deriveTimesheetFields alongside the rate.
+//
+// Only the CLIENT side is currency-aware. The employee-pay fields below still
+// read ₹ because billingRate has NO currency field on the record — that is a
+// data-model gap, and inventing a currency for those numbers would be exactly
+// the relabel the header comment warns against.
+const clientRateLabel = (type, currency) => {
+  const unit = type === 'hourly' ? 'hour' : type === 'monthly' ? 'month' : 'day';
+  return currency
+    ? `${currencySymbol(currency)}/${unit} · ${currency}`
+    : `${currencySymbol(null)}/${unit}`;
 };
 
 // Badge hues move to Chip's tone set rather than being reproduced exactly.
@@ -62,7 +75,7 @@ export default function TimesheetUsersV2() {
   const [form, setForm] = useState({
     fullName: '', email: '', password: '', role: 'contractor',
     employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '',
-    paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', assignedClient: '', assignedProjects: []
+    paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', clientBillingCurrency: null, assignedClient: '', assignedProjects: []
   });
 
   const load = () => {
@@ -108,7 +121,7 @@ export default function TimesheetUsersV2() {
   useEffect(() => { load(); }, [currentCompany?._id]);
 
   const resetForm = () => {
-    setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '', paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', assignedClient: '', assignedProjects: [] });
+    setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '', paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', clientBillingCurrency: null, assignedClient: '', assignedProjects: [] });
     setEditing(null); setShowForm(false); setLinkedEmployee(null); setEmpSearch(''); setShowEmpDropdown(false);
   };
 
@@ -139,6 +152,9 @@ export default function TimesheetUsersV2() {
       payType,
       clientBillingRate: cbr || prev.clientBillingRate,
       clientBillingRateType: cbr ? cbrType : prev.clientBillingRateType,
+      // Carry the currency with the rate it belongs to, so the label follows
+      // the employee you just picked instead of the previous selection's.
+      clientBillingCurrency: cbr ? (emp.clientBillingCurrency || null) : prev.clientBillingCurrency,
     }));
   };
 
@@ -149,6 +165,9 @@ export default function TimesheetUsersV2() {
       payType: user.payType || 'daily', dailyRate: user.dailyRate || '', monthlyRate: user.monthlyRate || '',
       paidLeavePerMonth: user.paidLeavePerMonth || 0, clientBillingRate: user.clientBillingRate || '',
       clientBillingRateType: user.clientBillingRateType || 'daily',
+      // Null when the assignment carries no currency — clientRateLabel then
+      // falls back to the historical symbol rather than inventing one.
+      clientBillingCurrency: user.clientBillingCurrency || null,
       assignedClient: user.assignedClient?._id || user.assignedClient || '',
       assignedProjects: user.assignedProjects?.map(p => p._id || p) || []
     });
@@ -467,7 +486,7 @@ export default function TimesheetUsersV2() {
             </div>
           </div>
 
-          <Field label={`Client Billing Rate (${RATE_TYPE_LABELS[form.clientBillingRateType] || '₹/day'})`} htmlFor="u-cbr">
+          <Field label={`Client Billing Rate (${clientRateLabel(form.clientBillingRateType, form.clientBillingCurrency)})`} htmlFor="u-cbr">
             <Input id="u-cbr" type="number" value={form.clientBillingRate} onChange={e => setForm({...form, clientBillingRate: e.target.value})} />
           </Field>
 
