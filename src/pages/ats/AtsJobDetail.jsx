@@ -1155,15 +1155,34 @@ export default function AtsJobDetail() {
       </div>
 
       {/* ─── Careers publish panel ───────────────────────────────────────
-          Admin-only. Surfaces:
+          Surfaces:
             • current publish state + toggle (only when job is Open+Approved)
             • shareable public URL when published
             • a warning chip when Public-facing JD is empty (will fall back
               to Internal description on the public page).
           Hidden entirely when the org has not enabled Careers AND the job
           is not already published — to keep the page lean for tenants
-          that aren't using this feature yet. */}
-      {isAdmin && !job.archived && (orgCareersEnabled || job.publishToCareers) && (
+          that aren't using this feature yet.
+
+          2026-09-01: opened up from isAdmin to canRecruit. Anyone who can see
+          a job position can now see and copy its public careers link — that is
+          a read-only fact about a page that is already public, and recruiters
+          were asking admins to fetch the URL for them. The two MUTATING
+          controls below (Publish/Unpublish, Auto-publish on approval) stay
+          isAdmin — they decide whether a job is listed on a public website,
+          which is not a recruiter-level decision. The server agrees and is in
+          fact stricter: POST /ats/jobs/:id/publish and /unpublish require
+          orgRole owner|admin (careers.js), not merely an ATS admin role — so
+          a user whose appAccess.ats.role is 'admin' but who is only an org
+          member would see the button here and get a 403. Nobody in prod has
+          that combination today, but keep it in mind if you widen isAdmin.
+
+          Non-admins additionally require a resolved jobPublicUrl, so they only
+          see the panel when there is actually a link to copy. Otherwise it
+          renders as an empty box whose only content is a hint telling them to
+          change Settings they cannot reach. */}
+      {canRecruit && !job.archived && (orgCareersEnabled || job.publishToCareers)
+        && (isAdmin || (job.publishToCareers && jobPublicUrl)) && (
         <div className={`rounded-lg border px-4 py-3 ${
           job.publishToCareers
             ? 'border-emerald-500/30 bg-emerald-500/5'
@@ -1224,6 +1243,10 @@ export default function AtsJobDetail() {
               </div>
             </div>
 
+            {/* Publish/Unpublish — admin-only. Listing a job on a public
+                website is not a recruiter-level decision; the server enforces
+                it too (owner|admin on the publish/unpublish routes). */}
+            {isAdmin && (
             <div className="flex items-center gap-2 flex-shrink-0">
               {job.publishToCareers ? (
                 <button
@@ -1250,13 +1273,15 @@ export default function AtsJobDetail() {
                 </button>
               )}
             </div>
+            )}
           </div>
 
           {/* Auto-publish toggle. Default ON. Off for confidential / NDA roles
               where the org doesn't want a public listing even after approval.
               Server reads this on the approval transition (PUT /jobs/:id);
-              already-published jobs aren't affected by toggling. */}
-          {orgCareersEnabled && (
+              already-published jobs aren't affected by toggling.
+              Admin-only for the same reason as Publish/Unpublish. */}
+          {isAdmin && orgCareersEnabled && (
             <div className="mt-3 pt-3 border-t border-dark-700/60 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-dark-200">Auto-publish when approved</p>
