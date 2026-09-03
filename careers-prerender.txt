@@ -1,0 +1,24 @@
+# Careers landing pages to materialise as real files at deploy time.
+#
+# Why this file exists
+# --------------------
+# rivvra.com is served by GitHub Pages, which has no rewrite/fallback config.
+# The SPA works because deploy.yml copies dist/index.html to dist/404.html, and
+# Pages serves that for any unmatched path — but it serves it with an HTTP 404
+# status, by design. The app still boots and client-routes, so the page renders
+# correctly for people; crawlers and link checkers see the 404 and give up.
+#
+# The only way to get a 200 out of Pages is for a real file to exist at that
+# path. /careers/:orgSlug is dynamic and the API has no "list public careers
+# orgs" endpoint, so the slugs cannot be discovered in CI — they are listed
+# here instead.
+#
+# Add a line per org whose careers landing page should return 200 and be
+# indexable. One slug per line; blank lines and # comments are ignored.
+#
+# Known limitation: job detail pages (/careers/:orgSlug/jobs/:publicSlug) are
+# unbounded and change constantly, so they still return the soft 404. Fixing
+# those means moving off GitHub Pages to a host with SPA rewrites (Cloudflare
+# Pages, Netlify, Vercel), which would make this file unnecessary.
+
+huemot-technology
