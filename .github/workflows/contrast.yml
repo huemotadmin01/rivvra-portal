@@ -17,9 +17,9 @@ jobs:
   contrast:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'
@@ -47,7 +47,7 @@ jobs:
       # its ratio and its selector, which is what you actually need to fix it.
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: contrast-report
           path: contrast-report.json
