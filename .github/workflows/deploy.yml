@@ -42,6 +42,27 @@ jobs:
       - name: Copy 404.html for SPA routing
         run: cp dist/index.html dist/404.html
 
+      # Pages has no rewrite config, so 404.html is what serves every unmatched
+      # path — and it comes back with a 404 status. The app still renders, but
+      # crawlers and link checkers stop there. Putting a real file at the
+      # careers landing paths makes Pages answer those with a 200; the SPA then
+      # boots and routes exactly as before. See careers-prerender.txt.
+      - name: Materialise careers landing pages so Pages returns 200
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            slug="$(printf '%s' "${line%%#*}" | tr -d '[:space:]')"
+            if [ -n "$slug" ]; then
+              mkdir -p "dist/careers/$slug"
+              cp dist/index.html "dist/careers/$slug/index.html"
+              echo "  prerendered /careers/$slug"
+              count=$((count + 1))
+            fi
+          done < careers-prerender.txt
+          echo "materialised $count careers landing page(s)"
+          test "$count" -gt 0
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
