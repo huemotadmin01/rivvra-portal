@@ -4,7 +4,7 @@
  * helpers/contactEngagement.js. Keep the two in sync.
  */
 export const ENGAGEMENT_META = {
-  active_customer: { label: 'Active customer', tone: 'brand', hint: 'Has an active assignment, or a hire in the last 12 months' },
+  active_customer: { label: 'Active customer', tone: 'brand', hint: 'Has an active assignment, or a hire in the last 6 months' },
   past_customer: { label: 'Past customer', tone: 'purple', hint: 'Assignments have ended, or older hires only' },
   in_progress: { label: 'In progress', tone: 'info', hint: 'Has an open job, nothing hired yet' },
   unconverted: { label: 'Unconverted', tone: 'warn', hint: 'Sent jobs, none hired, none open' },
