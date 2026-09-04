@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
+import { engagementMeta } from '../../utils/engagementStatus';
 import crmApi from '../../utils/crmApi';
 import invoicingApi from '../../utils/invoicingApi';
 import { getAddressLocale, validateZip } from '../../utils/addressLocale';
@@ -23,7 +24,7 @@ import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import {
-  Archive, ArchiveRestore, Briefcase, Building2, Eye, FileText, Globe, Mail, MapPin,
+  Activity, Archive, ArchiveRestore, Briefcase, Building2, Eye, FileText, Globe, Mail, MapPin,
   MoreHorizontal, Paperclip, Phone, Receipt, Tag, Trash2, Upload, User, Users,
 } from 'lucide-react';
 
@@ -69,8 +70,15 @@ const TABS = [
   { key: 'details', label: 'Details' },
   { key: 'activities', label: 'Activities' },
   { key: 'pipeline', label: 'Pipeline' },
+  { key: 'engagement', label: 'Engagement' },
   { key: 'attachments', label: 'Attachments' },
 ];
+
+const JOB_STATUS_META = {
+  open: { label: 'Open', tone: 'info' },
+  on_hold: { label: 'On hold', tone: 'warn' },
+  closed: { label: 'Closed', tone: 'neutral' },
+};
 
 // Module-scoped pipeline cache, carried over from the legacy page so tab-flips
 // and back-nav don't re-hit /crm/opportunities. 5-min TTL.
@@ -114,6 +122,10 @@ export default function ContactDetailV2() {
 
   const [opportunities, setOpportunities] = useState([]);
   const [pipelineLoading, setPipelineLoading] = useState(false);
+
+  // Engagement tab (2026-09-04): rollup + jobs + assignments, lazy on tab.
+  const [engagement, setEngagement] = useState(null);
+  const [engagementLoading, setEngagementLoading] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -250,6 +262,23 @@ export default function ContactDetailV2() {
   useEffect(() => {
     if (activeTab === 'pipeline') loadPipeline();
   }, [activeTab, loadPipeline]);
+
+  const loadEngagement = useCallback(async () => {
+    if (!orgSlug || !contactId) return;
+    setEngagementLoading(true);
+    try {
+      const res = await contactsApi.engagement(orgSlug, contactId);
+      if (res?.success) setEngagement(res);
+    } catch {
+      showToast('Failed to load engagement', 'error');
+    } finally {
+      setEngagementLoading(false);
+    }
+  }, [orgSlug, contactId, showToast]);
+
+  useEffect(() => {
+    if (activeTab === 'engagement' && !engagement) loadEngagement();
+  }, [activeTab, engagement, loadEngagement]);
 
   // -- Inline save ------------------------------------------------------------
   // These REJECT on failure: ds InlineField is pessimistic and needs the
@@ -853,6 +882,104 @@ export default function ContactDetailV2() {
           )}
         </Panel>
       )}
+
+      {/* ── Engagement ── */}
+      {activeTab === 'engagement' && (() => {
+        const e = engagement?.engagement;
+        const meta = e ? engagementMeta(e.status) : null;
+        const jobs = engagement?.jobs || [];
+        const assignments = engagement?.assignments || [];
+        const canOpenAts = !!getAppRole('ats');
+        const stat = (label, value) => (
+          <div key={label} style={{ padding: '10px 12px', borderRadius: 'var(--r-2, 10px)', background: 'var(--surface-2, #141b24)', boxShadow: 'inset 0 0 0 1px var(--line, rgba(255,255,255,.07))', minWidth: 0 }}>
+            <div style={{ font: "450 11px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4, #828e9f)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+            <div style={{ font: "600 18px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg, #eef2f6)', marginTop: 2 }}>{value}</div>
+          </div>
+        );
+        const jobColumns = [
+          { key: 'name', header: 'Job', width: 260, render: (j) => <span style={{ color: 'var(--fg)', fontWeight: 550 }}>{j.name}</span> },
+          { key: 'status', header: 'Status', width: 100, render: (j) => { const m = JOB_STATUS_META[j.status] || { label: j.status || '—', tone: 'neutral' }; return <Chip tone={m.tone}>{m.label}</Chip>; } },
+          { key: 'hires', header: 'Hired', width: 80, align: 'right', render: (j) => `${j.hiredCount}/${j.expectedHires}` },
+          { key: 'createdAt', header: 'Received', width: 110, muted: true, render: (j) => fmtDate(j.createdAt) },
+          { key: 'closedAt', header: 'Closed', width: 110, muted: true, render: (j) => j.closedAt ? fmtDate(j.closedAt) : null },
+          { key: 'accountOwnerName', header: 'Account owner', width: 150, muted: true },
+        ];
+        const asgColumns = [
+          { key: 'employeeName', header: 'Consultant', width: 220, render: (a) => <span style={{ color: 'var(--fg)', fontWeight: 550 }}>{a.employeeName}</span> },
+          { key: 'projectName', header: 'Project', width: 200, muted: true },
+          { key: 'status', header: 'Status', width: 100, render: (a) => <Chip tone={a.status === 'active' ? 'brand' : 'neutral'} dot={a.status === 'active'}>{a.status === 'active' ? 'Active' : 'Ended'}</Chip> },
+          { key: 'startDate', header: 'Start', width: 110, muted: true, render: (a) => fmtDate(a.startDate) },
+          { key: 'endDate', header: 'End', width: 110, muted: true, render: (a) => a.endDate ? fmtDate(a.endDate) : null },
+        ];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Panel
+              icon={<Activity size={14} />}
+              title="Engagement"
+              actions={meta && <Chip tone={meta.tone} dot>{meta.label}</Chip>}
+            >
+              {engagementLoading && !engagement ? (
+                <div style={{ display: 'grid', placeItems: 'center', padding: 24 }}><Spinner /></div>
+              ) : !e ? (
+                <EmptyState icon={<Activity size={22} />} title="No engagement data" compact>
+                  {contact.type === 'individual'
+                    ? 'Link this person to a company to see its engagement.'
+                    : 'Jobs, placements and assignments for this company will be summarised here.'}
+                </EmptyState>
+              ) : (
+                <>
+                  {engagement.inheritedFrom && (
+                    <div style={{ font: "450 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3, #a4adb9)', marginBottom: 10 }}>
+                      Showing engagement for{' '}
+                      <Link to={orgPath(`/contacts/${engagement.inheritedFrom._id}?tab=engagement`)} style={{ color: 'var(--brand, #22c55e)' }}>{String(engagement.inheritedFrom.name || '').trim()}</Link>.
+                    </div>
+                  )}
+                  <div style={{ font: "450 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3, #a4adb9)', marginBottom: 12 }}>{meta.hint}.</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                    {stat('Active assignments', e.activeAssignments || 0)}
+                    {stat('Ended assignments', e.endedAssignments || 0)}
+                    {stat('Jobs received', e.totalJobs || 0)}
+                    {stat('Open jobs', e.openJobs || 0)}
+                    {stat('Hires', e.hires || 0)}
+                    {stat('Last engaged', e.lastEngagedAt ? fmtDate(e.lastEngagedAt) : '—')}
+                  </div>
+                  {(e.opportunities || 0) > 0 && (
+                    <div style={{ font: "450 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4, #828e9f)', marginTop: 10 }}>
+                      {e.opportunities} opportunit{e.opportunities === 1 ? 'y' : 'ies'} in CRM ({e.wonOpportunities || 0} won, {e.lostOpportunities || 0} lost) —{' '}
+                      <button type="button" onClick={() => setActiveTab('pipeline')} style={{ color: 'var(--brand, #22c55e)', background: 'none', border: 0, padding: 0, font: 'inherit', cursor: 'pointer' }}>see pipeline</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </Panel>
+
+            {e && (
+              <Panel icon={<Briefcase size={14} />} title="Jobs received" actions={<Chip>{jobs.length}</Chip>}>
+                {jobs.length === 0 ? (
+                  <EmptyState icon={<Briefcase size={22} />} title="No jobs yet" compact>This client has not sent a job position.</EmptyState>
+                ) : (
+                  <DataTable
+                    columns={jobColumns}
+                    rows={jobs}
+                    rowKey="_id"
+                    onRowClick={canOpenAts ? (j) => navigate(orgPath(`/ats/jobs/${j._id}`)) : undefined}
+                  />
+                )}
+              </Panel>
+            )}
+
+            {e && (
+              <Panel icon={<Users size={14} />} title="Assignments" actions={<Chip>{assignments.length}</Chip>}>
+                {assignments.length === 0 ? (
+                  <EmptyState icon={<Users size={22} />} title="No assignments" compact>No consultant has been placed with this client on a project.</EmptyState>
+                ) : (
+                  <DataTable columns={asgColumns} rows={assignments} rowKey={(a, i) => `${a.employeeId}-${i}`} />
+                )}
+              </Panel>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Attachments ── */}
       {activeTab === 'attachments' && (

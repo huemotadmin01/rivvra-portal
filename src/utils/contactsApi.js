@@ -21,6 +21,15 @@ const contactsApi = {
     return api.request(`/api/org/${orgSlug}/contacts/${id}`);
   },
 
+  // Engagement rollup (2026-09-04): status + jobs + assignments for a company
+  // contact (individuals resolve to their parent). Counts and dates only.
+  engagement(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/engagement`);
+  },
+  recomputeEngagement(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/contacts/engagement/recompute`, { method: 'POST' });
+  },
+
   create(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/contacts`, {
       method: 'POST',

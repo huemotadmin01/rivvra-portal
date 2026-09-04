@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import { downloadFile } from '../../utils/download';
+import { ENGAGEMENT_OPTIONS, engagementMeta } from '../../utils/engagementStatus';
 import BulkImportModal from '../../components/BulkImportModal';
 import { DataTable, FilterBar, Pagination, EmptyState, Button, Chip, Avatar } from '../../components/ds';
 import {
@@ -27,7 +28,11 @@ const CONTACT_IMPORT_FIELDS = [
   { key: 'type', label: 'Type (company/individual)', required: false, aliases: ['type', 'contact type'] },
 ];
 
-const SORTABLE_KEYS = ['name', 'email', 'type', 'createdAt'];
+const SORTABLE_KEYS = ['name', 'email', 'type', 'createdAt', 'engagement'];
+
+const fmtShortDate = (d) => (d
+  ? new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+  : '');
 
 /* v2 Contacts list (Slice 2) — same data flow and URL semantics as
    ContactsList.jsx, rendered on ds DataTable + FilterBar. */
@@ -39,7 +44,7 @@ export default function ContactsListV2({ filterType }) {
   const navigate = useNavigate();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const filterParams = useListParams(['search', 'type', 'tag', 'salesperson', 'archived']);
+  const filterParams = useListParams(['search', 'type', 'tag', 'salesperson', 'engagement', 'archived']);
   const [page, setPage] = usePageParam();
   const [searchValue, setSearchValue] = useSearchParamValue('search');
 
@@ -203,6 +208,30 @@ export default function ContactsListV2({ filterType }) {
         </span>
       ),
     },
+    {
+      // Engagement rollup (2026-09-04): one label per company, inherited by
+      // its individuals. Sorts by rank (active first). Hover shows the counts.
+      key: 'engagement', header: 'Engagement', sortable: true, width: 165,
+      render: (c) => {
+        const e = c.engagement;
+        if (!e || !e.status) return null;
+        const m = engagementMeta(e.status);
+        const tip = [
+          `${e.activeAssignments || 0} active / ${e.endedAssignments || 0} ended assignment(s)`,
+          `${e.totalJobs || 0} job(s) received, ${e.openJobs || 0} open`,
+          `${e.hires || 0} hire(s)`,
+          e.lastEngagedAt ? `Last engaged ${fmtShortDate(e.lastEngagedAt)}` : null,
+        ].filter(Boolean).join('\n');
+        return (
+          <span title={tip} style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <Chip tone={m.tone} dot>{m.label}</Chip>
+            {e.lastEngagedAt && (
+              <span style={{ font: '450 11px/1.3 var(--font)', color: 'var(--fg-4)', paddingLeft: 2 }}>{fmtShortDate(e.lastEngagedAt)}</span>
+            )}
+          </span>
+        );
+      },
+    },
     { key: 'parentCompanyName', header: 'Company', muted: true, width: 160 },
     { key: 'salespersonName', header: 'Salesperson', muted: true, width: 140 },
     { key: 'city', header: 'City', muted: true, width: 110, render: (c) => c.address?.city || null },
@@ -260,6 +289,7 @@ export default function ContactsListV2({ filterType }) {
             {filterType === undefined && <SelectChipV2 paramKey="type" label="Type" options={typeOptions} />}
             <SelectChipV2 paramKey="tag" label="Tag" options={tagOptions} placeholder="No tags" />
             <SelectChipV2 paramKey="salesperson" label="Salesperson" options={salespersonOptions} placeholder="No salespersons" />
+            <SelectChipV2 paramKey="engagement" label="Engagement" options={ENGAGEMENT_OPTIONS} />
             <ArchivedToggleV2 activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
           </>
         )}
