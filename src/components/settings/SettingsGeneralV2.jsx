@@ -729,7 +729,20 @@ export default function SettingsGeneralV2() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', rowGap: 12, columnGap: 32, marginBottom: 18 }}>
         <InfoRow icon={<Globe size={15} />} label="Org URL" value={`rivvra.com/#/org/${currentOrg.slug}`} />
         <InfoRow icon={<Mail size={15} />} label="Domain" value={currentOrg.domain || '-'} />
-        <InfoRow icon={<CreditCard size={15} />} label="Enabled Apps" value={currentOrg.enabledApps?.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ') || '-'} />
+        {/* Labelled "Apps at signup", not "Enabled Apps", because this field
+            does NOT control access. Nothing gates on org.enabledApps —
+            appAccessMiddleware and the portal's hasAppAccess() both read
+            membership.appAccess[app].enabled and never consult this list. What
+            it actually does is seed each founder's appAccess at signup, and
+            feed the staffing heuristic in invoicingConsultantGate.
+            Measured on prod 2026-09-02: 74 of 79 members in the live workspace
+            hold access to apps missing from this list (Expenses 74, Incentive
+            20, KB 13, Documents 6, Invoicing 3), so read as a statement of
+            what the workspace has it was simply false — and it misled a QA
+            pass into diagnosing a hiring block that an owner could have
+            cleared in Users & Teams. Per-person access lives there; this is
+            just what the signup goals switched on. */}
+        <InfoRow icon={<CreditCard size={15} />} label="Apps at signup" value={currentOrg.enabledApps?.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ') || '-'} />
         <InfoRow icon={<Calendar size={15} />} label="Created" value={currentOrg.createdAt ? new Date(currentOrg.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'} />
       </div>
 

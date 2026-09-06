@@ -672,7 +672,9 @@ export default function SettingsGeneral() {
         </div>
         <div className="flex items-center gap-2">
           <CreditCard className="w-4 h-4 text-dark-500 flex-shrink-0" />
-          <span className="text-xs text-dark-500 w-24 flex-shrink-0">Enabled Apps</span>
+          {/* See SettingsGeneralV2 for why this is not "Enabled Apps": the
+              field does not gate access, it seeds appAccess at signup. */}
+          <span className="text-xs text-dark-500 w-24 flex-shrink-0">Apps at signup</span>
           <span className="text-sm text-white">{currentOrg.enabledApps?.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ') || '-'}</span>
         </div>
         <div className="flex items-center gap-2">
