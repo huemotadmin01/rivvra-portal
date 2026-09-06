@@ -1,14 +1,20 @@
 import { Link } from 'react-router-dom';
 import { Rocket, ArrowRight } from 'lucide-react';
 import { buildOnboardingGroups } from '../pages/OnboardingHubPage';
+import { useOrg } from '../context/OrgContext';
 
 /* Launcher entry to the onboarding hub. Deliberately NOT the task list: the
    list lives on /getting-started so it survives dismissal and can be returned
    to from the sidebar rail. This is the advert — progress, next step, one
    click in, and a way to hide it from the launcher. */
 export default function OnboardingHubTeaser({ data, orgPath, enabledApps, onDismiss }) {
+  // Setup is owner/admin work — posting the first job, inviting users,
+  // configuring payroll. A plain member was being nudged toward tasks they
+  // cannot complete and a hub they cannot act on (2026-09-06).
+  const { isOrgAdmin } = useOrg();
   const apps = new Set(enabledApps || []);
   const tasks = buildOnboardingGroups({ data, apps, orgPath }).flatMap((g) => g.tasks);
+  if (!isOrgAdmin) return null;
   if (!tasks.length) return null;
   const done = tasks.filter((t) => t.done).length;
   if (done === tasks.length) return null;
@@ -29,9 +35,9 @@ export default function OnboardingHubTeaser({ data, orgPath, enabledApps, onDism
             Finish setting up your workspace
           </p>
           <p className="text-xs text-dark-400 mt-0.5 truncate">
-            {done} of {tasks.length} steps done{next ? ` · Next: ${next.label}` : ''}
+            {done} of {tasks.length} steps done ({pct}%){next ? ` · Next: ${next.label}` : ''}
           </p>
-          <div className="h-1 mt-2 rounded-full bg-dark-800 overflow-hidden max-w-sm">
+          <div className="h-1.5 mt-2 rounded-full bg-dark-800 overflow-hidden">
             <div className="h-full bg-rivvra-500 transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>

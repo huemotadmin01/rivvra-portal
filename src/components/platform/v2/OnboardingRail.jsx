@@ -13,8 +13,11 @@ import { buildOnboardingGroups } from '../../../pages/OnboardingHubPage';
    onboarding window), so it never becomes furniture for an established org. */
 export default function OnboardingRail({ collapsed, variant }) {
   const { orgPath } = usePlatform();
-  const { currentOrg } = useOrg();
+  const { currentOrg, isOrgAdmin } = useOrg();
   const { data } = useGettingStarted(currentOrg?.slug);
+  // Same reason as the teaser: onboarding is owner/admin work, so the
+  // "Setup NN%" chip should not follow a plain member around the app bar.
+  if (!isOrgAdmin) return null;
   if (!data) return null;
 
   const apps = new Set(currentOrg?.enabledApps || []);

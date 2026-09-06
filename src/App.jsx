@@ -605,8 +605,15 @@ function App() {
             <Route element={<ProtectedRoute><OrgPlatformLayout /></ProtectedRoute>}>
               <Route path="/org/:slug/home" element={<OnboardingGate><AppLauncherPage /></OnboardingGate>} />
               {/* Onboarding hub — a permanent destination, reachable from the
-                  sidebar rail long after the first-run card is dismissed. */}
-              <Route path="/org/:slug/getting-started" element={<ErrorBoundary><OnboardingHubPage /></ErrorBoundary>} />
+                  sidebar rail long after the first-run card is dismissed.
+                  Owner/admin only (2026-09-06): every task is an admin action
+                  (post the first job, invite users, configure payroll), so a
+                  plain member reaching it could only look at work they cannot
+                  do. The teaser card and the "Setup NN%" chip are gated to
+                  match, so nothing points a member here in the first place. */}
+              <Route element={<OrgAdminGate />}>
+                <Route path="/org/:slug/getting-started" element={<ErrorBoundary><OnboardingHubPage /></ErrorBoundary>} />
+              </Route>
               <Route path="/org/:slug/my-profile" element={<PageSwitch v2={MyProfilePageV2} legacy={MyProfilePage} />} />
               {/* Company Policies (ESS) — any authenticated member with a linked
                   employee record; intentionally NOT behind an app/country gate. */}
