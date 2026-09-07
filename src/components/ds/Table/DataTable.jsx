@@ -72,7 +72,11 @@ export function DataTable({
     const move = (ev) => {
       if (!drag.current) return;
       const w = Math.max(64, drag.current.w + (ev.clientX - drag.current.x));
-      setWidths((p) => ({ ...p, [drag.current.key]: w }));
+      // Use the closed-over `key`, not `drag.current.key`: the updater runs
+      // lazily during React's next render, and a mouseup in between nulls
+      // `drag.current` — which threw "Cannot read properties of null
+      // (reading 'key')" straight into the page ErrorBoundary (prod, 2026-09-07).
+      setWidths((p) => ({ ...p, [key]: w }));
     };
     const up = () => { drag.current = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.cursor = ''; };
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
