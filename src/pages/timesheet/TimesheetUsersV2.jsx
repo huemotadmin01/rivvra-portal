@@ -29,10 +29,21 @@ import { currencySymbol } from '../../utils/currency';
 // a USD client billed daily was labelled "₹/day · INR". The currency now comes
 // through deriveTimesheetFields alongside the rate.
 //
-// Only the CLIENT side is currency-aware. The employee-pay fields below still
-// read ₹ because billingRate has NO currency field on the record — that is a
-// data-model gap, and inventing a currency for those numbers would be exactly
-// the relabel the header comment warns against.
+// Both sides are now currency-aware. The CLIENT rate uses the assignment's own
+// clientBillingCurrency; the PAY rate uses the employing company's currency,
+// resolved server-side (see payMoney below). Neither converts anything — the
+// stored number is shown as-is under the right symbol.
+// The PAY rate is in the employing company's currency — Priyanshu's rule, and
+// the reason D21b existed: Huemot runs INR, USD and CAD entities, so a dollar
+// rate was rendering as ₹. `payCurrency` comes from the API per employee
+// (org_companies.currency). Nothing is converted; this only labels the amount.
+const payMoney = (amount, currency, unit) => {
+  if (!amount) return '—';
+  const sym = currency ? currencySymbol(currency) : '';
+  return `${sym}${Number(amount).toLocaleString()}/${unit}`;
+};
+const payFieldLabel = (base, currency) => (currency ? `${base} (${currencySymbol(currency)})` : base);
+
 const clientRateLabel = (type, currency) => {
   const unit = type === 'hourly' ? 'hour' : type === 'monthly' ? 'month' : 'day';
   return currency
@@ -75,7 +86,7 @@ export default function TimesheetUsersV2() {
   const [form, setForm] = useState({
     fullName: '', email: '', password: '', role: 'contractor',
     employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '',
-    paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', clientBillingCurrency: null, assignedClient: '', assignedProjects: []
+    paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', clientBillingCurrency: null, payCurrency: null, assignedClient: '', assignedProjects: []
   });
 
   const load = () => {
@@ -121,7 +132,7 @@ export default function TimesheetUsersV2() {
   useEffect(() => { load(); }, [currentCompany?._id]);
 
   const resetForm = () => {
-    setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '', paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', clientBillingCurrency: null, assignedClient: '', assignedProjects: [] });
+    setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '', paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', clientBillingCurrency: null, payCurrency: null, assignedClient: '', assignedProjects: [] });
     setEditing(null); setShowForm(false); setLinkedEmployee(null); setEmpSearch(''); setShowEmpDropdown(false);
   };
 
@@ -168,6 +179,7 @@ export default function TimesheetUsersV2() {
       // Null when the assignment carries no currency — clientRateLabel then
       // falls back to the historical symbol rather than inventing one.
       clientBillingCurrency: user.clientBillingCurrency || null,
+      payCurrency: user.payCurrency || null,
       assignedClient: user.assignedClient?._id || user.assignedClient || '',
       assignedProjects: user.assignedProjects?.map(p => p._id || p) || []
     });
@@ -259,10 +271,10 @@ export default function TimesheetUsersV2() {
           {u.paidLeavePerMonth > 0 && <Chip tone="brand">{u.paidLeavePerMonth} PL</Chip>}
         </span>
       ) },
-    // Money. Byte-identical to legacy, including the hardcoded ₹ — see the
-    // header comment and REDESIGN-QA.md.
+    // Money. The symbol follows the employee's company currency (D21b);
+    // it was hardcoded ₹, which mislabelled USD-entity staff.
     { key: 'rate', header: 'Rate', width: 130, align: 'right', muted: true,
-      render: (u) => (u.payType === 'monthly' ? (u.monthlyRate ? `₹${u.monthlyRate.toLocaleString()}/mo` : '—') : (u.dailyRate ? `₹${u.dailyRate.toLocaleString()}/day` : '—')) },
+      render: (u) => (u.payType === 'monthly' ? payMoney(u.monthlyRate, u.payCurrency, 'mo') : payMoney(u.dailyRate, u.payCurrency, 'day')) },
     { key: 'status', header: 'Status', width: 110, align: 'center',
       render: (u) => (
         <button
@@ -458,12 +470,12 @@ export default function TimesheetUsersV2() {
               </Button>
             </div>
             {form.payType === 'daily' ? (
-              <Field label="Daily Rate (₹)" htmlFor="u-daily">
+              <Field label={payFieldLabel('Daily Rate', form.payCurrency)} htmlFor="u-daily">
                 <Input id="u-daily" type="number" value={form.dailyRate} onChange={e => setForm({...form, dailyRate: e.target.value})} placeholder="e.g. 3000" />
               </Field>
             ) : (
               <Field
-                label="Monthly Rate (₹)"
+                label={payFieldLabel('Monthly Rate', form.payCurrency)}
                 htmlFor="u-monthly"
                 hint="Payable = (Actual days worked / Working days in month) x Monthly rate"
               >
