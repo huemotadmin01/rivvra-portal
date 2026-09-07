@@ -2,6 +2,11 @@ node_modules
 .env
 .env.local
 .env.*.local
+# Catch backups/copies too — `.env.local.bak` escaped all three patterns
+# above and sat untracked in the repo with a (since expired) live-org admin
+# JWT in it, one stray `git add -A` from being committed.
+.env*
+*.bak
 dist
 .vite
 session-b
