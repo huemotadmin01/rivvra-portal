@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useOrg } from '../../context/OrgContext';
-import { currencySymbol } from '../../utils/currency';
 import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, SearchBarSkeleton, TableSkeleton } from '../../components/Skeletons';
@@ -9,9 +8,9 @@ import employeeApi from '../../utils/employeeApi';
 import { UserPlus, Edit2, X, Loader2, UserCheck, Search, ChevronDown, Hash, Filter } from 'lucide-react';
 
 const RATE_TYPE_LABELS = {
-  daily: '/day',
+  daily: '₹/day',
   hourly: '$/hour',
-  monthly: '/month',
+  monthly: '₹/month',
 };
 
 export default function TimesheetUsers() {
@@ -293,7 +292,7 @@ export default function TimesheetUsers() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-dark-300">
-                    {(() => { const sym = u.payCurrency ? currencySymbol(u.payCurrency) : ''; return u.payType === 'monthly' ? (u.monthlyRate ? `${sym}${u.monthlyRate.toLocaleString()}/mo` : '—') : (u.dailyRate ? `${sym}${u.dailyRate.toLocaleString()}/day` : '—'); })()}
+                    {u.payType === 'monthly' ? (u.monthlyRate ? `₹${u.monthlyRate.toLocaleString()}/mo` : '—') : (u.dailyRate ? `₹${u.dailyRate.toLocaleString()}/day` : '—')}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActive(u)} className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
@@ -431,12 +430,12 @@ export default function TimesheetUsers() {
                 </div>
                 {form.payType === 'daily' ? (
                   <div>
-                    <label className="block text-xs text-dark-400 mb-1">Daily Rate</label>
+                    <label className="block text-xs text-dark-400 mb-1">Daily Rate (₹)</label>
                     <input type="number" value={form.dailyRate} onChange={e => setForm({...form, dailyRate: e.target.value})} placeholder="e.g. 3000" className="input-field" />
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs text-dark-400 mb-1">Monthly Rate</label>
+                    <label className="block text-xs text-dark-400 mb-1">Monthly Rate (₹)</label>
                     <input type="number" value={form.monthlyRate} onChange={e => setForm({...form, monthlyRate: e.target.value})} placeholder="e.g. 60000" className="input-field" />
                     <p className="text-[11px] text-dark-500 mt-1">Payable = (Actual days worked / Working days in month) x Monthly rate</p>
                   </div>
