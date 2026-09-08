@@ -689,6 +689,12 @@ function App() {
                   <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><PageSwitch v2={LeaveReportsV2} legacy={LeaveReports} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><PageSwitch v2={HolidayCalendarV2} legacy={HolidayCalendar} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-assets" element={<ErrorBoundary><PageSwitch v2={MyAssetsV2} legacy={MyAssets} /></ErrorBoundary>} />
+                  {/* In-shell aliases (2026-09-08): the ESS sidebar links here so
+                      Documents/Profile keep the sidebar and app context. The bare
+                      /my-documents and /my-profile routes above stay for employees
+                      without ESS access and for links already sent out. */}
+                  <Route path="/org/:slug/timesheet/my-documents" element={<ErrorBoundary><PageSwitch v2={MyDocumentsV2} legacy={MyDocuments} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-profile" element={<ErrorBoundary><PageSwitch v2={MyProfilePageV2} legacy={MyProfilePage} /></ErrorBoundary>} />
                   {/* Employee-facing statutory payroll pages */}
                   <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><PageSwitch v2={MySalaryPageV2} legacy={MySalaryPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><PageSwitch v2={MyPayslipsPageV2} legacy={MyPayslipsPage} /></ErrorBoundary>} />

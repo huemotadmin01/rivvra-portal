@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { usePlatform } from './PlatformContext';
 
 const PeriodContext = createContext(null);
@@ -8,6 +8,10 @@ const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
 
 // Apps that support the period filter
 const PERIOD_ENABLED_APPS = new Set(['timesheet', 'payroll']);
+// Pages inside those apps that ignore the period entirely. The picker still
+// works (and the choice still persists for the next period page), but these
+// URLs no longer carry a stray ?month=&year= (2026-09-08).
+const PERIOD_FREE_PATH = /\/(my-assets|my-documents|my-profile)\/?$/;
 
 const STORAGE_KEY = 'rivvra_period';
 
@@ -27,8 +31,10 @@ function storePeriod(month, year) {
 
 export function PeriodProvider({ children }) {
   const { currentApp } = usePlatform();
+  const { pathname } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const isActive = PERIOD_ENABLED_APPS.has(currentApp?.id);
+  const periodInUrl = isActive && !PERIOD_FREE_PATH.test(pathname);
 
   const now = new Date();
   const defaultMonth = now.getMonth() + 1;
@@ -55,6 +61,18 @@ export function PeriodProvider({ children }) {
   // Sync URL if it doesn't match resolved period (e.g. restored from session)
   useEffect(() => {
     if (!isActive) return;
+    if (!periodInUrl) {
+      // Period-free page: drop params that rode along from the previous page.
+      if (searchParams.has('month') || searchParams.has('year')) {
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete('month');
+          next.delete('year');
+          return next;
+        }, { replace: true });
+      }
+      return;
+    }
     const curM = parseInt(searchParams.get('month'));
     const curY = parseInt(searchParams.get('year'));
     if (curM !== month || curY !== year) {
@@ -65,7 +83,7 @@ export function PeriodProvider({ children }) {
         return next;
       }, { replace: true });
     }
-  }, [isActive, month, year]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isActive, periodInUrl, month, year]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist to sessionStorage whenever period changes
   useEffect(() => {
@@ -81,13 +99,14 @@ export function PeriodProvider({ children }) {
 
   const setPeriod = useCallback((m, y) => {
     storePeriod(m, y);
+    if (!periodInUrl) return; // remembered for the next period page; nothing to put in this URL
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('month', String(m));
       next.set('year', String(y));
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, periodInUrl]);
 
   const setMonth = useCallback((m) => setPeriod(m, year), [setPeriod, year]);
   const setYear = useCallback((y) => setPeriod(month, y), [setPeriod, month]);

@@ -163,7 +163,7 @@ export const APP_REGISTRY = {
 
       return [
         { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
-        { type: 'item', path: '/my-profile', label: 'My Profile', icon: Users },
+        { type: 'item', path: '/timesheet/my-profile', label: 'My Profile', icon: Users },
         // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
           { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
@@ -179,6 +179,16 @@ export const APP_REGISTRY = {
           ? [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
           : [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
         ),
+        // Personal, ungrouped items stay together up here (2026-09-08) —
+        // they used to dangle between the Tax group and Configuration.
+        // Holiday Calendar: visible to all attendance-based employees (read-only for non-admins)
+        ...(timesheetUser?.timesheetMode !== 'timesheet' ? [
+          { type: 'item', path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
+        ] : []),
+        // My Assets: visible to all employees
+        { type: 'item', path: '/timesheet/my-assets', label: 'My Assets', icon: Package },
+        // My Documents: HR-shared documents (Form-16, letters); visible to all employees
+        { type: 'item', path: '/timesheet/my-documents', label: 'My Documents', icon: FolderDown },
         // Leave management (for eligible employees)
         ...(isLeaveEligible ? [
           {
@@ -211,14 +221,6 @@ export const APP_REGISTRY = {
             ],
           },
         ] : []),
-        // Holiday Calendar: visible to all attendance-based employees (read-only for non-admins)
-        ...(timesheetUser?.timesheetMode !== 'timesheet' ? [
-          { type: 'item', path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
-        ] : []),
-        // My Assets: visible to all employees
-        { type: 'item', path: '/timesheet/my-assets', label: 'My Assets', icon: Package },
-        // My Documents: HR-shared documents (Form-16, letters); visible to all employees
-        { type: 'item', path: '/my-documents', label: 'My Documents', icon: FolderDown },
         // Admin only: configuration
         ...(isAdmin ? [
           {

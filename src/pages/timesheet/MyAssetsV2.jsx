@@ -15,7 +15,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import assetApi from '../../utils/assetApi';
 import { Loader2, Package, Monitor, Headphones, Briefcase, Box, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
-import { PageHeader } from '../../components/ds';
+import { Button, EmptyState, PageHeader } from '../../components/ds';
 
 const TYPE_ICONS = {
   laptop: Monitor,
@@ -73,22 +73,18 @@ export default function MyAssetsV2() {
       <PageHeader title="My Assets" sub="Company assets assigned to you" />
 
       {error ? (
-        <div className="text-center py-16">
-          <AlertCircle size={40} className="mx-auto mb-3 text-amber-400/60" />
-          <p className="text-sm text-dark-300">We couldn't load your assets.</p>
-          <p className="text-xs text-dark-500 mt-1">This isn't the same as having none assigned — please try again.</p>
-          <button
-            onClick={load}
-            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-dark-800 border border-dark-700 hover:bg-dark-700 text-sm text-white rounded-lg transition-colors"
-          >
-            <RefreshCw size={14} /> Retry
-          </button>
-        </div>
+        <EmptyState
+          icon={<AlertCircle size={22} />}
+          tone="warn"
+          title="We couldn't load your assets"
+          actions={<Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={load}>Retry</Button>}
+        >
+          This isn't the same as having none assigned — please try again.
+        </EmptyState>
       ) : assets.length === 0 ? (
-        <div className="text-center py-16 text-dark-500">
-          <Package size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No assets assigned to you</p>
-        </div>
+        <EmptyState icon={<Package size={22} />} title="No assets assigned to you">
+          When HR assigns you a laptop, phone or other company asset, it will appear here.
+        </EmptyState>
       ) : (
         <div className="space-y-3">
           {assets.map(asset => {

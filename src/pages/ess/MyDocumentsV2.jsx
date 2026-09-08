@@ -3,6 +3,7 @@ import { FolderDown, FileText, Download, Eye, Archive } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
+import { formatDateUTC } from '../../utils/dateUtils';
 import { Button, Chip, EmptyState, PageHeader, Panel, Spinner } from '../../components/ds';
 
 const FONT = "'Inter', system-ui, sans-serif";
@@ -130,7 +131,7 @@ export default function MyDocumentsV2() {
                         </div>
                         <p style={{ font: `450 11px/1.5 ${FONT}`, color: 'var(--fg-4)', marginTop: 3 }}>
                           {d.fileName}{d.size ? ` · ${formatBytes(d.size)}` : ''}
-                          {d.uploadedAt ? ` · Shared ${new Date(d.uploadedAt).toLocaleDateString()}` : ''}
+                          {d.uploadedAt ? ` · Shared ${formatDateUTC(d.uploadedAt)}` : ''}
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
