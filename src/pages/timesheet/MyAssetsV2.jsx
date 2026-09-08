@@ -69,7 +69,7 @@ export default function MyAssetsV2() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 768 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 768, margin: '0 auto' }}>
       <PageHeader title="My Assets" sub="Company assets assigned to you" />
 
       {error ? (
