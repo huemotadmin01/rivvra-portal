@@ -169,7 +169,9 @@ function SidebarV2({ mobileOpen, onCloseMobile, collapsed, onToggleCollapsed }) 
         </nav>
 
         <div className="sb-foot">
-          <button className="sb-item" onClick={onToggleCollapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          {/* Collapse-to-rail is a desktop affordance; in the mobile drawer it only
+              shrank the overlay to an icon strip (2026-09-08). */}
+          <button className="sb-item desktop-only" onClick={onToggleCollapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <span className="ico" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform var(--d-3) var(--e-out)' }}>
               <PanelLeftClose style={{ width: 16, height: 16 }} />
             </span>
