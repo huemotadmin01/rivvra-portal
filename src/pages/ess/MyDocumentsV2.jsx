@@ -84,7 +84,7 @@ export default function MyDocumentsV2() {
     .filter((g) => g.items.length > 0);
 
   return (
-    <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 880 }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 880, margin: '0 auto' }}>
       <PageHeader
         title="My Documents"
         sub="Documents your employer has shared with you"
