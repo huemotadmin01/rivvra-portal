@@ -318,7 +318,7 @@ export default function TimesheetEarningsV2() {
             </p>
             {disbursement.salaryHold.reason && <p className="text-xs text-dark-500 mt-1">{disbursement.salaryHold.reason}</p>}
             <div className="mt-3">
-              <p className="text-sm text-dark-400">{disbursement.isApproved ? 'Net Amount' : 'Estimated Net Amount'}</p>
+              <p className="text-sm text-dark-400">{(disbursement.isApproved || disbursement.payrollOverlayed) ? 'Net Amount' : 'Estimated Net Amount'}</p>
               <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netAmount || 0).toLocaleString()}</p>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function TimesheetEarningsV2() {
               {disbursement.note && <p className="text-sm text-dark-400 mt-1">{disbursement.note}</p>}
             </div>
             <div>
-              <p className="text-sm text-dark-400">{disbursement.isApproved ? 'Net Amount' : 'Estimated Net Amount'}</p>
+              <p className="text-sm text-dark-400">{(disbursement.isApproved || disbursement.payrollOverlayed) ? 'Net Amount' : 'Estimated Net Amount'}</p>
               <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netAmount || 0).toLocaleString()}</p>
               {disbursement.tdsAmount > 0 && (
                 <p className="text-xs text-dark-500 mt-0.5">After {disbursement.tdsRate ? `${(disbursement.tdsRate * 100).toFixed(0)}%` : '2%'} TDS (₹{disbursement.tdsAmount.toLocaleString()})</p>
