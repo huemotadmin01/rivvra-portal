@@ -423,6 +423,17 @@ export default function SettingsAtsV2() {
                 />
               )}
             />
+            <SettingRow
+              label="Recruiter referral links"
+              description="Show the “Your Referral Link” card on published jobs so recruiters can share credited apply links. Existing shared links keep working either way."
+              control={(
+                <Switch
+                  label="Recruiter referral links"
+                  checked={settings?.showReferralLinks ?? true}
+                  onChange={v => update('showReferralLinks', v)}
+                />
+              )}
+            />
             <FieldBlock
               id="ats-default-stage"
               label="Default Stage"
