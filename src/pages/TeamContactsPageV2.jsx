@@ -85,6 +85,7 @@ export default function TeamContactsPageV2() {
 
   const loadLeads = useCallback(async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setRefreshing(true); else setLoading(true);
+    let aborted = false;
     try {
       const response = await api.getTeamLeads({
         page: currentPage,
@@ -93,6 +94,7 @@ export default function TeamContactsPageV2() {
         owner: ownerFilter !== 'all' ? ownerFilter : undefined,
         profileType: profileTypeFilter,
         outreachStatus: outreachStatusFilter,
+        _requestKey: 'leads:team', // newer page/filter aborts the older request
       });
       if (response.success) {
         setLeads(response.leads || []);
@@ -101,11 +103,11 @@ export default function TeamContactsPageV2() {
         if (Array.isArray(response.teamMembers)) setTeamMembers(response.teamMembers);
       }
     } catch (err) {
+      if (err?.name === 'AbortError') { aborted = true; return; } // superseded — the newer request owns the state
       console.error('Failed to load team leads:', err);
       setLeads([]);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!aborted) { setLoading(false); setRefreshing(false); }
     }
   }, [currentPage, debouncedSearch, ownerFilter, profileTypeFilter, outreachStatusFilter]);
 

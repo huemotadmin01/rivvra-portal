@@ -409,13 +409,18 @@ class ApiClient {
     });
   }
 
-  async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName } = {}) {
+  // `_requestKey` (optional): list pages pass a stable key so a newer page /
+  // filter request aborts the older one. Without it, two quick page clicks
+  // raced and whichever response landed LAST painted the table — page 2
+  // could show page 1's rows (Kanishk, 2026-09-09). Same pattern as the
+  // ATS / CRM / Contacts lists.
+  async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (profileType && profileType !== 'all') params.set('profileType', profileType);
     if (outreachStatus && outreachStatus !== 'all') params.set('outreachStatus', outreachStatus);
     if (listName) params.set('listName', listName);
-    return this.request(`/api/portal/leads?${params.toString()}`);
+    return this.request(`/api/portal/leads?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 
   async searchAllLeads({ search, location, title, profileType, company, emailStatus, listName, page = 1, limit = 25, sort = 'createdAt', sortDir = 'desc' } = {}) {
@@ -490,12 +495,12 @@ class ApiClient {
     });
   }
 
-  async getListLeads(listName, { page = 1, limit = 10, search, profileType, outreachStatus } = {}) {
+  async getListLeads(listName, { page = 1, limit = 10, search, profileType, outreachStatus, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (profileType && profileType !== 'all') params.set('profileType', profileType);
     if (outreachStatus && outreachStatus !== 'all') params.set('outreachStatus', outreachStatus);
-    return this.request(`/api/lists/${encodeURIComponent(listName)}/leads?${params.toString()}`);
+    return this.request(`/api/lists/${encodeURIComponent(listName)}/leads?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 
   async updateLeadLists(id, lists) {
@@ -1138,14 +1143,14 @@ class ApiClient {
   }
 
   // Team Leads (admin/team_lead only)
-  async getTeamLeads({ page = 1, limit = 50, search, owner, profileType, outreachStatus, listName } = {}) {
+  async getTeamLeads({ page = 1, limit = 50, search, owner, profileType, outreachStatus, listName, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (owner && owner !== 'all') params.set('owner', owner);
     if (profileType && profileType !== 'all') params.set('profileType', profileType);
     if (outreachStatus && outreachStatus !== 'all') params.set('outreachStatus', outreachStatus);
     if (listName) params.set('listName', listName);
-    return this.request(`/api/portal/leads/team?${params.toString()}`);
+    return this.request(`/api/portal/leads/team?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 
   async assignLeadOwner(leadId, newOwnerId) {

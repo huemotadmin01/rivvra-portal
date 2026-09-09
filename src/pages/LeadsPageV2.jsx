@@ -98,6 +98,7 @@ export default function LeadsPageV2() {
 
   const loadLeads = useCallback(async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setRefreshing(true); else setLoading(true);
+    let aborted = false;
     try {
       const response = await api.getLeads({
         page: currentPage,
@@ -105,6 +106,7 @@ export default function LeadsPageV2() {
         search: debouncedSearch || undefined,
         profileType: profileTypeFilter,
         outreachStatus: outreachStatusFilter,
+        _requestKey: 'leads:list', // newer page/filter aborts the older request
       });
       if (response.success) {
         setLeads(response.leads || []);
@@ -113,11 +115,12 @@ export default function LeadsPageV2() {
         setLoadError(null);
       }
     } catch (err) {
+      // Aborted by a newer request: that one owns the loading state now.
+      if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load leads:', err);
       setLoadError(err?.message || 'Failed to load contacts');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!aborted) { setLoading(false); setRefreshing(false); }
     }
   }, [currentPage, debouncedSearch, profileTypeFilter, outreachStatusFilter]);
 

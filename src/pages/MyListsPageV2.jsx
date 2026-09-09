@@ -80,6 +80,7 @@ export default function MyListsPageV2() {
 
   const loadLeads = useCallback(async (listName, pageNum = 1, search = '', filters = {}) => {
     if (!listName) return;
+    let aborted = false;
     try {
       setLeadsLoading(true);
       const res = await api.getListLeads(listName, {
@@ -88,6 +89,7 @@ export default function MyListsPageV2() {
         search: search || undefined,
         profileType: filters.profileType,
         outreachStatus: filters.outreachStatus,
+        _requestKey: 'leads:list-detail', // newer page/filter aborts the older request
       });
       if (res.success) {
         setLeads(res.leads || []);
@@ -95,10 +97,11 @@ export default function MyListsPageV2() {
         setTotalLeads(res.total || 0);
       }
     } catch (err) {
+      if (err?.name === 'AbortError') { aborted = true; return; } // superseded — the newer request owns the state
       console.error('Failed to load leads:', err);
       setLeads([]);
     } finally {
-      setLeadsLoading(false);
+      if (!aborted) setLeadsLoading(false);
     }
   }, []);
 
