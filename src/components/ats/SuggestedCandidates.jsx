@@ -236,7 +236,26 @@ export default function SuggestedCandidates({
           <Sparkles size={16} className="text-rivvra-300" />
           <h2 className="text-lg font-semibold text-white">Suggested Candidates</h2>
           {!loading && candidates.length > 0 && (
-            <span className="text-dark-400 text-sm font-normal">({candidates.length})</span>
+            <span className="text-dark-400 text-sm font-normal">
+              ({candidates.length}
+              {otherCompany.length > 0 && (
+                <>
+                  {' · '}
+                  {/* Cross-company rows sit below every same-company row, so on a
+                      job with many local matches they were off-screen and the
+                      toggle looked dead (2026-09-09). Signal + jump. */}
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('suggested-other-companies')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="text-amber-300/90 hover:text-amber-200 underline-offset-2 hover:underline"
+                    title="Jump to candidates from other companies in your organization"
+                  >
+                    {otherCompany.length} from other companies
+                  </button>
+                </>
+              )}
+              )
+            </span>
           )}
         </div>
         <button
@@ -285,7 +304,7 @@ export default function SuggestedCandidates({
           {orderedCandidates.map((c, i) => (
             <Fragment key={c._id}>
             {i === firstOtherIndex && otherCompany.length > 0 && (
-              <li className="pt-5 pb-1">
+              <li id="suggested-other-companies" className="pt-5 pb-1 scroll-mt-20">
                 <div className="rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/25 px-3.5 py-3">
                   <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-500/15 ring-1 ring-amber-500/30">
