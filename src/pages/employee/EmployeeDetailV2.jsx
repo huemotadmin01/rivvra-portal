@@ -595,8 +595,11 @@ export default function EmployeeDetail() {
     try {
       const res = await employeeApi.deleteAssignment(currentOrg.slug, employee._id, idx);
       if (res.success) {
-        setEmployee(prev => prev ? { ...prev, assignments: res.employee.assignments } : prev);
-        showToast('Assignment deleted', 'success');
+        // Removing the last active assignment benches the employee (API rule,
+        // 2026-09-10) — carry `billable` over too so the toggle doesn't lie.
+        const benched = employee.billable !== false && res.employee.billable === false;
+        setEmployee(prev => prev ? { ...prev, assignments: res.employee.assignments, billable: res.employee.billable } : prev);
+        showToast(benched ? 'Assignment deleted — marked non-billable (no active assignment)' : 'Assignment deleted', 'success');
       }
     } catch (err) {
       const msg = err.message || '';
@@ -608,7 +611,7 @@ export default function EmployeeDetail() {
           try {
             const forceRes = await employeeApi.deleteAssignment(currentOrg.slug, employee._id, idx, true);
             if (forceRes.success) {
-              setEmployee(prev => prev ? { ...prev, assignments: forceRes.employee.assignments } : prev);
+              setEmployee(prev => prev ? { ...prev, assignments: forceRes.employee.assignments, billable: forceRes.employee.billable } : prev);
               showToast(`Assignment deleted with ${forceRes.deletedTimesheets || count} timesheet(s)`, 'success');
             }
           } catch (forceErr) {
