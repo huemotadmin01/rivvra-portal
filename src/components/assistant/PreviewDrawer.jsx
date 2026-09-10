@@ -17,6 +17,12 @@ import { useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import atsApi from '../../utils/atsApi';
 import AiResumeInsights from '../ats/AiResumeInsights';
+import crmApi from '../../utils/crmApi';
+import contactsApi from '../../utils/contactsApi';
+import { formatMoney } from '../../utils/currency';
+
+const CRM_KINDS = new Set(['opportunity', 'contact', 'company']);
+const KIND_LABEL = { application: 'Application', job: 'Job', opportunity: 'Opportunity', contact: 'Contact', company: 'Company' };
 
 // JD content from the server is wrapped in HTML by prettifyJd (<p>, <h3>,
 // <ul>, <strong>). Detect that shape and render through DOMPurify so the
@@ -55,6 +61,8 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
     // Branch by kind so a job click doesn't end up hitting /candidates/<jobId>.
     const fetcher = item.kind === 'application' ? atsApi.getApplication(orgSlug, item.id)
       : item.kind === 'job' ? atsApi.getJob(orgSlug, item.id)
+      : item.kind === 'opportunity' ? crmApi.getOpportunity(orgSlug, item.id)
+      : (item.kind === 'contact' || item.kind === 'company') ? contactsApi.get(orgSlug, item.id)
       : atsApi.getCandidate(orgSlug, item.id);
     fetcher
       .then((res) => {
@@ -88,7 +96,26 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
   const job = item.kind === 'job' ? data?.job : (data?.jobName ? { name: data.jobName } : null);
   const fullPath = item.kind === 'application' ? `/org/${orgSlug}/ats/applications/${item.id}`
     : item.kind === 'job' ? `/org/${orgSlug}/ats/jobs/${item.id}`
+    : item.kind === 'opportunity' ? `/org/${orgSlug}/crm/opportunities/${item.id}`
+    : (item.kind === 'contact' || item.kind === 'company') ? `/org/${orgSlug}/contacts/${item.id}`
     : `/org/${orgSlug}/ats/candidates/${item.id}`;
+  const isCrm = CRM_KINDS.has(item.kind);
+  const opp = item.kind === 'opportunity' ? data?.opportunity : null;
+  const contact = (item.kind === 'contact' || item.kind === 'company') ? data?.contact : null;
+  const crmName = opp?.name || contact?.name || null;
+  const crmFacts = opp ? [
+    ['Stage', opp.stageName], ['State', opp.isLost ? 'Lost' : opp.wonAt ? 'Won' : opp.isConverted ? 'Converted' : 'Open'],
+    ['Client', opp.companyName], ['Contact', opp.contactName], ['Owner', opp.salespersonName],
+    ['Expected revenue', opp.expectedRevenue != null && opp.expectedRevenue !== '' ? formatMoney(Number(opp.expectedRevenue) || 0, opp.effectiveCurrency || opp.currency) : null],
+    ['Probability', opp.probability != null ? `${opp.probability}%` : null],
+    ['Expected closing', opp.expectedClosing ? new Date(opp.expectedClosing).toLocaleDateString() : null],
+    ['Expected role', opp.expectedRole], ['Source', opp.source],
+  ] : contact ? [
+    ['Type', contact.type === 'company' ? 'Company' : 'Individual'], ['Email', contact.email], ['Phone', contact.phone || contact.mobile],
+    ['Title', contact.jobTitle], ['Company', contact.parentCompanyName], ['Owner', contact.salespersonName],
+    ['Engagement', contact.engagement?.status ? contact.engagement.status.replace('_', ' ') : null],
+    ['Website', contact.website], ['Location', [contact.address?.city, contact.address?.country].filter(Boolean).join(', ') || null],
+  ] : [];
 
   return (
     <>
@@ -115,7 +142,7 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
               <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M14.3 5.7L10 10l4.3 4.3-1.4 1.4L8.6 11.4l-4.3 4.3L2.9 14.3 7.2 10 2.9 5.7 4.3 4.3l4.3 4.3 4.3-4.3z"/></svg>
             </button>
             <div className="text-[11px] uppercase tracking-wider text-dark-500 font-medium">
-              {item.kind === 'application' ? 'Application' : item.kind === 'job' ? 'Job' : 'Candidate'} preview
+              {KIND_LABEL[item.kind] || 'Candidate'} preview
             </div>
           </div>
           <button
@@ -150,6 +177,7 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
                 <h2 className="text-lg font-semibold text-white tracking-tight">
                   {item.kind === 'application' ? application?.candidateName
                     : item.kind === 'job' ? job?.name
+                    : isCrm ? crmName
                     : candidate?.name}
                 </h2>
                 <div className="text-xs text-dark-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -210,6 +238,29 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
 
               {/* Job-specific body: description + required skills +
                   ownership + applications pipeline summary */}
+              {isCrm && (
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                  {crmFacts.filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <div className="text-dark-500">{k}</div>
+                      <div className="text-dark-100 break-words">{v}</div>
+                    </div>
+                  ))}
+                  {opp?.notes && (
+                    <div className="contents"><div className="text-dark-500">Notes</div><div className="text-dark-200 whitespace-pre-wrap">{String(opp.notes).slice(0, 600)}</div></div>
+                  )}
+                  {contact?.type === 'company' && Array.isArray(data?.childContacts) && data.childContacts.length > 0 && (
+                    <div className="contents">
+                      <div className="text-dark-500">People</div>
+                      <div className="flex flex-col gap-0.5">
+                        {data.childContacts.slice(0, 8).map((c) => (
+                          <a key={c._id} href={`/org/${orgSlug}/contacts/${c._id}`} onClick={(e) => { e.preventDefault(); navigate(`/org/${orgSlug}/contacts/${c._id}`); }} className="text-rivvra-300 hover:underline">{c.name}{c.jobTitle ? ` · ${c.jobTitle}` : ''}</a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {item.kind === 'job' && job && (
                 <>
                   {(job.recruiterName || job.accountOwnerName || job.approverName) && (

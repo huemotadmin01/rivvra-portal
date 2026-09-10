@@ -78,7 +78,7 @@ function AppLauncherPage() {
           ) : (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-rivvra-500/40 bg-dark-900/80 backdrop-blur w-full sm:w-72 transition-all">
               <Search className="w-4 h-4 text-rivvra-400 shrink-0" />
-              <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search apps…" className="bg-transparent outline-none border-none text-sm text-white placeholder:text-dark-500 flex-1 min-w-0" />
+              <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && query.trim()) { e.preventDefault(); window.dispatchEvent(new CustomEvent('rivvra:assistant:ask', { detail: { text: query.trim() } })); } }} placeholder="Search apps, or ask Rivvra…" className="bg-transparent outline-none border-none text-sm text-white placeholder:text-dark-500 flex-1 min-w-0" />
               <button type="button" onClick={clearSearch} className="text-dark-500 hover:text-white transition-colors shrink-0" aria-label="Clear search">
                 <X className="w-4 h-4" />
               </button>

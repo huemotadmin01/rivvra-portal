@@ -57,6 +57,22 @@ function AppBentoGrid({ query = '' }) {
 
   if (visibleApps.length === 0) return null;
 
+  // "Ask Rivvra: <query>" — the launcher search doubles as a way in to the
+  // assistant. The panel listens for this event (AssistantPanel.jsx) and
+  // only mounts when the server says this user has an enabled app, so the
+  // row is a no-op for everyone else.
+  const askRow = query.trim() ? (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent('rivvra:assistant:ask', { detail: { text: query.trim() } }))}
+      className="w-full mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-rivvra-500/30 bg-rivvra-500/10 hover:bg-rivvra-500/15 hover:border-rivvra-500/50 text-left transition-colors"
+    >
+      <span className="text-rivvra-300 text-sm font-medium shrink-0">Ask Rivvra</span>
+      <span className="text-sm text-dark-200 truncate">“{query.trim()}”</span>
+      <kbd className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-dark-800 border border-dark-700 text-dark-400 font-sans shrink-0">↵</kbd>
+    </button>
+  ) : null;
+
   const badgeFor = (app) => app.id === 'outreach' && !extInstalled ? { label: 'Extension Required' } : null;
 
   if (query.trim()) {
@@ -96,6 +112,7 @@ function AppBentoGrid({ query = '' }) {
     <>
       <style>{gridStyles}</style>
       <div className="space-y-4">
+        {askRow}
         {/* Row 1: 2/3 + 1/3 split via inline grid */}
         <div
           className="bento-row-1"

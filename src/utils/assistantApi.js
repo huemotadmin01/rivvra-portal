@@ -6,8 +6,10 @@
  *   1. Every request carries X-Company-Id through the same hydration gate as
  *      api.js, so the answer is bound to the company in the switcher — not
  *      to the server-side preference the switcher persists in the background.
- *   2. The request body carries `context` (app + route) so the server can
- *      pick tool packs and suggestions for the page the user is on.
+ *   2. The request body carries `context` (app, route and the open record)
+ *      so the server can pick tool packs, suggestions and "this record".
+ *   3. Conversations live on the server (Phase 1): the client sends one
+ *      message + threadId, never the history.
  *
  * SSE is read with fetch + ReadableStream because EventSource cannot send
  * POST bodies or Authorization headers.
@@ -47,13 +49,37 @@ export async function fetchAssistantCapabilities(orgSlug, { app, route, signal }
   return resp.json();
 }
 
-/** POST stream: yields { event, data } for every SSE frame. */
-export async function* streamAssistant(orgSlug, messages, { sessionId, context, signal } = {}) {
+/** Conversations for the current user in the current company. */
+export async function listAssistantThreads(orgSlug, { signal } = {}) {
+  const resp = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/assistant/threads`, { headers: authHeaders(), signal });
+  if (!resp.ok) throw await readError(resp);
+  return resp.json();
+}
+
+export async function getAssistantThread(orgSlug, threadId, { signal } = {}) {
+  const resp = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/assistant/threads/${encodeURIComponent(threadId)}`, { headers: authHeaders(), signal });
+  if (!resp.ok) throw await readError(resp);
+  return resp.json();
+}
+
+export async function deleteAssistantThread(orgSlug, threadId) {
+  const resp = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/assistant/threads/${encodeURIComponent(threadId)}`, { method: 'DELETE', headers: authHeaders() });
+  if (!resp.ok) throw await readError(resp);
+  return resp.json();
+}
+
+/**
+ * POST stream: yields { event, data } for every SSE frame.
+ * Threaded protocol: send ONE new message plus the thread to continue; the
+ * server holds the history. `threadId` null starts a new conversation and
+ * the first `scope` event carries the id to keep.
+ */
+export async function* streamAssistant(orgSlug, message, { threadId, context, signal } = {}) {
   const url = `${API_BASE_URL}/api/org/${orgSlug}/assistant/stream`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ messages, sessionId, context }),
+    body: JSON.stringify({ threadId: threadId || undefined, message, context }),
     signal,
   });
   if (!resp.ok) throw await readError(resp);

@@ -211,10 +211,12 @@ const inputStyle = {
   font: `450 12.5px/1.4 ${FONT}`,
 };
 
-function ActivityForm({ mode, onSubmit, onCancel }) {
+function ActivityForm({ mode, onSubmit, onCancel, initial = null }) {
   const isNote = mode === 'note';
   const blank = { type: isNote ? 'note' : 'call', summary: '', note: '', dueDate: '', assignedToName: '' };
-  const [form, setForm] = useState(blank);
+  // `initial` seeds the form once (an Ask Rivvra draft handed off via
+  // ?draft=<key>); the user still reviews and saves it themselves.
+  const [form, setForm] = useState(() => (initial ? { ...blank, ...initial } : blank));
   const [saving, setSaving] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -403,6 +405,7 @@ export default function ActivityPanelV2({
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
   const [formMode, setFormMode] = useState(null); // null | 'note' | 'activity'
+  const [draftInitial, setDraftInitial] = useState(null);
   const [highlightId, setHighlightId] = useState(null);
   const [showSystem, setShowSystem] = useState(true);
   const [emailDrawer, setEmailDrawer] = useState(null);
@@ -430,6 +433,28 @@ export default function ActivityPanelV2({
 
   useEffect(() => { fetchActivities(); }, [fetchActivities, refreshKey]);
 
+  // Ask Rivvra draft hand-off: the panel stores the prepared note under a
+  // one-time key in sessionStorage and navigates here with ?draft=<key>.
+  // Only a draft addressed to THIS entity opens the form; the key is
+  // consumed so a reload does not re-open it.
+  useEffect(() => {
+    if (!canEdit) return;
+    const key = new URLSearchParams(location.search).get('draft');
+    if (!key) return;
+    let draft = null;
+    try {
+      const raw = sessionStorage.getItem(`rivvra_assistant_draft:${key}`);
+      if (raw) draft = JSON.parse(raw);
+      sessionStorage.removeItem(`rivvra_assistant_draft:${key}`);
+    } catch { /* ignore */ }
+    if (!draft || draft.kind !== 'crm.note') return;
+    const p = draft.payload || {};
+    if (p.entityType !== entityType || String(p.entityId) !== String(entityId)) return;
+    setDraftInitial({ summary: p.summary || '', note: p.note || '' });
+    setFormMode('note');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, entityType, entityId, canEdit]);
+
   // Scroll-to + highlight when arriving from the My Activities dropdown.
   useEffect(() => {
     if (loading || scrollDoneRef.current) return undefined;
@@ -450,6 +475,7 @@ export default function ActivityPanelV2({
     if (!res.success || !res.activity) throw new Error(res.error || 'Failed to save');
     setActivities((prev) => [res.activity, ...prev]);
     setFormMode(null);
+    setDraftInitial(null);
   };
 
   const handleToggle = async (id, isDone) => {
@@ -531,7 +557,9 @@ export default function ActivityPanelV2({
       </div>
 
       {canEdit && formMode && (
-        <ActivityForm mode={formMode} onSubmit={handleCreate} onCancel={() => setFormMode(null)} />
+        <ActivityForm
+            key={draftInitial ? 'draft' : formMode}
+            initial={formMode === 'note' ? draftInitial : null} mode={formMode} onSubmit={handleCreate} onCancel={() => setFormMode(null)} />
       )}
 
       {actionError && (
