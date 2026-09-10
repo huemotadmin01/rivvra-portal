@@ -12,7 +12,7 @@ import PlanLimitListener from './components/PlanLimitListener';
 import PlatformLayout from './components/platform/PlatformLayout';
 // v2 shell is lazy: orgs without the uiV2 flag never download it.
 const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
-import ChatbotWidget from './components/chatbot/ChatbotWidget';
+import AssistantPanel from './components/assistant/AssistantPanel';
 import ProtectedRoute from './components/ProtectedRoute';
 import BootRing from './components/BootRing';
 import OrgRedirect from './components/OrgRedirect';
@@ -484,9 +484,10 @@ function OrgPlatformLayout() {
       <CompanyProvider>
         <PolicyAckProvider>
           <ShellSwitch />
-          {/* 2026-05-28: floating AI assistant — gates itself to /ats/ routes
-              and ats-app access internally. */}
-          <ChatbotWidget />
+          {/* Ask Rivvra — floating org-wide assistant. Rendered on every
+              in-shell route; the SERVER decides whether this user has
+              anything to ask about (capabilities), the panel just obeys. */}
+          <AssistantPanel />
         </PolicyAckProvider>
       </CompanyProvider>
     </OrgProvider>

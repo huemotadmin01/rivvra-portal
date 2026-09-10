@@ -1,6 +1,6 @@
 /**
  * PreviewDrawer.jsx — slide-in left panel for previewing a candidate or
- * application without leaving the chatbot conversation.
+ * application without leaving the assistant conversation.
  *
  * Shipped 2026-05-28 (Phase 3.3) — the biggest UX upgrade: recruiters can
  * now scan multiple results in chat, peek at each one with a single click,
@@ -67,7 +67,7 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
     return () => { aborted = true; clearTimeout(timeoutId); };
   }, [item?.id, item?.kind, orgSlug]);
 
-  // ESC to close. stopPropagation so the chatbot widget's own ESC handler
+  // ESC to close. stopPropagation so the assistant panel's own ESC handler
   // (which would close the panel) doesn't ALSO fire on the same press.
   useEffect(() => {
     const onKey = (e) => {
@@ -95,7 +95,7 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
       {/* Click-outside backdrop. Click anywhere outside the drawer closes it. */}
       <div className="fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden="true" />
 
-      {/* Drawer slides from LEFT so chatbot widget (bottom-right) stays visible
+      {/* Drawer slides from LEFT so the assistant panel (bottom-right) stays visible
           and the recruiter can keep scanning results while previewing. */}
       <div
         role="dialog"
@@ -289,7 +289,7 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
                   The candidate-detail endpoint returns enriched docs with
                   applicationStatus + jobName + stageName + aiJobFitScore,
                   so we surface all of those. Clicking a row closes the
-                  drawer FIRST (otherwise the chatbot keeps blocking) then
+                  drawer FIRST (otherwise the panel keeps blocking) then
                   navigates. */}
               {item.kind === 'candidate' && Array.isArray(data?.applications) && data.applications.length > 0 && (
                 <div>

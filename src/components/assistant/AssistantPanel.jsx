@@ -1,31 +1,37 @@
 /**
- * ChatbotWidget.jsx — floating ATS assistant.
+ * AssistantPanel.jsx — Ask Rivvra, the floating org-wide assistant.
  *
- * Lives bottom-right on every authenticated /org/:slug/ats/* page. Click
- * the FAB to open a slide-up panel with a streaming conversation.
+ * Lives bottom-right on every authenticated /org/:slug/* page. Click the
+ * launcher to open a panel with a streaming conversation.
  *
- * Wire: mount once inside OrgPlatformLayout (see App.jsx). The widget
- * gates itself on route + ATS app access.
+ * Wire: mount once inside OrgPlatformLayout (see App.jsx). Whether it
+ * renders at all is the SERVER's call: GET /assistant/capabilities returns
+ * `enabled:false` when none of the apps this user can reach are enabled
+ * for the assistant, and the launcher stays hidden. No route or app-role
+ * check lives here any more (2026-09-11, Phase 0 — was ChatbotWidget.jsx,
+ * ATS-only).
  *
- * Backend: POST /api/org/:slug/ats/chatbot/stream (SSE). See
- * src/chatbot.js on the API side for the event protocol.
+ * Company boundary: every request carries X-Company-Id (assistantApi.js),
+ * the server answers with a `scope` event naming the company it bound the
+ * answer to, and the header shows it. Switching company in the switcher
+ * clears the conversation — a thread never spans two companies.
+ *
+ * Backend: src/assistant/index.js in the API repo for the event protocol.
  */
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
-import { usePlatform } from '../../context/PlatformContext';
-import { streamChatbot } from '../../utils/chatbotApi';
+import { useCompany } from '../../context/CompanyContext';
+import { streamAssistant, fetchAssistantCapabilities } from '../../utils/assistantApi';
 import PreviewDrawer from './PreviewDrawer';
 
-const SAMPLE_QUERIES = [
-  'Find Salesforce developers with 8+ years',
-  'Show me open applications scoring 80+',
-  'How many ongoing applications do we have?',
-  'Who has applied for Python Django roles?',
-  'Compare the top 3 candidates for our UiPath role',
-];
+// Which app the user is in, from the route: /org/:slug/<app>/…
+function appFromPath(pathname) {
+  const m = /^\/org\/[^/]+\/([^/?#]+)/.exec(pathname || '');
+  return m ? m[1] : null;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -253,14 +259,22 @@ function ToolCallPill({ name, args, summary, navigate, onItemClick }) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-export default function ChatbotWidget() {
+export default function AssistantPanel() {
   const location = useLocation();
   const { slug: routeSlug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { currentOrg, getAppRole } = useOrg();
+  const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const orgSlug = routeSlug || currentOrg?.slug;
+  const currentCompanyId = currentCompany?._id ? String(currentCompany._id) : null;
+  const currentApp = appFromPath(location.pathname);
   const [open, setOpen] = useState(false);
+  // Server-declared capabilities for THIS user in THIS company. null until
+  // loaded; { enabled:false } hides the launcher entirely.
+  const [caps, setCaps] = useState(null);
+  // Scope the server bound the last answer to (from the `scope` SSE event).
+  const [scope, setScope] = useState(null);
   const [messages, setMessages] = useState([]); // [{role, content, toolCalls?}]
   const [streaming, setStreaming] = useState(false);
   const [pendingTokens, setPendingTokens] = useState('');
@@ -270,14 +284,48 @@ export default function ChatbotWidget() {
   // of navigating away. Cmd/Ctrl-click bypasses to the full detail page.
   const [previewItem, setPreviewItem] = useState(null); // { kind, id }
   const [input, setInput] = useState('');
-  const [sessionId] = useState(() => generateSessionId());
+  const [sessionId, setSessionId] = useState(() => generateSessionId());
   const abortRef = useRef(null);
   const scrollRef = useRef(null);
 
-  // Render only on ATS routes — chatbot v1 is ATS-scoped, would be confusing
-  // to surface on payroll/CRM pages where it can't answer questions.
-  const onAtsRoute = location.pathname.includes('/ats/') || location.pathname.endsWith('/ats');
-  const hasAtsAccess = !!getAppRole?.('ats');
+  const enabled = !!caps?.enabled;
+
+  // Capabilities: fetched once per (workspace, company). Wait for the
+  // company context to settle so the request carries the right X-Company-Id.
+  useEffect(() => {
+    if (!user || !orgSlug || !currentCompanyId) { setCaps(null); return undefined; }
+    const ctrl = new AbortController();
+    fetchAssistantCapabilities(orgSlug, { app: currentApp, signal: ctrl.signal })
+      .then((res) => { if (!ctrl.signal.aborted) setCaps(res); })
+      .catch((err) => {
+        if (ctrl.signal.aborted) return;
+        // 403/409 = not for this user / no company: hide. Anything else:
+        // hide too — a launcher that opens onto an error helps nobody.
+        setCaps({ enabled: false, error: err.code || err.message });
+      });
+    return () => ctrl.abort();
+    // currentApp is deliberately NOT a dependency — suggestions per app are
+    // a nicety, and refetching on every navigation is not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id, orgSlug, currentCompanyId]);
+
+  // Company switch = new conversation. The server would refuse to continue
+  // a thread across companies anyway (Phase 1); here we clear client-side
+  // history so a follow-up never mixes two entities.
+  const prevCompanyRef = useRef(currentCompanyId);
+  useEffect(() => {
+    if (prevCompanyRef.current && currentCompanyId && prevCompanyRef.current !== currentCompanyId) {
+      abortRef.current?.abort();
+      setMessages([]);
+      setPendingTokens('');
+      setPendingTools([]);
+      setPendingListLinks([]);
+      setPreviewItem(null);
+      setScope(null);
+      setSessionId(generateSessionId());
+    }
+    prevCompanyRef.current = currentCompanyId;
+  }, [currentCompanyId]);
 
   // Auto-scroll to bottom on new content.
   useEffect(() => {
@@ -303,10 +351,13 @@ export default function ChatbotWidget() {
     const tools = [];
     const listLinks = [];
     try {
-      // `data` arrives already-parsed (chatbotApi unwraps the JSON envelope).
+      // `data` arrives already-parsed (assistantApi unwraps the JSON envelope).
       // For token events it's a string; for tool_call/result it's an object.
-      for await (const { event, data } of streamChatbot(orgSlug, history, { sessionId, signal: ctrl.signal })) {
-        if (event === 'token') {
+      const context = { app: currentApp, route: location.pathname };
+      for await (const { event, data } of streamAssistant(orgSlug, history, { sessionId, context, signal: ctrl.signal })) {
+        if (event === 'scope') {
+          setScope(data);
+        } else if (event === 'token') {
           acc += typeof data === 'string' ? data : '';
           setPendingTokens(acc);
         } else if (event === 'tool_call') {
@@ -332,6 +383,11 @@ export default function ChatbotWidget() {
       if (err.name === 'AbortError') {
         acc += '\n\n_(stopped)_';
       } else {
+        if (err.code === 'ASSISTANT_NO_APPS' || err.code === 'ASSISTANT_DISABLED') {
+          // The server decided this user has nothing to ask about here —
+          // hide the launcher after this turn rather than keep failing.
+          setCaps({ enabled: false, error: err.code });
+        }
         acc = (acc || '') + (acc ? '\n\n' : '') + `_⚠️ ${err.message || 'Network error'}_`;
       }
       setPendingTokens(acc);
@@ -343,7 +399,7 @@ export default function ChatbotWidget() {
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [input, streaming, orgSlug, messages, sessionId]);
+  }, [input, streaming, orgSlug, messages, sessionId, currentApp, location.pathname]);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -366,11 +422,11 @@ export default function ChatbotWidget() {
     setOpen(false);
   }, [streaming]);
 
-  // ⌘K / Ctrl-K opens the assistant from anywhere on an ATS page.
+  // ⌘K / Ctrl-K opens the assistant from any page it is enabled on.
   // ESC closes the PANEL — but only when no PreviewDrawer is open above
   // it. Otherwise a single ESC press would close both at once.
   useEffect(() => {
-    if (!onAtsRoute || !hasAtsAccess) return;
+    if (!enabled) return undefined;
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         const tag = (e.target?.tagName || '').toLowerCase();
@@ -383,26 +439,29 @@ export default function ChatbotWidget() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onAtsRoute, hasAtsAccess, open, previewItem]);
+  }, [enabled, open, previewItem, closePanel]);
 
   // Bug 5 fix: abort any in-flight stream when the widget unmounts (route
   // change while a query is mid-flight). Without this the fetch keeps
   // running in the background and the server keeps generating tokens.
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
-  // Hide widget entirely when off-route or no ATS access.
-  if (!user || !orgSlug || !onAtsRoute || !hasAtsAccess) return null;
+  // Hidden until the server says this user has something to ask about.
+  if (!user || !orgSlug || !enabled) return null;
+
+  const scopeName = scope?.companyName || caps?.companyName || currentCompany?.name || currentOrg?.name || 'Rivvra';
+  const suggestions = Array.isArray(caps?.suggestions) ? caps.suggestions : [];
 
   return (
     <>
       {/* FAB — pill with icon + label + shortcut. Restrained dark monochrome
           with one rivvra accent on the icon, matches Linear/v0/Vercel style.
-          See ChatbotWidget redesign 2026-05-28. */}
+          See the ChatbotWidget redesign 2026-05-28 (now AssistantPanel). */}
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Open AI assistant (⌘K)"
+          aria-label="Open Ask Rivvra (⌘K)"
           className="fixed bottom-6 right-6 z-40 group inline-flex items-center gap-2.5 pl-3 pr-3.5 h-11 rounded-full bg-dark-900/95 backdrop-blur border border-dark-700/80 shadow-[0_8px_24px_-6px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)_inset] hover:border-rivvra-500/40 hover:bg-dark-800/95 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ease-out text-sm font-medium text-white tracking-tight focus:outline-none focus-visible:ring-2 focus-visible:ring-rivvra-500/40"
         >
           <span className="relative inline-flex items-center justify-center w-5 h-5">
@@ -420,7 +479,7 @@ export default function ChatbotWidget() {
             {/* Online dot — static green pulse, indicates "AI is ready". */}
             <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400 ring-2 ring-dark-900 shadow-[0_0_6px_rgba(52,211,153,0.5)]" aria-hidden="true" />
           </span>
-          <span className="leading-none">Ask AI</span>
+          <span className="leading-none">Ask Rivvra</span>
           {/* dark-300, not dark-500. This launcher renders OUTSIDE .ds-shell
               (it is a sibling of ShellSwitch in App.jsx), so the palette
               bridge never reaches it and these classes stay on the raw dark
@@ -454,8 +513,14 @@ export default function ChatbotWidget() {
                 </svg>
               </div>
               <div>
-                <div className="text-sm font-semibold text-white">ATS Assistant</div>
-                <div className="text-[10px] text-dark-500">{currentOrg?.name || 'Rivvra'}</div>
+                <div className="text-sm font-semibold text-white">Ask Rivvra</div>
+                {/* Scope chip — the company every answer is bound to. Comes
+                    from the server (`scope` event / capabilities), not from
+                    what the client thinks it sent. */}
+                <div className="text-[10px] text-dark-400 flex items-center gap-1" title="Answers are limited to this company">
+                  <svg width="9" height="9" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 18V4a1 1 0 011-1h7a1 1 0 011 1v4h4a1 1 0 011 1v9h1v1H2v-1h1zm2-1h5V5H5v12zm7 0h4v-8h-4v8zM6 6h3v2H6V6zm0 3h3v2H6V9zm0 3h3v2H6v-2zm7 0h2v2h-2v-2zm0-3h2v2h-2V9z"/></svg>
+                  <span className="truncate max-w-[220px]">{scopeName}</span>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -484,9 +549,9 @@ export default function ChatbotWidget() {
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
             {messages.length === 0 && pendingTokens === '' && pendingTools.length === 0 && (
               <div className="space-y-2 pt-2">
-                <div className="text-xs text-dark-400 px-1">Ask me about candidates, jobs, or applications — I search your real data.</div>
+                <div className="text-xs text-dark-400 px-1">Ask about your data in {scopeName} — I search your real records, and only this company's.</div>
                 <div className="flex flex-col gap-1.5">
-                  {SAMPLE_QUERIES.map((q) => (
+                  {suggestions.map((q) => (
                     <button
                       key={q}
                       type="button"
@@ -597,7 +662,7 @@ export default function ChatbotWidget() {
                     send();
                   }
                 }}
-                placeholder="Ask about candidates, applications, jobs…"
+                placeholder="Ask about your data…"
                 rows={1}
                 disabled={streaming}
                 className="flex-1 bg-transparent text-sm text-white placeholder:text-dark-500 resize-none focus:outline-none disabled:opacity-50 py-1 max-h-32"
@@ -629,7 +694,7 @@ export default function ChatbotWidget() {
                 hint: this widget renders outside .ds-shell, so the bridge
                 never reaches it and dark-500 sits at 3.75 on this panel. */}
             <div className="text-[10px] text-dark-400 px-1 pt-1">
-              Press Enter to send · Shift+Enter for newline · Searches your real ATS data
+              Press Enter to send · Shift+Enter for newline · Answers limited to {scopeName}
             </div>
           </form>
         </div>
