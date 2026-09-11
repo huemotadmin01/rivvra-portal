@@ -47,6 +47,8 @@ const RECORD_ROUTES = [
   [/^\/org\/[^/]+\/contacts\/([a-f0-9]{24})/i, 'contact'],
   [/^\/org\/[^/]+\/invoicing\/invoices\/([a-f0-9]{24})/i, 'invoice'],
   [/^\/org\/[^/]+\/incentive\/records\/([a-f0-9]{24})/i, 'incentive'],
+  [/^\/org\/[^/]+\/employee\/([a-f0-9]{24})/i, 'employee'],
+  [/^\/org\/[^/]+\/expenses\/([a-f0-9]{24})/i, 'expense'],
 ];
 function recordFromPath(pathname) {
   for (const [re, kind] of RECORD_ROUTES) {
@@ -61,8 +63,9 @@ const KIND_PATH = {
   c: 'ats/candidates', a: 'ats/applications', j: 'ats/jobs',
   o: 'crm/opportunities', k: 'contacts',
   i: 'invoicing/invoices', n: 'incentive/records',
+  e: 'employee', x: 'expenses',
 };
-const KIND_TITLE = { c: 'Open candidate', a: 'Open application', j: 'Open job', o: 'Open opportunity', k: 'Open contact', i: 'Open invoice', n: 'Open incentive record' };
+const KIND_TITLE = { c: 'Open candidate', a: 'Open application', j: 'Open job', o: 'Open opportunity', k: 'Open contact', i: 'Open invoice', n: 'Open incentive record', e: 'Open employee', x: 'Open expense' };
 // Result-card kinds the PreviewDrawer can render; everything else navigates.
 const PREVIEW_KINDS = new Set(['candidate', 'application', 'job', 'opportunity', 'contact', 'company']);
 
@@ -93,7 +96,7 @@ function renderInline(raw, { orgSlug, navigate }) {
   //   [ObjectId]               — legacy plain-id fallback, routes to candidate
   //   bare 24-hex              — defensive: scrub if it slips into prose
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n|e|x):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n|e|x):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
   let lastIdx = 0;
   let m;
   let k = 0;
@@ -119,7 +122,7 @@ function renderInline(raw, { orgSlug, navigate }) {
         <a key={k++} href={href} onClick={(e) => { e.preventDefault(); navigate(href); }}
           className="text-rivvra-300 hover:underline decoration-rivvra-500/40 underline-offset-2 font-medium">{label}</a>,
       );
-    } else if (/^\[[cajokin]:/i.test(seg)) {
+    } else if (/^\[[cajokinex]:/i.test(seg)) {
       const kind = seg[1].toLowerCase();
       const href = entityPath(orgSlug, kind, seg.slice(3, -1));
       out.push(
@@ -156,6 +159,12 @@ const TOOL_LABEL = {
   overdueSummary: 'Finding overdue invoices', paymentsReceived: 'Reading payments', draftFollowUp: 'Drafting a reminder',
   searchIncentives: 'Searching incentives', getIncentive: 'Loading incentive', incentiveSummary: 'Summing incentives',
   incentivesForInvoice: 'Tracing incentives', profitabilitySummary: 'Computing net profit',
+  searchEmployees: 'Searching the directory', getEmployee: 'Loading employee', headcountSummary: 'Counting headcount', onboardingProgress: 'Checking onboarding',
+  myProfile: 'Loading your profile', myDocuments: 'Listing your documents', myTasks: 'Listing your tasks',
+  searchExpenses: 'Searching expenses', getExpense: 'Loading claim', expenseSummary: 'Summing expenses', whoApproves: 'Checking approver',
+  timesheets: 'Reading timesheets', missingTimesheets: 'Finding missing timesheets', leaveBalances: 'Reading leave balances', leaveRequests: 'Reading leave requests', holidays: 'Reading holidays',
+  payrollRuns: 'Reading payroll runs', payrollRunStatus: 'Checking payroll', salaryHolds: 'Listing salary holds', employeeSalary: 'Loading salary record', fnfSettlements: 'Reading settlements',
+  mySalary: 'Loading your salary', myPayslips: 'Loading your payslips', myTax: 'Computing your TDS', myFnf: 'Loading your settlement',
   currentScope: 'Checking scope', useApp: 'Loading more tools',
 };
 
@@ -174,6 +183,10 @@ function KindIcon({ kind }) {
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M4 2h9l3 3v13H4V2zm2 6h8v1.5H6V8zm0 3h8v1.5H6V11zm0 3h5v1.5H6V14z" /></svg>;
     case 'incentive':
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M10 1l2.4 5 5.6.8-4 3.9.9 5.6L10 13.7l-4.9 2.6.9-5.6-4-3.9 5.6-.8z" /></svg>;
+    case 'employee':
+      return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 8a7 7 0 0114 0H3zm11-9h4v1.5h-4V8zm0 3h4v1.5h-4V11z" /></svg>;
+    case 'expense':
+      return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M3 4h14v12H3V4zm2 2v8h10V6H5zm2 2h6v1.5H7V8zm0 3h4v1.5H7V11z" /></svg>;
     default:
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M10 10a3 3 0 100-6 3 3 0 000 6zM3 17a7 7 0 0114 0H3z" /></svg>;
   }
