@@ -6,6 +6,8 @@
  */
 
 import { useState, useMemo } from 'react';
+import api from '../../utils/api';
+import { setAssistantDraftStatus } from '../../utils/assistantApi';
 
 // Which app the user is in, from the route: /org/:slug/<app>/…
 function appFromPath(pathname) {
@@ -255,14 +257,40 @@ function ToolCallPill({ name, args, summary, navigate, onItemClick }) {
 }
 
 // ── Draft card: the assistant prepared something; the user saves/sends it ──
-function DraftCard({ draft, navigate }) {
+function DraftCard({ draft, navigate, orgSlug, threadId }) {
   const [copied, setCopied] = useState(false);
+  // Confirmed action state. `draft.status` from the server wins (a reloaded
+  // thread shows 'confirmed' with no request to run again).
+  const [status, setStatus] = useState(draft.status || 'proposed');
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const canConfirm = !!draft.request && status !== 'confirmed';
+
+  // Execute the SAME app route the UI would call, with the user's own token
+  // and company header (api.request adds both). Then record the outcome so
+  // the card cannot fire twice.
+  const confirm = async () => {
+    if (!canConfirm || busy) return;
+    setBusy(true); setFailure(null);
+    try {
+      const res = await api.request(draft.request.path, { method: draft.request.method || 'POST', body: JSON.stringify(draft.request.body || {}) });
+      if (res && res.success === false) throw new Error(res.error || 'The app refused this action');
+      setStatus('confirmed');
+      if (orgSlug && threadId && draft.id) setAssistantDraftStatus(orgSlug, threadId, draft.id, { status: 'confirmed', result: 'ok' }).catch(() => {});
+    } catch (err) {
+      const msg = err?.message || 'Could not complete the action';
+      setFailure(msg);
+      if (orgSlug && threadId && draft.id) setAssistantDraftStatus(orgSlug, threadId, draft.id, { status: 'failed', result: msg }).catch(() => {});
+    } finally { setBusy(false); }
+  };
   const p = draft.payload || {};
   const isNote = draft.kind === 'crm.note';
   const isTask = draft.kind === 'todo.task';
+  const isMove = draft.kind === 'ats.stageMove';
   const isFollowUp = draft.kind === 'invoicing.followUp';
   const isEmail = draft.kind === 'email' || isFollowUp;
   const bodyText = isEmail ? `Subject: ${p.subject}\n\n${p.body}`
+    : isMove ? [`${p.candidateName}${p.job ? ` · ${p.job}` : ''}`, `${p.fromStage || '?'} → ${p.toStage}`, p.reason ? `Reason: ${p.reason}` : null].filter(Boolean).join('\n')
     : isTask ? [p.title, p.description, [p.priority ? `Priority: ${p.priority}` : null, p.dueDate ? `Due: ${p.dueDate}` : null, p.labels?.length ? `Labels: ${p.labels.join(', ')}` : null].filter(Boolean).join(' · ')].filter(Boolean).join('\n')
     : [p.summary, p.note].filter(Boolean).join('\n');
 
@@ -280,7 +308,7 @@ function DraftCard({ draft, navigate }) {
   return (
     <div className="my-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-amber-500/20">
-        <span className="text-[10px] uppercase tracking-wider text-amber-300 font-medium">Draft · {isNote ? 'note' : isTask ? 'task' : isFollowUp ? 'reminder' : isEmail ? 'email' : draft.kind}</span>
+        <span className="text-[10px] uppercase tracking-wider text-amber-300 font-medium">{canConfirm || status === 'confirmed' ? 'Action' : 'Draft'} · {isNote ? 'note' : isTask ? 'task' : isMove ? 'stage move' : isFollowUp ? 'reminder' : isEmail ? 'email' : draft.kind}</span>
         <span className="text-xs text-dark-200 truncate">{draft.title}</span>
       </div>
       <div className="px-3 py-2 text-xs text-dark-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
@@ -288,15 +316,25 @@ function DraftCard({ draft, navigate }) {
         {isEmail && !p.to && <div className="text-rose-300 mb-1">No email address on file for {p.toName}.</div>}
         {bodyText}
       </div>
+      {failure && <div className="px-3 py-1.5 text-[11px] text-rose-300 border-t border-rose-500/20 bg-rose-500/5">{failure}</div>}
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-amber-500/20 bg-dark-900/40">
-        {(isNote || isFollowUp || isTask) && draft.openPath && (
-          <button type="button" onClick={openInApp} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 text-white font-medium">{isFollowUp ? 'Review & send from invoice' : isTask ? 'Review & save in To Do' : 'Review & save in app'}</button>
+        {status === 'confirmed' && (
+          <span className="text-[11px] px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 font-medium">{isMove ? 'Moved' : 'Saved'}</span>
+        )}
+        {canConfirm && (
+          <button type="button" onClick={confirm} disabled={busy} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 disabled:opacity-60 text-white font-medium">{busy ? 'Working…' : (draft.confirmLabel || 'Confirm')}</button>
+        )}
+        {(isNote || isFollowUp || isTask || isMove) && draft.openPath && status !== 'confirmed' && (
+          <button type="button" onClick={openInApp} className={`text-[11px] px-2.5 py-1 rounded-md font-medium ${canConfirm ? 'border border-dark-600 text-dark-200 hover:bg-dark-800' : 'bg-rivvra-500 hover:bg-rivvra-400 text-white'}`}>{isFollowUp ? 'Review & send from invoice' : isMove ? 'Open application' : isTask ? 'Edit in To Do' : 'Edit in app'}</button>
+        )}
+        {status === 'confirmed' && draft.openPath && (
+          <button type="button" onClick={() => navigate(draft.openPath)} className="text-[11px] px-2.5 py-1 rounded-md border border-dark-600 text-dark-200 hover:bg-dark-800">Open</button>
         )}
         {mailto && (
           <a href={mailto} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 text-white font-medium">Open in mail app</a>
         )}
-        <button type="button" onClick={copy} className="text-[11px] px-2.5 py-1 rounded-md border border-dark-600 text-dark-200 hover:bg-dark-800">{copied ? 'Copied' : 'Copy'}</button>
-        <span className="ml-auto text-[10px] text-dark-500">Nothing is saved until you do</span>
+        {!isMove && <button type="button" onClick={copy} className="text-[11px] px-2.5 py-1 rounded-md border border-dark-600 text-dark-200 hover:bg-dark-800">{copied ? 'Copied' : 'Copy'}</button>}
+        <span className="ml-auto text-[10px] text-dark-500">{status === 'confirmed' ? 'Done' : canConfirm ? 'Runs with your permissions when you confirm' : 'Nothing is saved until you do'}</span>
       </div>
     </div>
   );
@@ -317,7 +355,7 @@ function ListLinks({ links, navigate }) {
   );
 }
 
-function AssistantMessage({ m, orgSlug, navigate, onItemClick, streamingCursor = false }) {
+function AssistantMessage({ m, orgSlug, navigate, onItemClick, streamingCursor = false, threadId = null }) {
   return (
     <div className="max-w-[92%] text-sm text-dark-200 space-y-1">
       {m.toolCalls?.map((tc, i) => (
@@ -329,7 +367,7 @@ function AssistantMessage({ m, orgSlug, navigate, onItemClick, streamingCursor =
           {streamingCursor && <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-rivvra-400 animate-pulse rounded-sm align-middle" />}
         </div>
       )}
-      {m.drafts?.map((d, i) => <DraftCard key={i} draft={d} navigate={navigate} />)}
+      {m.drafts?.map((d, i) => <DraftCard key={d.id || i} draft={d} navigate={navigate} orgSlug={orgSlug} threadId={threadId} />)}
       <ListLinks links={m.listLinks} navigate={navigate} />
     </div>
   );

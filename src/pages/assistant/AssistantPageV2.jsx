@@ -74,7 +74,7 @@ export default function AssistantPageV2() {
         role: m.role,
         content: m.content || '',
         toolCalls: (m.toolCalls || []).map((tc, i) => ({ id: `${m._id}-${i}`, name: tc.name, args: tc.args, summary: { ok: !tc.error, matchCount: tc.resultCount ?? undefined, error: tc.error || undefined } })),
-        drafts: [],
+        drafts: (m.drafts || []).filter((d) => d && d.kind).map((d) => ({ ...d, payload: {} })),
       })));
       setThreadId(String(res.thread._id));
       setPending(null);
@@ -218,13 +218,13 @@ export default function AssistantPageV2() {
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role === 'user'
                   ? <div className="max-w-[75%] text-sm rounded-2xl rounded-br-md px-3 py-2" style={{ background: 'color-mix(in srgb, var(--brand, #22c55e) 18%, transparent)', color: 'var(--fg, #eef2f6)' }}>{m.content}</div>
-                  : <AssistantMessage m={m} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} />}
+                  : <AssistantMessage m={m} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} threadId={threadId} />}
               </div>
             ))}
             {pending && (
               <div className="flex justify-start">
                 {pending.content || pending.toolCalls.length
-                  ? <AssistantMessage m={pending} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} streamingCursor />
+                  ? <AssistantMessage m={pending} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} streamingCursor threadId={threadId} />
                   : <div className="text-xs" style={{ color: 'var(--fg-3, #8b96a3)' }}>Thinking…</div>}
               </div>
             )}

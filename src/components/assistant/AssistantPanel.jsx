@@ -180,7 +180,7 @@ export default function AssistantPanel() {
         role: m.role,
         content: m.content || '',
         toolCalls: (m.toolCalls || []).map((tc, i) => ({ id: `${m._id}-${i}`, name: tc.name, args: tc.args, summary: { ok: !tc.error, matchCount: tc.resultCount ?? undefined, error: tc.error || undefined } })),
-        drafts: [], // stored drafts are titles only; the cards were one-shot
+        drafts: (m.drafts || []).filter((d) => d && d.kind).map((d) => ({ ...d, payload: {} })), // stored: id/kind/title/status/openPath, no request → cards show outcome only
       }));
       setMessages(msgs);
       setThreadId(String(res.thread._id));
@@ -346,7 +346,7 @@ export default function AssistantPanel() {
                 {m.role === 'user' ? (
                   <div className="max-w-[85%] bg-rivvra-500/20 border border-rivvra-500/30 text-white text-sm rounded-2xl rounded-br-md px-3 py-2">{m.content}</div>
                 ) : (
-                  <AssistantMessage m={m} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} />
+                  <AssistantMessage m={m} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} threadId={threadId} />
                 )}
               </div>
             ))}
@@ -366,7 +366,7 @@ export default function AssistantPanel() {
 
             {pending && (pending.content || pending.toolCalls.length > 0) && (
               <div className="flex justify-start">
-                <AssistantMessage m={pending} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} streamingCursor />
+                <AssistantMessage m={pending} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} streamingCursor threadId={threadId} />
               </div>
             )}
           </div>

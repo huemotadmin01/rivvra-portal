@@ -62,6 +62,15 @@ export async function getAssistantThread(orgSlug, threadId, { signal } = {}) {
   return resp.json();
 }
 
+/** Record the outcome of a confirmed action on a draft card (once). */
+export async function setAssistantDraftStatus(orgSlug, threadId, draftId, { status, result } = {}) {
+  const resp = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/assistant/threads/${encodeURIComponent(threadId)}/drafts/${encodeURIComponent(draftId)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status, result }),
+  });
+  if (!resp.ok) throw await readError(resp);
+  return resp.json();
+}
+
 export async function deleteAssistantThread(orgSlug, threadId) {
   const resp = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/assistant/threads/${encodeURIComponent(threadId)}`, { method: 'DELETE', headers: authHeaders() });
   if (!resp.ok) throw await readError(resp);
