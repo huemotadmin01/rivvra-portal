@@ -143,7 +143,7 @@ const TOOL_LABEL = {
   incentivesForInvoice: 'Tracing incentives', profitabilitySummary: 'Computing net profit',
   searchEmployees: 'Searching the directory', getEmployee: 'Loading employee', headcountSummary: 'Counting headcount', onboardingProgress: 'Checking onboarding',
   myProfile: 'Loading your profile', myDocuments: 'Listing your documents', myTasks: 'Listing your tasks',
-  searchExpenses: 'Searching expenses', getExpense: 'Loading claim', expenseSummary: 'Summing expenses', whoApproves: 'Checking approver',
+  searchExpenses: 'Searching expenses', getExpense: 'Loading claim', expenseSummary: 'Summing expenses', whoApproves: 'Checking approver', draftExpenseClaim: 'Drafting a claim',
   timesheets: 'Reading timesheets', missingTimesheets: 'Finding missing timesheets', leaveBalances: 'Reading leave balances', leaveRequests: 'Reading leave requests', holidays: 'Reading holidays',
   payrollRuns: 'Reading payroll runs', payrollRunStatus: 'Checking payroll', salaryHolds: 'Listing salary holds', employeeSalary: 'Loading salary record', fnfSettlements: 'Reading settlements',
   mySalary: 'Loading your salary', myPayslips: 'Loading your payslips', myTax: 'Computing your TDS', myFnf: 'Loading your settlement', myAssets: 'Listing your equipment',
@@ -276,6 +276,11 @@ function DraftCard({ draft, navigate, orgSlug, threadId }) {
       const res = await api.request(draft.request.path, { method: draft.request.method || 'POST', body: JSON.stringify(draft.request.body || {}) });
       if (res && res.success === false) throw new Error(res.error || 'The app refused this action');
       setStatus('confirmed');
+      // Open the record the action created, when the draft says where its id lives.
+      if (draft.openAfter?.path && draft.openAfter?.idFrom) {
+        const id = draft.openAfter.idFrom.split('.').reduce((o, k) => (o == null ? o : o[k]), res);
+        if (id) setCreatedPath(draft.openAfter.path.replace('{id}', String(id)));
+      }
       if (orgSlug && threadId && draft.id) setAssistantDraftStatus(orgSlug, threadId, draft.id, { status: 'confirmed', result: 'ok' }).catch(() => {});
     } catch (err) {
       const msg = err?.message || 'Could not complete the action';
@@ -287,10 +292,13 @@ function DraftCard({ draft, navigate, orgSlug, threadId }) {
   const isNote = draft.kind === 'crm.note';
   const isTask = draft.kind === 'todo.task';
   const isMove = draft.kind === 'ats.stageMove';
+  const isClaim = draft.kind === 'expenses.claim';
+  const [createdPath, setCreatedPath] = useState(null);
   const isFollowUp = draft.kind === 'invoicing.followUp';
   const isEmail = draft.kind === 'email' || isFollowUp;
   const bodyText = isEmail ? `Subject: ${p.subject}\n\n${p.body}`
     : isMove ? [`${p.candidateName}${p.job ? ` · ${p.job}` : ''}`, `${p.fromStage || '?'} → ${p.toStage}`, p.reason ? `Reason: ${p.reason}` : null].filter(Boolean).join('\n')
+    : isClaim ? [`${p.title} · ${p.claimCurrency} ${p.total}`, ...(p.lines || []).map((l) => `• ${l.date} · ${l.category || 'Uncategorised'} · ${l.merchant ? `${l.merchant} · ` : ''}${l.description} · ${l.currency} ${l.amount}`), 'Receipts and submission happen in Expenses.'].join('\n')
     : isTask ? [p.title, p.description, [p.priority ? `Priority: ${p.priority}` : null, p.dueDate ? `Due: ${p.dueDate}` : null, p.labels?.length ? `Labels: ${p.labels.join(', ')}` : null].filter(Boolean).join(' · ')].filter(Boolean).join('\n')
     : [p.summary, p.note].filter(Boolean).join('\n');
 
@@ -308,7 +316,7 @@ function DraftCard({ draft, navigate, orgSlug, threadId }) {
   return (
     <div className="my-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-amber-500/20">
-        <span className="text-[10px] uppercase tracking-wider text-amber-300 font-medium">{canConfirm || status === 'confirmed' ? 'Action' : 'Draft'} · {isNote ? 'note' : isTask ? 'task' : isMove ? 'stage move' : isFollowUp ? 'reminder' : isEmail ? 'email' : draft.kind}</span>
+        <span className="text-[10px] uppercase tracking-wider text-amber-300 font-medium">{canConfirm || status === 'confirmed' ? 'Action' : 'Draft'} · {isNote ? 'note' : isTask ? 'task' : isMove ? 'stage move' : isClaim ? 'expense claim' : isFollowUp ? 'reminder' : isEmail ? 'email' : draft.kind}</span>
         <span className="text-xs text-dark-200 truncate">{draft.title}</span>
       </div>
       <div className="px-3 py-2 text-xs text-dark-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
@@ -319,16 +327,16 @@ function DraftCard({ draft, navigate, orgSlug, threadId }) {
       {failure && <div className="px-3 py-1.5 text-[11px] text-rose-300 border-t border-rose-500/20 bg-rose-500/5">{failure}</div>}
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-amber-500/20 bg-dark-900/40">
         {status === 'confirmed' && (
-          <span className="text-[11px] px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 font-medium">{isMove ? 'Moved' : 'Saved'}</span>
+          <span className="text-[11px] px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 font-medium">{isMove ? 'Moved' : isClaim ? 'Draft created' : 'Saved'}</span>
         )}
         {canConfirm && (
           <button type="button" onClick={confirm} disabled={busy} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 disabled:opacity-60 text-white font-medium">{busy ? 'Working…' : (draft.confirmLabel || 'Confirm')}</button>
         )}
-        {(isNote || isFollowUp || isTask || isMove) && draft.openPath && status !== 'confirmed' && (
-          <button type="button" onClick={openInApp} className={`text-[11px] px-2.5 py-1 rounded-md font-medium ${canConfirm ? 'border border-dark-600 text-dark-200 hover:bg-dark-800' : 'bg-rivvra-500 hover:bg-rivvra-400 text-white'}`}>{isFollowUp ? 'Review & send from invoice' : isMove ? 'Open application' : isTask ? 'Edit in To Do' : 'Edit in app'}</button>
+        {(isNote || isFollowUp || isTask || isMove || isClaim || (!isEmail && draft.request)) && draft.openPath && status !== 'confirmed' && (
+          <button type="button" onClick={openInApp} className={`text-[11px] px-2.5 py-1 rounded-md font-medium ${canConfirm ? 'border border-dark-600 text-dark-200 hover:bg-dark-800' : 'bg-rivvra-500 hover:bg-rivvra-400 text-white'}`}>{isFollowUp ? 'Review & send from invoice' : isMove ? 'Open application' : isTask ? 'Edit in To Do' : isClaim ? 'Fill in the app instead' : 'Edit in app'}</button>
         )}
-        {status === 'confirmed' && draft.openPath && (
-          <button type="button" onClick={() => navigate(draft.openPath)} className="text-[11px] px-2.5 py-1 rounded-md border border-dark-600 text-dark-200 hover:bg-dark-800">Open</button>
+        {status === 'confirmed' && (createdPath || draft.openPath) && (
+          <button type="button" onClick={() => navigate(createdPath || draft.openPath)} className="text-[11px] px-2.5 py-1 rounded-md border border-dark-600 text-dark-200 hover:bg-dark-800">{isClaim ? 'Open claim · add receipts' : 'Open'}</button>
         )}
         {mailto && (
           <a href={mailto} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 text-white font-medium">Open in mail app</a>
