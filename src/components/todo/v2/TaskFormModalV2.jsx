@@ -27,16 +27,19 @@ const FORM_ID = 'todo-task-form';
 
 const REMINDER_LABELS = { 15: '15 minutes', 30: '30 minutes', 60: '1 hour', 1440: '1 day' };
 
-export default function TaskFormModalV2({ task, onClose, onSave, canAssign, assignableEmployees }) {
+export default function TaskFormModalV2({ task, onClose, onSave, canAssign, assignableEmployees, initial = null }) {
   const isEdit = !!task;
   const { currentCompany } = useCompany();
-  const [title, setTitle] = useState(task?.title || '');
-  const [description, setDescription] = useState(task?.description || '');
-  const [priority, setPriority] = useState(task?.priority || 'medium');
+  // `initial` seeds a NEW task (an Ask Rivvra draft handed off via ?draft=);
+  // the user still reviews and saves it. Ignored when editing.
+  const seed = !isEdit && initial ? initial : null;
+  const [title, setTitle] = useState(task?.title || seed?.title || '');
+  const [description, setDescription] = useState(task?.description || seed?.description || '');
+  const [priority, setPriority] = useState(task?.priority || seed?.priority || 'medium');
   const [dueDate, setDueDate] = useState(
-    task?.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''
+    task?.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : (seed?.dueDate || '')
   );
-  const [labels, setLabels] = useState(task?.labels?.join(', ') || '');
+  const [labels, setLabels] = useState(task?.labels?.join(', ') || (seed?.labels || []).join(', ') || '');
   const [reminderEnabled, setReminderEnabled] = useState(task?.reminder?.enabled || false);
   const [reminderMinutes, setReminderMinutes] = useState(task?.reminder?.minutesBefore || 30);
   const [status, setStatus] = useState(task?.status || 'pending');

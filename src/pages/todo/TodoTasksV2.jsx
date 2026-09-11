@@ -71,6 +71,24 @@ export default function TodoTasksV2() {
   const [search, setSearch] = useState('');
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [draftInitial, setDraftInitial] = useState(null);
+
+  // Ask Rivvra draft hand-off (?draft=<key> → sessionStorage): open the
+  // create modal prefilled; the key is consumed so a reload does not re-open.
+  useEffect(() => {
+    const key = searchParams.get('draft');
+    if (!key) return;
+    let draft = null;
+    try {
+      const raw = sessionStorage.getItem(`rivvra_assistant_draft:${key}`);
+      if (raw) draft = JSON.parse(raw);
+      sessionStorage.removeItem(`rivvra_assistant_draft:${key}`);
+    } catch { /* ignore */ }
+    if (draft?.kind !== 'todo.task') return;
+    setDraftInitial(draft.payload || null);
+    setShowCreateModal(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [editingTask, setEditingTask] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const { canAssign, assignableEmployees } = useTodoAssign(orgSlug);
@@ -336,7 +354,8 @@ export default function TodoTasksV2() {
       {/* Modals */}
       {showCreateModal && (
         <TaskFormModalV2
-          onClose={() => setShowCreateModal(false)}
+          initial={draftInitial}
+          onClose={() => { setShowCreateModal(false); setDraftInitial(null); }}
           onSave={handleCreateTask}
           canAssign={canAssign}
           assignableEmployees={assignableEmployees}

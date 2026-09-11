@@ -278,6 +278,7 @@ const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 // Lazy-loaded: CRM app pages
 const CrmDashboard = lazy(() => import('./pages/crm/CrmDashboard'));
 const CrmDashboardV2 = lazy(() => import('./pages/crm/CrmDashboardV2'));
+const AssistantPageV2 = lazy(() => import('./pages/assistant/AssistantPageV2'));
 const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
 const CrmPipelineV2 = lazy(() => import('./pages/crm/CrmPipelineV2'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
@@ -605,6 +606,9 @@ function App() {
             {/* ============================================================ */}
             <Route element={<ProtectedRoute><OrgPlatformLayout /></ProtectedRoute>}>
               <Route path="/org/:slug/home" element={<OnboardingGate><AppLauncherPage /></OnboardingGate>} />
+              {/* Ask Rivvra, full page (Phase 4): conversation list per company +
+                  the same renderer as the floating panel. V2-only surface. */}
+              <Route path="/org/:slug/assistant" element={<ErrorBoundary><AssistantPageV2 /></ErrorBoundary>} />
               {/* Onboarding hub — a permanent destination, reachable from the
                   sidebar rail long after the first-run card is dismissed.
                   Owner/admin only (2026-09-06): every task is an admin action
