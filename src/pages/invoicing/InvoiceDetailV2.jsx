@@ -832,6 +832,26 @@ export default function InvoiceDetailV2() {
   // Modals
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailDraft, setEmailDraft] = useState(null);
+
+  // Ask Rivvra draft hand-off (?draft=<key> → sessionStorage). Only a
+  // follow-up addressed to THIS invoice opens the email modal; the key is
+  // consumed so a reload does not re-open it.
+  useEffect(() => {
+    const key = searchParams.get('draft');
+    if (!key || !invoiceId) return;
+    let draft = null;
+    try {
+      const raw = sessionStorage.getItem(`rivvra_assistant_draft:${key}`);
+      if (raw) draft = JSON.parse(raw);
+      sessionStorage.removeItem(`rivvra_assistant_draft:${key}`);
+    } catch { /* ignore */ }
+    const p = draft?.payload || {};
+    if (draft?.kind !== 'invoicing.followUp' || String(p.entityId) !== String(invoiceId)) return;
+    setEmailDraft({ to: p.to || '', subject: p.subject || '', message: p.body || '' });
+    setShowEmailModal(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, invoiceId]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
 
@@ -3564,6 +3584,7 @@ export default function InvoiceDetailV2() {
 
       {showEmailModal && (
         <EmailInvoiceModal
+          initial={emailDraft}
           orgSlug={orgSlug}
           invoiceId={invoiceId}
           customerEmail={invoice.contactEmail || invoice.customer?.email || ''}
@@ -4741,11 +4762,13 @@ function EmployeeBillRecordPaymentModal({
 // EmailInvoiceModal
 // ============================================================================
 
-function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, onClose, onSuccess, showToast }) {
+function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, onClose, onSuccess, showToast, initial = null }) {
+  // `initial` = an Ask Rivvra follow-up draft handed off via ?draft=<key>;
+  // the user still reviews and sends it.
   const [form, setForm] = useState({
-    to: customerEmail,
-    subject: `Invoice ${invoiceNumber}`,
-    message: `Please find attached invoice ${invoiceNumber}. Let us know if you have any questions.`,
+    to: initial?.to || customerEmail,
+    subject: initial?.subject || `Invoice ${invoiceNumber}`,
+    message: initial?.message || `Please find attached invoice ${invoiceNumber}. Let us know if you have any questions.`,
   });
   const [sending, setSending] = useState(false);
 

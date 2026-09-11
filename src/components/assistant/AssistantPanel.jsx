@@ -45,6 +45,8 @@ const RECORD_ROUTES = [
   [/^\/org\/[^/]+\/ats\/jobs\/([a-f0-9]{24})/i, 'job'],
   [/^\/org\/[^/]+\/crm\/opportunities\/([a-f0-9]{24})/i, 'opportunity'],
   [/^\/org\/[^/]+\/contacts\/([a-f0-9]{24})/i, 'contact'],
+  [/^\/org\/[^/]+\/invoicing\/invoices\/([a-f0-9]{24})/i, 'invoice'],
+  [/^\/org\/[^/]+\/incentive\/records\/([a-f0-9]{24})/i, 'incentive'],
 ];
 function recordFromPath(pathname) {
   for (const [re, kind] of RECORD_ROUTES) {
@@ -58,8 +60,11 @@ function recordFromPath(pathname) {
 const KIND_PATH = {
   c: 'ats/candidates', a: 'ats/applications', j: 'ats/jobs',
   o: 'crm/opportunities', k: 'contacts',
+  i: 'invoicing/invoices', n: 'incentive/records',
 };
-const KIND_TITLE = { c: 'Open candidate', a: 'Open application', j: 'Open job', o: 'Open opportunity', k: 'Open contact' };
+const KIND_TITLE = { c: 'Open candidate', a: 'Open application', j: 'Open job', o: 'Open opportunity', k: 'Open contact', i: 'Open invoice', n: 'Open incentive record' };
+// Result-card kinds the PreviewDrawer can render; everything else navigates.
+const PREVIEW_KINDS = new Set(['candidate', 'application', 'job', 'opportunity', 'contact', 'company']);
 
 function entityPath(orgSlug, kind, id) {
   const p = KIND_PATH[kind];
@@ -88,7 +93,7 @@ function renderInline(raw, { orgSlug, navigate }) {
   //   [ObjectId]               — legacy plain-id fallback, routes to candidate
   //   bare 24-hex              — defensive: scrub if it slips into prose
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k):([a-f0-9]{24})\))|(\[(c|a|j|o|k):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
   let lastIdx = 0;
   let m;
   let k = 0;
@@ -114,7 +119,7 @@ function renderInline(raw, { orgSlug, navigate }) {
         <a key={k++} href={href} onClick={(e) => { e.preventDefault(); navigate(href); }}
           className="text-rivvra-300 hover:underline decoration-rivvra-500/40 underline-offset-2 font-medium">{label}</a>,
       );
-    } else if (/^\[[cajok]:/i.test(seg)) {
+    } else if (/^\[[cajokin]:/i.test(seg)) {
       const kind = seg[1].toLowerCase();
       const href = entityPath(orgSlug, kind, seg.slice(3, -1));
       out.push(
@@ -147,6 +152,10 @@ const TOOL_LABEL = {
   draftOpportunityNote: 'Drafting a note', draftContactNote: 'Drafting a note', draftEmail: 'Drafting an email',
   searchContacts: 'Searching contacts', getContact: 'Loading contact', contactsAtCompany: 'Finding people',
   engagementSummary: 'Counting engagement', searchKnowledgeBase: 'Searching the knowledge base',
+  searchInvoices: 'Searching invoices', getInvoice: 'Loading invoice', outstandingByCustomer: 'Aging receivables',
+  overdueSummary: 'Finding overdue invoices', paymentsReceived: 'Reading payments', draftFollowUp: 'Drafting a reminder',
+  searchIncentives: 'Searching incentives', getIncentive: 'Loading incentive', incentiveSummary: 'Summing incentives',
+  incentivesForInvoice: 'Tracing incentives', profitabilitySummary: 'Computing net profit',
   currentScope: 'Checking scope', useApp: 'Loading more tools',
 };
 
@@ -161,6 +170,10 @@ function KindIcon({ kind }) {
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M2 14l5-5 3 3 6-7 2 2-8 9-3-3-3 3z" /></svg>;
     case 'company':
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M3 18V4a1 1 0 011-1h7a1 1 0 011 1v4h4a1 1 0 011 1v9H3zm2-1h5V5H5v12zm7 0h4v-8h-4v8z" /></svg>;
+    case 'invoice':
+      return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M4 2h9l3 3v13H4V2zm2 6h8v1.5H6V8zm0 3h8v1.5H6V11zm0 3h5v1.5H6V14z" /></svg>;
+    case 'incentive':
+      return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M10 1l2.4 5 5.6.8-4 3.9.9 5.6L10 13.7l-4.9 2.6.9-5.6-4-3.9 5.6-.8z" /></svg>;
     default:
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M10 10a3 3 0 100-6 3 3 0 000 6zM3 17a7 7 0 0114 0H3z" /></svg>;
   }
@@ -248,7 +261,8 @@ function DraftCard({ draft, navigate }) {
   const [copied, setCopied] = useState(false);
   const p = draft.payload || {};
   const isNote = draft.kind === 'crm.note';
-  const isEmail = draft.kind === 'email';
+  const isFollowUp = draft.kind === 'invoicing.followUp';
+  const isEmail = draft.kind === 'email' || isFollowUp;
   const bodyText = isEmail ? `Subject: ${p.subject}\n\n${p.body}` : [p.summary, p.note].filter(Boolean).join('\n');
 
   const copy = async () => {
@@ -265,7 +279,7 @@ function DraftCard({ draft, navigate }) {
   return (
     <div className="my-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-amber-500/20">
-        <span className="text-[10px] uppercase tracking-wider text-amber-300 font-medium">Draft · {isNote ? 'note' : isEmail ? 'email' : draft.kind}</span>
+        <span className="text-[10px] uppercase tracking-wider text-amber-300 font-medium">Draft · {isNote ? 'note' : isFollowUp ? 'reminder' : isEmail ? 'email' : draft.kind}</span>
         <span className="text-xs text-dark-200 truncate">{draft.title}</span>
       </div>
       <div className="px-3 py-2 text-xs text-dark-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
@@ -274,8 +288,8 @@ function DraftCard({ draft, navigate }) {
         {bodyText}
       </div>
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-amber-500/20 bg-dark-900/40">
-        {isNote && draft.openPath && (
-          <button type="button" onClick={openInApp} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 text-white font-medium">Review &amp; save in app</button>
+        {(isNote || isFollowUp) && draft.openPath && (
+          <button type="button" onClick={openInApp} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 text-white font-medium">{isFollowUp ? 'Review & send from invoice' : 'Review & save in app'}</button>
         )}
         {mailto && (
           <a href={mailto} className="text-[11px] px-2.5 py-1 rounded-md bg-rivvra-500 hover:bg-rivvra-400 text-white font-medium">Open in mail app</a>
@@ -529,7 +543,10 @@ export default function AssistantPanel() {
 
   const scopeName = scope?.companyName || caps?.companyName || currentCompany?.name || currentOrg?.name || 'Rivvra';
   const suggestions = Array.isArray(caps?.suggestions) ? caps.suggestions : [];
-  const onItemClick = (it) => setPreviewItem({ kind: it._kind, id: it._id });
+  const onItemClick = (it) => {
+    if (PREVIEW_KINDS.has(it._kind)) setPreviewItem({ kind: it._kind, id: it._id });
+    else if (it._viewUrl) navigate(it._viewUrl);
+  };
   const emptyState = messages.length === 0 && !pending;
 
   return (
