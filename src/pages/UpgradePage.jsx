@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
+import { trackCheckoutStarted, trackSubscriptionActivated } from '../lib/analytics';
 import UsagePanel from '../components/UsagePanel';
 import {
   Crown, Check, Users, AlertTriangle, Sparkles,
@@ -69,6 +70,31 @@ function UpgradePage() {
   // Poll the org until the plan actually flips before declaring success.
   const PAID_PLANS = ['growth', 'scale', 'core', 'all_apps', 'pro', 'enterprise'];
   const planActive = PAID_PLANS.includes(currentOrg?.plan);
+  // Purchase conversion: fires once, when the plan has actually flipped after
+  // a Stripe redirect — not on the redirect itself, which only proves the
+  // visitor came back. Guarded by a ref so re-renders can't double-count.
+  const activationTracked = useRef(false);
+  useEffect(() => {
+    if (!stripeSuccess || !planActive || activationTracked.current) return;
+    activationTracked.current = true;
+    // Field names follow what the Stripe webhook writes on the org
+    // (stripe.js checkout.session.completed): plan + billing.{seatsTotal,
+    // billingPeriod, stripeSubscriptionId}.
+    const seats = currentOrg?.billing?.seatsTotal;
+    const unit = currentOrg?.plan === 'scale' ? 6 : currentOrg?.plan === 'growth' ? 3 : 0;
+    const annual = currentOrg?.billing?.billingPeriod === 'annual';
+    trackSubscriptionActivated({
+      plan: currentOrg?.plan,
+      seats,
+      billing_period: currentOrg?.billing?.billingPeriod,
+      // Contract value of this activation in USD (list price, pre-discount):
+      // seats × unit × (10 months if annual, else 1).
+      value: seats && unit ? seats * unit * (annual ? 10 : 1) : 0,
+      currency: 'USD',
+      transaction_id: currentOrg?.billing?.stripeSubscriptionId || undefined,
+    });
+  }, [stripeSuccess, planActive, currentOrg]);
+
   useEffect(() => {
     if (!stripeSuccess || planActive) return undefined;
     let tries = 0;
@@ -140,6 +166,7 @@ function UpgradePage() {
         billingPeriod,
       });
       if (result.url) {
+        trackCheckoutStarted({ plan: selectedPlan, seats, billing_period: billingPeriod });
         window.location.href = result.url;
       } else {
         setError(result.error || 'Failed to create checkout session.');

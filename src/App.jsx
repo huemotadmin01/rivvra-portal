@@ -9,6 +9,7 @@ import { PolicyAckProvider } from './context/PolicyAckContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import StagingBanner from './components/StagingBanner';
 import PlanLimitListener from './components/PlanLimitListener';
+import AnalyticsRouteListener from './components/AnalyticsRouteListener';
 import PlatformLayout from './components/platform/PlatformLayout';
 // v2 shell is lazy: orgs without the uiV2 flag never download it.
 const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
@@ -576,6 +577,7 @@ function App() {
       <PlanLimitListener />
       <ErrorBoundary>
       <Router>
+        <AnalyticsRouteListener />
         <PlatformProvider>
           <Suspense fallback={<PageLoader />}>
           <Routes>

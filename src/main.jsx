@@ -8,9 +8,15 @@ import './index.css'
 import './dev/devAuthBoot.js'
 // Error monitoring — no-op unless VITE_SENTRY_DSN is set at build time.
 import { initSentry } from './lib/sentry.js'
+// GA4 + Google Ads — no-op unless VITE_GA_MEASUREMENT_ID / VITE_ADS_* are set.
+import { initAnalytics } from './lib/analytics.js'
+// First-touch UTM capture — must run before the router touches the URL.
+import { captureAttribution } from './lib/attribution.js'
 import App from './App.jsx'
 
 initSentry()
+captureAttribution()
+initAnalytics()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

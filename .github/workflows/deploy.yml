@@ -38,6 +38,14 @@ jobs:
           # Sentry frontend DSN — injected at build time (Vite inlines it).
           # No-op if the secret is unset, so this is safe before you add it.
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          # GA4 + Google Ads — repository VARIABLES (Settings → Secrets and
+          # variables → Actions → Variables), not secrets: these IDs are
+          # public in the served page anyway. All no-op while unset. See
+          # src/lib/analytics.js for what each one does.
+          VITE_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
+          VITE_ADS_CONVERSION_ID: ${{ vars.ADS_CONVERSION_ID }}
+          VITE_ADS_SIGNUP_LABEL: ${{ vars.ADS_SIGNUP_LABEL }}
+          VITE_ADS_PURCHASE_LABEL: ${{ vars.ADS_PURCHASE_LABEL }}
 
       - name: Copy 404.html for SPA routing
         run: cp dist/index.html dist/404.html

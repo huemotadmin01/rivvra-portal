@@ -9,6 +9,8 @@ import {
 import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 import { GOOGLE_CLIENT_ID } from '../utils/config';
+import { trackSignupStarted, trackSignupVerified, trackWorkspaceCreated } from '../lib/analytics';
+import { getAttribution, clearAttribution } from '../lib/attribution';
 
 // Step configurations
 const STEPS = {
@@ -247,6 +249,7 @@ function SignupPage() {
     try {
       const response = await api.sendOtp(email, true, inviteToken || undefined); // pass invite token if present
       if (response.success) {
+        trackSignupStarted({ flow: inviteToken ? 'invite' : 'self_serve' });
         setCurrentStep(STEPS.OTP);
         setCountdown(60);
       } else {
@@ -308,6 +311,7 @@ function SignupPage() {
       // Verify OTP only (don't create user yet)
       const response = await api.verifyOtpOnly(email, otpString);
       if (response.success) {
+        trackSignupVerified();
         // Move to password setup
         setCurrentStep(STEPS.PASSWORD);
       } else {
@@ -472,8 +476,24 @@ function SignupPage() {
   const handleComplete = async () => {
     setLoading(true);
     try {
-      const data = await api.saveOnboarding(formData);
+      // Attach first-touch attribution (UTMs / click id from the landing
+      // visit) so the org records which campaign produced it. Invitees join
+      // an existing workspace, so there is nothing to attribute for them.
+      const acquisition = isInviteFlow ? null : getAttribution();
+      const data = await api.saveOnboarding(acquisition ? { ...formData, acquisition } : formData);
       console.log('Onboarding saved:', data);
+
+      if (!isInviteFlow) {
+        // The Ads conversion. Fires once, only when the API confirms the
+        // workspace exists — never on the click.
+        trackWorkspaceCreated({
+          method: 'email',
+          business_type: formData.businessType || undefined,
+          team_size: formData.teamSize || undefined,
+          country: formData.country || undefined,
+        });
+        clearAttribution();
+      }
 
       // If backend returned a new token (with org context), update auth
       if (data.token) {
