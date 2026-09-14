@@ -57,7 +57,7 @@ const APPS = [
     description: 'Track deals from first contact to closed-won. Manage client relationships and forecast revenue.',
     icon: Briefcase,
     color: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', badge: 'bg-emerald-500/15 text-emerald-400' },
-    status: 'coming_soon',
+    status: 'live',
     features: [
       { icon: Target, title: 'Pipeline Management', desc: 'Kanban-style deal pipeline with customizable stages.' },
       { icon: BarChart3, title: 'Revenue Forecasting', desc: 'Predict revenue based on deal stages and probability.' },
@@ -74,7 +74,7 @@ const APPS = [
     description: 'Source candidates, track applications, schedule interviews, and manage placements.',
     icon: UserSearch,
     color: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', badge: 'bg-purple-500/15 text-purple-400' },
-    status: 'coming_soon',
+    status: 'live',
     features: [
       { icon: Search, title: 'Job Postings', desc: 'Create and manage openings. Track sourcing channels.' },
       { icon: UserSearch, title: 'Candidate Tracking', desc: 'Move candidates through stages from sourced to placed.' },
@@ -91,7 +91,7 @@ const APPS = [
     description: 'Process payroll runs, manage pay configuration, track disbursements, and export reports.',
     icon: Banknote,
     color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', badge: 'bg-amber-500/15 text-amber-400' },
-    status: 'beta',
+    status: 'live',
     features: [
       { icon: CreditCard, title: 'Pay Processing', desc: 'Run payroll with automatic calculations from approved entries.' },
       { icon: CalendarDays, title: 'Disbursement Tracking', desc: 'Track upcoming and completed disbursements per employee.' },
@@ -106,7 +106,7 @@ const APPS = [
     description: 'Employee directory, department management, onboarding, and plan templates.',
     icon: UsersRound,
     color: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20', badge: 'bg-orange-500/15 text-orange-400' },
-    status: 'beta',
+    status: 'live',
     features: [
       { icon: Users, title: 'Employee Directory', desc: 'Searchable directory with profiles, departments, and contact info.' },
       { icon: Building2, title: 'Departments', desc: 'Organize employees into departments with hierarchy.' },
@@ -121,7 +121,7 @@ const APPS = [
     description: 'Company and individual contacts in one place, synced across all apps.',
     icon: Contact,
     color: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20', badge: 'bg-cyan-500/15 text-cyan-400' },
-    status: 'beta',
+    status: 'live',
     features: [
       { icon: Building2, title: 'Companies', desc: 'Manage client and vendor company profiles.' },
       { icon: Users, title: 'Individuals', desc: 'Individual contact records with full history.' },
@@ -136,7 +136,7 @@ const APPS = [
     description: 'Send documents for digital signatures. Templates, tracking, and audit trails.',
     icon: PenTool,
     color: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/20', badge: 'bg-indigo-500/15 text-indigo-400' },
-    status: 'beta',
+    status: 'live',
     features: [
       { icon: PenTool, title: 'Document Signing', desc: 'Send documents for legally-binding digital signatures.' },
       { icon: FileText, title: 'Templates', desc: 'Create reusable document templates with signing fields.' },
@@ -151,7 +151,7 @@ const APPS = [
     description: 'Personal task management with AI-powered email task extraction.',
     icon: CheckSquare,
     color: { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/20', badge: 'bg-teal-500/15 text-teal-400' },
-    status: 'beta',
+    status: 'live',
     features: [
       { icon: CheckSquare, title: 'Task Management', desc: 'Create, organize, and prioritize tasks.' },
       { icon: Zap, title: 'AI Extraction', desc: 'Automatically extract tasks from emails.' },
@@ -310,9 +310,11 @@ function FeaturesPage() {
                   <div>
                     <div className="flex items-center gap-2.5">
                       <h2 className="text-2xl font-bold text-white">{app.name}</h2>
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${badge.cls}`}>
-                        {badge.label}
-                      </span>
+                      {app.status !== 'live' && (
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      )}
                     </div>
                     <p className={`text-sm ${c.text} mt-0.5`}>{app.tagline}</p>
                   </div>

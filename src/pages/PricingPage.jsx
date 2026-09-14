@@ -74,13 +74,13 @@ const PLANS = [
 const ALL_APPS = [
   { name: 'Outreach', icon: Mail, color: 'text-rivvra-400', status: 'Live' },
   { name: 'ESS', icon: Clock, color: 'text-blue-400', status: 'Live' },
-  { name: 'CRM', icon: Briefcase, color: 'text-emerald-400', status: 'Coming Soon' },
-  { name: 'ATS', icon: UserSearch, color: 'text-purple-400', status: 'Coming Soon' },
-  { name: 'Payroll', icon: Banknote, color: 'text-amber-400', status: 'Beta' },
-  { name: 'Employee', icon: UsersRound, color: 'text-orange-400', status: 'Beta' },
-  { name: 'Contacts', icon: Contact, color: 'text-cyan-400', status: 'Beta' },
-  { name: 'Sign', icon: PenTool, color: 'text-indigo-400', status: 'Beta' },
-  { name: 'To-Do', icon: CheckSquare, color: 'text-teal-400', status: 'Beta' },
+  { name: 'CRM', icon: Briefcase, color: 'text-emerald-400', status: 'Live' },
+  { name: 'ATS', icon: UserSearch, color: 'text-purple-400', status: 'Live' },
+  { name: 'Payroll', icon: Banknote, color: 'text-amber-400', status: 'Live' },
+  { name: 'Employee', icon: UsersRound, color: 'text-orange-400', status: 'Live' },
+  { name: 'Contacts', icon: Contact, color: 'text-cyan-400', status: 'Live' },
+  { name: 'Sign', icon: PenTool, color: 'text-indigo-400', status: 'Live' },
+  { name: 'To-Do', icon: CheckSquare, color: 'text-teal-400', status: 'Live' },
   { name: 'Invoicing', icon: Receipt, color: 'text-amber-400', status: 'Live' },
   { name: 'Expenses', icon: Wallet, color: 'text-emerald-400', status: 'Live' },
   { name: 'Incentive', icon: Award, color: 'text-fuchsia-400', status: 'Live' },
@@ -320,7 +320,9 @@ function PricingPage() {
               <div key={app.name} className="flex flex-col items-center gap-2 p-4 rounded-xl border border-white/[0.06] bg-white/[0.02]">
                 <app.icon className={`w-5 h-5 ${app.color}`} />
                 <span className="text-[11px] font-medium text-dark-300 text-center">{app.name}</span>
-                <span className="text-[9px] text-dark-600 uppercase tracking-wide">{app.status}</span>
+                {app.status !== 'Live' && (
+                  <span className="text-[9px] text-dark-600 uppercase tracking-wide">{app.status}</span>
+                )}
               </div>
             ))}
           </div>

@@ -29,43 +29,43 @@ const PLATFORM_APPS = [
     features: ['Time tracking', 'Manager approvals', 'Pay calculations', 'Payroll export'],
   },
   {
-    id: 'crm', name: 'CRM', status: 'coming_soon',
+    id: 'crm', name: 'CRM', status: 'live',
     description: 'Manage your sales pipeline with deals, activities, and forecasting.',
     icon: Briefcase, color: 'emerald',
     features: ['Kanban pipeline', 'Deal tracking', 'Activity logging', 'Revenue forecasting'],
   },
   {
-    id: 'ats', name: 'ATS', status: 'coming_soon',
+    id: 'ats', name: 'ATS', status: 'live',
     description: 'Track applicants from sourcing to placement.',
     icon: UserSearch, color: 'purple',
     features: ['Job postings', 'Candidate pipeline', 'Interview scheduling', 'Placement tracking'],
   },
   {
-    id: 'payroll', name: 'Payroll', status: 'beta',
+    id: 'payroll', name: 'Payroll', status: 'live',
     description: 'Process payroll, manage disbursements, and export reports.',
     icon: Banknote, color: 'amber',
     features: ['Pay processing', 'Disbursement tracking', 'Export & reports', 'Pay configuration'],
   },
   {
-    id: 'employee', name: 'Employee', status: 'beta',
+    id: 'employee', name: 'Employee', status: 'live',
     description: 'Employee directory, departments, and HR management.',
     icon: UsersRound, color: 'orange',
     features: ['Employee directory', 'Departments', 'Onboarding', 'Plan templates'],
   },
   {
-    id: 'contacts', name: 'Contacts', status: 'beta',
+    id: 'contacts', name: 'Contacts', status: 'live',
     description: 'Unified company and individual contacts directory.',
     icon: Contact, color: 'cyan',
     features: ['Company directory', 'Individual contacts', 'Tags & filters', 'Cross-app sync'],
   },
   {
-    id: 'sign', name: 'Sign', status: 'beta',
+    id: 'sign', name: 'Sign', status: 'live',
     description: 'Digital signatures and document signing workflows.',
     icon: PenTool, color: 'indigo',
     features: ['Document signing', 'Templates', 'Request tracking', 'Audit trail'],
   },
   {
-    id: 'todo', name: 'To-Do', status: 'beta',
+    id: 'todo', name: 'To-Do', status: 'live',
     description: 'Personal task management with AI-powered email task extraction.',
     icon: CheckSquare, color: 'teal',
     features: ['Task management', 'AI extraction', 'Priority levels', 'Due dates'],
@@ -268,7 +268,11 @@ function ProductMock() {
                     <span className={`w-1.5 h-1.5 rounded-full ${app.status === 'live' ? 'bg-rivvra-400' : app.status === 'beta' ? 'bg-amber-400/80' : 'bg-dark-600'}`} />
                   </div>
                   <p className="text-[12px] font-semibold text-dark-200">{app.name}</p>
-                  <p className="text-[10px] text-dark-600 mt-0.5">{badge.label}</p>
+                  {/* Every app ships today; a label only earns its place when
+                      an app is genuinely in beta or not yet out. */}
+                  {app.status !== 'live' && (
+                    <p className="text-[10px] text-dark-600 mt-0.5">{badge.label}</p>
+                  )}
                 </div>
               );
             })}
@@ -502,9 +506,11 @@ function LandingPage() {
                         <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center`}>
                           <app.icon className={`w-5 h-5 ${c.text}`} />
                         </div>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${badge.cls}`}>
-                          {badge.label}
-                        </span>
+                        {app.status !== 'live' && (
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${badge.cls}`}>
+                            {badge.label}
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-marketing text-[17px] font-semibold text-white mb-1.5">{app.name}</h3>
                       <p className="text-dark-500 text-[13px] leading-relaxed mb-5">{app.description}</p>
