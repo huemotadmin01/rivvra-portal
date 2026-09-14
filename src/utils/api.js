@@ -1288,6 +1288,23 @@ class ApiClient {
 
   // ─── Auth Settings & Password Management ────────────────────────────────────
 
+  // Email identity — custom sending domain + Powered-by footer (Settings → General)
+  async getEmailDomain(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/email-domain`);
+  }
+  async createEmailDomain(orgSlug, domain) {
+    return this.request(`/api/org/${orgSlug}/email-domain`, { method: 'POST', body: JSON.stringify({ domain }) });
+  }
+  async verifyEmailDomain(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/email-domain/verify`, { method: 'POST' });
+  }
+  async deleteEmailDomain(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/email-domain`, { method: 'DELETE' });
+  }
+  async updateEmailBranding(orgSlug, data) {
+    return this.request(`/api/org/${orgSlug}/settings/email-branding`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
   async updateOrgAuthSettings(orgSlug, data) {
     return this.request(`/api/org/${orgSlug}/settings/auth`, {
       method: 'PUT',

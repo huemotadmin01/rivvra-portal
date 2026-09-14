@@ -17,6 +17,7 @@ import api from '../../utils/api';
 import {
   Panel, Chip, Button, Input, Textarea, Switch, Modal, Callout, EmptyState, Meter,
 } from '../ds';
+import EmailIdentitySection from './EmailIdentitySection';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚠️ This page holds the three most destructive actions in the product, and
@@ -853,6 +854,8 @@ export default function SettingsGeneralV2() {
 
       {/* ═══════════════════════ AUTHENTICATION ═══════════════════════ */}
       <AuthenticationSection currentOrg={currentOrg} />
+
+      {isOrgOwner && <EmailIdentitySection currentOrg={currentOrg} orgPath={orgPath} />}
 
       {/* ═══════════════════════ USERS & LICENSES ═══════════════════════ */}
       <SectionHeader title="Users & Licenses" />

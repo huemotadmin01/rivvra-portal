@@ -4,7 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import employeeApi from '../../utils/employeeApi';
-import { UserPlus, Edit2, UserCheck, Search, ChevronDown, Hash } from 'lucide-react';
+import { UserPlus, Edit2, UserCheck, Search, ChevronDown, Hash, AlertTriangle } from 'lucide-react';
 import {
   PageHeader, FilterBar, SelectChip, DataTable, EmptyState, Modal,
   Field, Input, Select, Button, Chip, Callout,
@@ -236,6 +236,19 @@ export default function TimesheetUsersV2() {
   });
 
   // Filter users for table
+  // F8: a person can be assigned to a project without a billing assignment
+  // behind it — their timesheet then computes to ₹0 and nobody notices until
+  // payroll. Flag it here, on the page the admin actually looks at.
+  // 'pay' = no pay rate for their pay type; 'client' = no client billing rate.
+  const rateGap = (u) => {
+    if (!u?.isActive || !(u.assignedProjects?.length > 0)) return null;
+    const payRate = u.payType === 'monthly' ? Number(u.monthlyRate || 0) : Number(u.dailyRate || 0);
+    if (!payRate) return 'pay';
+    if (u.role === 'contractor' && !Number(u.clientBillingRate || 0)) return 'client';
+    return null;
+  };
+  const rateGapCount = users.filter((u) => rateGap(u)).length;
+
   const filteredUsers = users.filter(u => {
     // Status filter
     if (filterStatus === 'active' && !u.isActive) return false;
@@ -273,8 +286,18 @@ export default function TimesheetUsersV2() {
       ) },
     // Money. The symbol follows the employee's company currency (D21b);
     // it was hardcoded ₹, which mislabelled USD-entity staff.
-    { key: 'rate', header: 'Rate', width: 130, align: 'right', muted: true,
-      render: (u) => (u.payType === 'monthly' ? payMoney(u.monthlyRate, u.payCurrency, 'mo') : payMoney(u.dailyRate, u.payCurrency, 'day')) },
+    { key: 'rate', header: 'Rate', width: 150, align: 'right', muted: true,
+      render: (u) => {
+        const gap = rateGap(u);
+        const money = u.payType === 'monthly' ? payMoney(u.monthlyRate, u.payCurrency, 'mo') : payMoney(u.dailyRate, u.payCurrency, 'day');
+        if (!gap) return money;
+        return (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+            {money}
+            <Chip tone="warn" title={gap}><AlertTriangle size={11} /> {gap === 'pay' ? 'No pay rate' : 'No client rate'}</Chip>
+          </span>
+        );
+      } },
     { key: 'status', header: 'Status', width: 110, align: 'center',
       render: (u) => (
         <button
@@ -344,6 +367,12 @@ export default function TimesheetUsersV2() {
         )}
         style={{ marginBottom: 14 }}
       />
+
+      {rateGapCount > 0 && (
+        <Callout tone="warn" icon={<AlertTriangle size={16} />} style={{ marginBottom: 14 }}>
+          <strong>{rateGapCount} {rateGapCount === 1 ? 'person is' : 'people are'} assigned to a project with no rate behind it</strong> — their timesheets will compute to zero. Open each one and set the pay rate (and client billing rate for contractors), or fix the assignment on the Employee app.
+        </Callout>
+      )}
 
       <DataTable
         columns={columns}
