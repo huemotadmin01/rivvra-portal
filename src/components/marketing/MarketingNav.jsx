@@ -6,6 +6,7 @@ import RivvraLogo from '../RivvraLogo';
 const NAV_LINKS = [
   { path: '/features', label: 'Features' },
   { path: '/pricing', label: 'Pricing' },
+  { path: '/support', label: 'Support' },
 ];
 
 export default function MarketingNav({ activePage }) {

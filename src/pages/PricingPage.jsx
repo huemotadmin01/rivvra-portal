@@ -30,7 +30,7 @@ const PLANS = [
       '50 outreach emails / day',
       '2 GB storage',
       'AI features (trial)',
-      'Email support',
+      'Email support (2 business days)',
     ],
   },
   {
@@ -48,7 +48,7 @@ const PLANS = [
       '500 outreach emails / day',
       '25 GB storage',
       'AI features included',
-      'Email support',
+      'Email support (1 business day)',
     ],
   },
   {
@@ -66,7 +66,7 @@ const PLANS = [
       '2,000 outreach emails / day',
       '100 GB storage',
       'AI features included',
-      'Priority support',
+      'Priority support (same day)',
     ],
   },
 ];
@@ -100,7 +100,7 @@ const COMPARISON = [
   { feature: 'Chrome extension', free: true, growth: true, scale: true },
   { feature: 'Cross-app workflows', free: true, growth: true, scale: true },
   { feature: 'Role-based access', free: true, growth: true, scale: true },
-  { feature: 'Support', free: 'Email', growth: 'Email', scale: 'Priority' },
+  { feature: 'Support', free: 'Email · 2 business days', growth: 'Email · 1 business day', scale: 'Priority · same day' },
 ];
 
 // ── FAQs ──────────────────────────────────────────────────────────────────────

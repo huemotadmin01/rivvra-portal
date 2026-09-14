@@ -21,7 +21,7 @@ const PLATFORM_APPS = [
     id: 'outreach', name: 'Outreach', status: 'live',
     description: 'Find leads on LinkedIn, generate AI emails, and run automated sequences.',
     icon: Mail, color: 'rivvra',
-    features: ['LinkedIn extraction', 'AI email generation', 'Multi-step sequences', 'Reply detection'],
+    features: ['LinkedIn extraction', 'AI email generation', 'Multi-step sequences', 'Reply intent (AI)'],
   },
   {
     id: 'timesheet', name: 'ESS', status: 'live',
@@ -33,7 +33,7 @@ const PLATFORM_APPS = [
     id: 'crm', name: 'CRM', status: 'live',
     description: 'Manage your sales pipeline with deals, activities, and forecasting.',
     icon: Briefcase, color: 'emerald',
-    features: ['Kanban pipeline', 'Deal tracking', 'Activity logging', 'Revenue forecasting'],
+    features: ['Kanban pipeline', 'Deal tracking', 'Activity logging', 'Expected revenue'],
   },
   {
     id: 'ats', name: 'ATS', status: 'live',

@@ -64,7 +64,7 @@ export default function SupportPage() {
   const input = 'w-full rounded-xl bg-dark-900 border border-dark-700 px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500/60 transition-colors';
 
   return (
-    <MarketingLayout activePage="support">
+    <MarketingLayout activePage="/support">
       <main className="relative z-10 max-w-6xl mx-auto px-6 py-16">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] text-[13px] text-dark-300 mb-6">
