@@ -17,7 +17,10 @@ export default defineConfig({
           // React + router in their own chunk: it changes only when a
           // dependency is bumped, so returning visitors keep it cached across
           // every app deploy instead of re-downloading it inside index-*.js.
-          'vendor-react': ['react', 'react-dom', 'react-router', 'react-router-dom', 'scheduler'],
+          // `react-dom/client` is its own entry file; without listing it the
+          // whole of react-dom rode along in index-*.js (verified on the first
+          // deploy: __reactFiber sat in index, vendor-react was 52 KB).
+          'vendor-react': ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', 'react-router', 'react-router-dom', 'scheduler'],
           'vendor-pdf': ['pdfjs-dist'],
           'vendor-excel': ['exceljs'],
           'vendor-charts': ['recharts'],
