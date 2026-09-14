@@ -84,7 +84,7 @@ export default function Nav({ onTalk }) {
       </div>
 
       {mobile && (
-        <div className="lg:hidden border-t" style={{ borderColor: 'var(--mk-line)', background: 'var(--mk-surface)' }}>
+        <div className="lg:hidden border-t" style={{ borderColor: 'var(--mk-line)', background: 'var(--mk-surface)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
           <div className="mk-wrap py-4 grid gap-1">
             <p className="mk-footer-head mt-2">Features</p>
             <div className="grid grid-cols-2 gap-1">
@@ -96,7 +96,7 @@ export default function Nav({ onTalk }) {
             {NAV.primary.map((l) => <Link key={l.to} to={l.to} className="mk-nav-link">{l.label}</Link>)}
             <Link to="/login" className="mk-nav-link">Log in</Link>
             <div className="flex gap-2 mt-3">
-              <Button variant="secondary" onClick={onTalk} className="flex-1">Talk to us</Button>
+              <Button variant="secondary" onClick={() => { setMobile(false); onTalk(); }} className="flex-1">Talk to us</Button>
               <Button to="/signup" className="flex-1" arrow>Start for free</Button>
             </div>
           </div>

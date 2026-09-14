@@ -91,8 +91,10 @@ function Pricing() {
           <Eyebrow>Compare</Eyebrow>
           <h2 className="mk-display mk-h2">What changes between plans.</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="mk-table" style={{ minWidth: 640 }}>
+        {/* Wide screens: a table. Phones: one stacked row per feature, so
+            Growth and Scale are never hidden behind a horizontal scroll. */}
+        <div className="hidden md:block">
+          <table className="mk-table">
             <thead><tr><th style={{ width: '40%' }}>Feature</th><th>Free</th><th>Growth</th><th>Scale</th></tr></thead>
             <tbody>
               {COMPARISON.map((r) => (
@@ -100,6 +102,18 @@ function Pricing() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="md:hidden grid gap-2">
+          {COMPARISON.map((r) => (
+            <div key={r.feature} className="mk-card p-4">
+              <p className="mk-h4" style={{ fontSize: 15 }}>{r.feature}</p>
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                {[['Free', r.free], ['Growth', r.growth], ['Scale', r.scale]].map(([k, v]) => (
+                  <div key={k}><p className="mk-footer-head" style={{ marginBottom: 4 }}>{k}</p><p className="text-[13.5px]" style={{ color: 'var(--mk-ink-2)' }}><Cell v={v} /></p></div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </Section>
 
