@@ -111,7 +111,7 @@ const FAQS = [
   },
   {
     q: 'What is the founding-agency offer?',
-    a: 'The first 5 agencies to join get 50% off Growth or Scale for 12 months, with the rate locked for that year. Email support@rivvra.com to claim it — we will set your team up personally.',
+    a: 'The first 5 agencies to join get 50% off Growth or Scale for 12 months. Enter the code FOUNDING50 on the checkout page when you upgrade — it works while any of the five spots are left. We will set your team up personally, too: email support@rivvra.com once you are in.',
   },
   {
     q: 'How does per-seat pricing work?',
