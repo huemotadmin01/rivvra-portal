@@ -228,9 +228,14 @@ export default function UniversalLoginPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="text-white font-medium truncate">{org.name}</p>
-                  {org.status === 'alumni' && (
-                    <p className="text-dark-500 text-xs">Read-only access</p>
-                  )}
+                  {/* Two workspaces can legitimately share a name (group
+                      entities, a re-created test org); the slug is the
+                      identity, so it is always shown alongside. */}
+                  <p className="text-dark-500 text-xs truncate">
+                    <span className="font-mono">/org/{org.slug}</span>
+                    {org.orgRole ? ` · ${org.orgRole}` : ''}
+                    {org.status === 'alumni' ? ' · read-only' : ''}
+                  </p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-dark-500 flex-shrink-0" />
               </button>
