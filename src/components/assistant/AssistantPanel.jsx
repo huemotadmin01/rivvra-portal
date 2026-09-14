@@ -54,7 +54,6 @@ export default function AssistantPanel() {
   // Hand-off to a person: opens the shared support dialog with this
   // conversation's id attached. The assistant never emails on its own.
   const [supportOpen, setSupportOpen] = useState(false);
-  const lastUserQuestion = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
   const [threads, setThreads] = useState([]);   // recent conversations for this company
   const [messages, setMessages] = useState([]); // [{ role, content, toolCalls?, drafts?, listLinks? }]
   const [streaming, setStreaming] = useState(false);
@@ -280,7 +279,7 @@ export default function AssistantPanel() {
       )}
 
       {previewItem && <PreviewDrawer item={previewItem} orgSlug={orgSlug} onClose={() => setPreviewItem(null)} />}
-      <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} prefill={{ subject: lastUserQuestion ? `Help with: ${lastUserQuestion.slice(0, 80)}` : '', threadId: threadId || undefined, lastQuestion: lastUserQuestion || undefined }} />
+      <SupportDialog key="support" open={supportOpen} onClose={() => setSupportOpen(false)} prefill={(() => { const q = [...messages].reverse().find((m) => m.role === 'user')?.content || ''; return { subject: q ? `Help with: ${q.slice(0, 80)}` : '', threadId: threadId || undefined, lastQuestion: q || undefined }; })()} />
 
       {open && (
         <div className="fixed bottom-5 right-5 z-40 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-dark-900 border border-dark-700 shadow-2xl shadow-black/40 overflow-hidden">
