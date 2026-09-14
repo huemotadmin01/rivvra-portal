@@ -15,6 +15,7 @@
  * /org/:slug/login and the /find-workspace recovery page are untouched.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -25,6 +26,7 @@ import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 
 export default function UniversalLoginPage() {
+  useDocumentMeta({ title: 'Log in', description: 'Log in to your Rivvra workspace.', path: '/login' });
   const navigate = useNavigate();
   const { loginWithPassword, loginWithGoogle, isAuthenticated } = useAuth();
 

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import MarketingLayout from './MarketingLayout';
+import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 
 /**
  * Renders a legal document from src/content/legal/*.js inside the marketing
@@ -71,6 +72,7 @@ function Block({ block }) {
 }
 
 export default function LegalDocument({ doc }) {
+  useDocumentMeta({ title: doc.title, description: doc.intro, path: `/${doc.slug}` });
   return (
     <MarketingLayout>
       <main className="relative z-10 max-w-3xl mx-auto px-6 py-16">

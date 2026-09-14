@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, ChevronRight,
@@ -251,6 +252,11 @@ const PLATFORM_FEATURES = [
 ];
 
 function FeaturesPage() {
+  useDocumentMeta({
+    title: 'Features',
+    description: 'Every Rivvra app in detail: Outreach, ESS and timesheets, CRM, ATS, payroll, employee, contacts, sign, to-do, invoicing, expenses, incentive, documents, knowledge base.',
+    path: '/features',
+  });
   const [activeApp, setActiveApp] = useState(null);
 
   return (

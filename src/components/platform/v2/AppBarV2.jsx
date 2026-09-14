@@ -10,6 +10,7 @@ import OnboardingRail from './OnboardingRail';
 import { useFromEntity } from '../../../hooks/useFromEntity';
 import { ThemeToggle, useTheme } from '../../ds';
 import KbHelpButton from '../../KbHelpButton';
+import SupportButton from '../../SupportButton';
 import PeriodPicker from '../PeriodPicker';
 import NotificationBell from '../NotificationBell';
 import { usePolicyAck } from '../../../context/PolicyAckContext';
@@ -127,6 +128,7 @@ function AppBarV2({ onMenu }) {
 
       {currentApp?.id === 'timesheet' && <PeriodPicker />}
       {currentApp?.id && <KbHelpButton appId={currentApp.id} />}
+      <SupportButton />
       <ThemeToggle theme={theme} onChange={setTheme} />
       <NotificationBell />
       <MyActivitiesV2 orgSlug={currentOrg?.slug} orgPath={orgPath} />

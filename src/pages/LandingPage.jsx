@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, ChevronRight, Check,
@@ -388,6 +389,11 @@ function ExtensionMock() {
 // PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 function LandingPage() {
+  useDocumentMeta({
+    titleRaw: 'Rivvra — All-in-one staffing platform',
+    description: 'Outreach, ATS, CRM, timesheets, payroll, invoicing and more — fourteen apps for staffing agencies in one workspace. Free forever to start.',
+    path: '/',
+  });
   return (
     <MarketingLayout activePage="/">
       {/* ════════════ HERO ════════════════════════════════════════════════ */}

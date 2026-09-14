@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -106,6 +107,7 @@ const checkPasswordStrength = (password) => {
 };
 
 function SignupPage() {
+  useDocumentMeta({ title: 'Create your workspace', description: 'Start Rivvra free: every app, no credit card. Sign up with your work email.', path: '/signup' });
   const navigate = useNavigate();
   const { signupWithPassword, loginWithGoogle, isAuthenticated, token } = useAuth();
 
@@ -1075,6 +1077,11 @@ function SignupPage() {
                   ))}
                 </div>
                 <p className="text-xs text-dark-500 mt-1">Sets your company&apos;s currency and regional defaults. You can change it later.</p>
+                {formData.country && formData.country !== 'IN' && (
+                  <p className="text-xs text-amber-300/90 mt-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2">
+                    Payroll, full-and-final settlement and GST/TDS reports are built for India today. Everything else — Outreach, ATS, CRM, timesheets, invoicing, sign, expenses — works for a {formData.country === 'US' ? 'US' : 'Canadian'} company.
+                  </p>
+                )}
               </div>
               )}
 

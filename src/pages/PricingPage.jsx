@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, CheckCircle, ChevronRight, Zap, Shield, Sparkles,
@@ -95,7 +96,7 @@ const COMPARISON = [
   { feature: 'Active records', free: '500', growth: '10,000', scale: 'Unlimited' },
   { feature: 'Outreach emails / day', free: '50', growth: '500', scale: '2,000' },
   { feature: 'Storage', free: '2 GB', growth: '25 GB', scale: '100 GB' },
-  { feature: 'AI features', free: 'Trial', growth: true, scale: true },
+  { feature: 'AI actions / month', free: '100', growth: '2,000', scale: 'Unlimited' },
   { feature: 'Chrome extension', free: true, growth: true, scale: true },
   { feature: 'Cross-app workflows', free: true, growth: true, scale: true },
   { feature: 'Role-based access', free: true, growth: true, scale: true },
@@ -106,7 +107,7 @@ const COMPARISON = [
 const FAQS = [
   {
     q: 'Is the Free plan really free forever?',
-    a: 'Yes. The Free plan gives you all 14 apps with no time limit and no credit card. It is capped at 3 team members, 500 active records, 50 outreach emails per day, and 2 GB of storage. When you outgrow any of those, upgrade to Growth or Scale.',
+    a: 'Yes. The Free plan gives you all 14 apps with no time limit and no credit card. It is capped at 3 team members, 500 active records, 50 outreach emails per day, 2 GB of storage, and 100 AI actions a month (a résumé scored, an assistant answer, or an AI-screened suggestion list each count as one). When you outgrow any of those, upgrade to Growth or Scale.',
   },
   {
     q: 'What is the founding-agency offer?',
@@ -163,6 +164,11 @@ function Cell({ value }) {
 }
 
 function PricingPage() {
+  useDocumentMeta({
+    title: 'Pricing',
+    description: 'Free forever for up to 3 users. Growth $3 and Scale $6 per user per month, every app on every plan, no credit card to start.',
+    path: '/pricing',
+  });
   const [annual, setAnnual] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const { isAuthenticated, user } = useAuth?.() || {};
