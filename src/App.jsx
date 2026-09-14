@@ -12,7 +12,8 @@ import PlanLimitListener from './components/PlanLimitListener';
 import AnalyticsRouteListener from './components/AnalyticsRouteListener';
 // The app shell is lazy so the public marketing routes never download it.
 const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
-import AssistantPanel from './components/assistant/AssistantPanel';
+// Lazy: the assistant (and DOMPurify) never load on the marketing routes.
+const AssistantPanel = lazy(() => import('./components/assistant/AssistantPanel'));
 import ProtectedRoute from './components/ProtectedRoute';
 import BootRing from './components/BootRing';
 import OrgRedirect from './components/OrgRedirect';
@@ -27,34 +28,34 @@ import { Loader2 } from 'lucide-react';
 
 // Public pages (always loaded)
 import LandingPage from './pages/LandingPage';
-import SignupPage from './pages/SignupPage';
+const SignupPage = lazy(() => import('./pages/SignupPage'));
 // /invite and /org/:slug/invite are outside OrgProvider, so PageSwitch
 // (useOrg throws there) cannot gate them. Ships directly; legacy unreferenced.
-import InviteAcceptPage from './pages/InviteAcceptPageV2';
+const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPageV2'));
 // Universal (Salesforce-style) login at /login — resolves org from email,
 // then routes to /org/:slug/home. Branded /org/:slug/login still available.
-import UniversalLoginPage from './pages/UniversalLoginPage';
+const UniversalLoginPage = lazy(() => import('./pages/UniversalLoginPage'));
 // /org/:slug/login is outside OrgProvider, so PageSwitch (useOrg throws
 // there) cannot gate it. Ships directly; legacy kept unreferenced.
-import OrgLoginPage from './pages/OrgLoginPageV2';
-import PrivacyPage from './pages/PrivacyPage';
-import TermsPage from './pages/TermsPage';
+const OrgLoginPage = lazy(() => import('./pages/OrgLoginPageV2'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
 import FeaturesPage from './pages/FeaturesPage';
 import PricingPage from './pages/PricingPage';
 // /find-workspace is outside OrgProvider, so PageSwitch (which calls useOrg,
 // and useOrg throws outside the provider) cannot gate it. Ships directly;
 // legacy ./pages/FindWorkspacePage is kept unreferenced for a one-line revert.
-import FindWorkspacePage from './pages/FindWorkspacePageV2';
+const FindWorkspacePage = lazy(() => import('./pages/FindWorkspacePageV2'));
 // /reset-password is outside OrgProvider, so PageSwitch (useOrg throws
 // there) cannot gate it. Ships directly; legacy kept unreferenced.
-import ResetPasswordPage from './pages/ResetPasswordPageV2';
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPageV2'));
 // /forgot-password is outside OrgProvider, so PageSwitch (useOrg throws
 // there) cannot gate it. Ships directly; legacy kept unreferenced.
-import ForgotPasswordPage from './pages/ForgotPasswordPageV2';
-import AppLauncherPage from './pages/AppLauncherPage';
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPageV2'));
+const AppLauncherPage = lazy(() => import('./pages/AppLauncherPage'));
 const OnboardingHubPage = lazy(() => import('./pages/OnboardingHubPage'));
 import OnboardingGate from './components/OnboardingGate';
-import UpgradePage from './pages/UpgradePage';
+const UpgradePage = lazy(() => import('./pages/UpgradePage'));
 
 // Lazy-loaded: Outreach app pages
 const DashboardPageV2 = lazy(() => import('./pages/DashboardPageV2'));
@@ -343,7 +344,7 @@ function OrgPlatformLayout() {
           {/* Ask Rivvra — floating org-wide assistant. Rendered on every
               in-shell route; the SERVER decides whether this user has
               anything to ask about (capabilities), the panel just obeys. */}
-          <AssistantPanel />
+          <Suspense fallback={null}><AssistantPanel /></Suspense>
         </PolicyAckProvider>
       </CompanyProvider>
     </OrgProvider>

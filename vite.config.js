@@ -14,6 +14,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          // React + router in their own chunk: it changes only when a
+          // dependency is bumped, so returning visitors keep it cached across
+          // every app deploy instead of re-downloading it inside index-*.js.
+          'vendor-react': ['react', 'react-dom', 'react-router', 'react-router-dom', 'scheduler'],
           'vendor-pdf': ['pdfjs-dist'],
           'vendor-excel': ['exceljs'],
           'vendor-charts': ['recharts'],
