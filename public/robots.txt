@@ -1,6 +1,10 @@
 User-agent: *
 Allow: /
 Allow: /features
+Allow: /features/
+Allow: /solutions/
+Allow: /about
+Allow: /changelog
 Allow: /pricing
 Allow: /signup
 Allow: /login

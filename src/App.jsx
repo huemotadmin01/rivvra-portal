@@ -27,7 +27,7 @@ import OrgAdminGate from './components/OrgAdminGate';
 import { Loader2 } from 'lucide-react';
 
 // Public pages (always loaded)
-import LandingPage from './pages/LandingPage';
+import HomePage from './pages/marketing/HomePage';
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 // /invite and /org/:slug/invite are outside OrgProvider, so PageSwitch
 // (useOrg throws there) cannot gate them. Ships directly; legacy unreferenced.
@@ -40,9 +40,13 @@ const UniversalLoginPage = lazy(() => import('./pages/UniversalLoginPage'));
 const OrgLoginPage = lazy(() => import('./pages/OrgLoginPageV2'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
-const SupportPage = lazy(() => import('./pages/SupportPage'));
-import FeaturesPage from './pages/FeaturesPage';
-import PricingPage from './pages/PricingPage';
+const SupportPage = lazy(() => import('./pages/marketing/SupportPage'));
+const AboutPage = lazy(() => import('./pages/marketing/AboutPage'));
+const ChangelogPage = lazy(() => import('./pages/marketing/ChangelogPage'));
+import FeaturesPage from './pages/marketing/FeaturesPage';
+const AppPage = lazy(() => import('./pages/marketing/AppPage'));
+const SolutionPage = lazy(() => import('./pages/marketing/SolutionPage'));
+import PricingPage from './pages/marketing/PricingPage';
 // /find-workspace is outside OrgProvider, so PageSwitch (which calls useOrg,
 // and useOrg throws outside the provider) cannot gate it. Ships directly;
 // legacy ./pages/FindWorkspacePage is kept unreferenced for a one-line revert.
@@ -438,15 +442,19 @@ function App() {
           <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<UniversalLoginPage />} />
             <Route path="/invite" element={<InviteAcceptPage />} />
             <Route path="/features" element={<FeaturesPage />} />
+            <Route path="/features/:slug" element={<AppPage />} />
+            <Route path="/solutions/:slug" element={<SolutionPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/support" element={<SupportPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/changelog" element={<ChangelogPage />} />
             <Route path="/contact" element={<SupportPage />} />
             <Route path="/find-workspace" element={<FindWorkspacePage />} />
             {/* Document Vault — permanent, identity-scoped document access for

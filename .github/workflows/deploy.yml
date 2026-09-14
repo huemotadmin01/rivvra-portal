@@ -61,9 +61,10 @@ jobs:
           while IFS= read -r line || [ -n "$line" ]; do
             route="$(printf '%s' "${line%%#*}" | tr -d '[:space:]' | sed 's#^/##')"
             if [ -n "$route" ]; then
-              case "$route" in
-                */*) echo "refusing nested route '$route' — use careers-prerender.txt style directories"; exit 1 ;;
-              esac
+              # Nested routes (features/ats) become dist/features/ats.html:
+              # Pages resolves an extensionless path inside a directory the
+              # same way it does at the root, with a 200 and no redirect.
+              mkdir -p "dist/$(dirname "$route")"
               cp dist/index.html "dist/$route.html"
               echo "  prerendered /$route"
               count=$((count + 1))
