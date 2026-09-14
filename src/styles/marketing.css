@@ -130,11 +130,25 @@
 .mk-menu-foot a { color: var(--mk-brand-hi); font-weight: 500; }
 .mk-wordmark { font-family: var(--mk-display); font-weight: 700; font-size: 19px; letter-spacing: -0.02em; color: var(--mk-ink); }
 
-/* Footer */
-.mk-footer { border-top: 1px solid var(--mk-line); background: var(--mk-surface); }
+/* Footer — the one dark block on the site. Tokens re-declared locally so
+   every child reads the dark set; nothing outside .mk-footer changes. */
+.mk-footer { --mk-bg: #101418; --mk-surface: #171C22; --mk-surface-2: #1E242B; --mk-ink: #EEF2F6; --mk-ink-2: #C9D1D8; --mk-muted: #8F9AA6; --mk-faint: #6B7682; --mk-line: #242B33; --mk-line-2: #303841; --mk-brand: #22C55E; --mk-brand-hi: #4ADE80; --mk-brand-soft: #14291C; --mk-brand-line: #1F5A32; --mk-brand-fg: #06130A;
+  background: var(--mk-bg); color: var(--mk-ink-2); border-top: 1px solid #E6E8E3; }
+.mk-footer .mk-wordmark { color: var(--mk-ink); }
+.mk-footer-flow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-family: var(--mk-display); font-weight: 700; font-size: clamp(30px, 4.6vw, 56px); letter-spacing: -0.025em; line-height: 1.05; color: var(--mk-ink); }
+.mk-footer-flow i { font-style: normal; color: var(--mk-brand-hi); font-family: var(--mk-mono); font-weight: 400; font-size: .5em; letter-spacing: 0; transform: translateY(-.15em); display: inline-block; }
+.mk-footer-flow em { font-style: normal; color: var(--mk-faint); }
 .mk-footer-head { font-family: var(--mk-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mk-faint); margin-bottom: 14px; }
 .mk-footer a.mk-footer-link { font-size: 14px; color: var(--mk-ink-2); }
 .mk-footer a.mk-footer-link:hover { color: var(--mk-ink); }
+.mk-footer .mk-btn--secondary { background: transparent; color: var(--mk-ink); border-color: var(--mk-line-2); }
+.mk-footer .mk-btn--secondary:hover { border-color: var(--mk-ink-2); }
+.mk-footer-fact { display: grid; gap: 2px; padding: 14px 16px; border: 1px solid var(--mk-line); border-radius: 10px; background: var(--mk-surface); }
+.mk-footer-fact b { font-family: var(--mk-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--mk-ink); line-height: 1.1; }
+.mk-footer-fact span { font-size: 12.5px; color: var(--mk-muted); }
+.mk-footer-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 13px; color: var(--mk-muted); }
+.mk-footer-bottom a { color: var(--mk-muted); }
+.mk-footer-bottom a:hover { color: var(--mk-ink); }
 
 /* Forms (Talk to us) */
 .mk-field { display: grid; gap: 6px; }

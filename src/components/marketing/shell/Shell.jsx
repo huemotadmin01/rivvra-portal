@@ -21,7 +21,7 @@ export default function Shell({ children }) {
       <div className="mk min-h-screen flex flex-col">
         <Nav onTalk={openTalk} />
         <main className="flex-1">{children}</main>
-        <Footer />
+        <Footer onTalk={openTalk} />
         <TalkToUs open={talk} onClose={closeTalk} />
       </div>
     </TalkContext.Provider>
