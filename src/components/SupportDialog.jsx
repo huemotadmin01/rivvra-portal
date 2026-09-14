@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LifeBuoy, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
 import { Modal, Field, Input, Textarea, Button, Callout } from './ds';
@@ -67,7 +67,6 @@ export default function SupportDialog({ open, onClose, prefill = {} }) {
       open={open}
       onClose={onClose}
       size="md"
-      icon={<LifeBuoy size={16} />}
       title={sent ? 'Message sent' : 'Contact support'}
       sub={sent ? undefined : 'A person replies by email, usually within one business day.'}
       footer={sent ? (
@@ -99,7 +98,7 @@ export default function SupportDialog({ open, onClose, prefill = {} }) {
           <p style={{ font: "400 11px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 }}>
             We attach your workspace ({currentOrg?.name || 'this workspace'}), plan, email, the page you are on{prefill.threadId ? ', and this Ask Rivvra conversation' : ''}, so you do not have to.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, paddingTop: 6, borderTop: '1px solid var(--line)', font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
             <span>Prefer your own mail app?</span>
             <button type="button" onClick={copy} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', color: 'var(--brand)', cursor: 'pointer', padding: 0, font: 'inherit' }}>
               {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : SUPPORT_EMAIL}
