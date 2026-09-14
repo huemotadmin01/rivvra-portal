@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Allow: /features
+Allow: /pricing
+Allow: /signup
+Allow: /login
+Allow: /terms
+Allow: /privacy
+Allow: /careers/
+Disallow: /org/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /invite
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /find-workspace
+Disallow: /document-vault
+Disallow: /sign/
+
+Sitemap: https://www.rivvra.com/sitemap.xml

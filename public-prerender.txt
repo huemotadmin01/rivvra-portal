@@ -1,0 +1,28 @@
+# Top-level public routes to materialise as real files at deploy time.
+#
+# Same problem as careers-prerender.txt: GitHub Pages has no SPA rewrite, so
+# any path without a real file behind it is served from 404.html WITH a 404
+# status. People never notice (the app boots and client-routes), but Google
+# Ads refuses a destination that answers 404 ("Destination not working") and
+# search engines will not index it. Before this file existed, /pricing,
+# /signup, /login, /features and /terms all answered 404 in production.
+#
+# deploy.yml copies dist/index.html to dist/<route>.html for each line here.
+# GitHub Pages resolves an extensionless request to the matching .html file
+# without a redirect, so the URL the visitor (and the ad) uses stays exactly
+# /pricing — no trailing-slash hop. Careers pages use directories instead
+# because their paths are nested.
+#
+# One route per line, no leading slash. Only list routes that are reachable
+# signed-out; an authed page has no reason to return 200 to a crawler.
+
+signup
+login
+invite
+features
+pricing
+privacy
+terms
+find-workspace
+forgot-password
+reset-password

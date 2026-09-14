@@ -42,6 +42,28 @@ jobs:
       - name: Copy 404.html for SPA routing
         run: cp dist/index.html dist/404.html
 
+      # Top-level public routes (/pricing, /signup, /login, …) get a real
+      # <route>.html so Pages answers 200 instead of the 404-status SPA
+      # fallback. Google Ads disapproves 404 destinations. See
+      # public-prerender.txt for the why and the list.
+      - name: Materialise public marketing routes so Pages returns 200
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            route="$(printf '%s' "${line%%#*}" | tr -d '[:space:]' | sed 's#^/##')"
+            if [ -n "$route" ]; then
+              case "$route" in
+                */*) echo "refusing nested route '$route' — use careers-prerender.txt style directories"; exit 1 ;;
+              esac
+              cp dist/index.html "dist/$route.html"
+              echo "  prerendered /$route"
+              count=$((count + 1))
+            fi
+          done < public-prerender.txt
+          echo "materialised $count public route(s)"
+          test "$count" -gt 0
+
       # Pages has no rewrite config, so 404.html is what serves every unmatched
       # path — and it comes back with a 404 status. The app still renders, but
       # crawlers and link checkers stop there. Putting a real file at the
