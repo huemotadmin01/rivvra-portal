@@ -40,6 +40,7 @@ const UniversalLoginPage = lazy(() => import('./pages/UniversalLoginPage'));
 const OrgLoginPage = lazy(() => import('./pages/OrgLoginPageV2'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
+const SupportPage = lazy(() => import('./pages/SupportPage'));
 import FeaturesPage from './pages/FeaturesPage';
 import PricingPage from './pages/PricingPage';
 // /find-workspace is outside OrgProvider, so PageSwitch (which calls useOrg,
@@ -445,6 +446,8 @@ function App() {
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/support" element={<SupportPage />} />
+            <Route path="/contact" element={<SupportPage />} />
             <Route path="/find-workspace" element={<FindWorkspacePage />} />
             {/* Document Vault — permanent, identity-scoped document access for
                 any authenticated user, incl. fully-archived ex-employees who no

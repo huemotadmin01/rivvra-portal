@@ -26,3 +26,5 @@ terms
 find-workspace
 forgot-password
 reset-password
+support
+contact

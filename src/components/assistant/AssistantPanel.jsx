@@ -21,6 +21,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import SupportDialog from '../SupportDialog';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
@@ -50,6 +51,10 @@ export default function AssistantPanel() {
   const [caps, setCaps] = useState(null);       // server capabilities; { enabled:false } hides the launcher
   const [scope, setScope] = useState(null);     // company the last answer was bound to
   const [threadId, setThreadId] = useState(null);
+  // Hand-off to a person: opens the shared support dialog with this
+  // conversation's id attached. The assistant never emails on its own.
+  const [supportOpen, setSupportOpen] = useState(false);
+  const lastUserQuestion = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
   const [threads, setThreads] = useState([]);   // recent conversations for this company
   const [messages, setMessages] = useState([]); // [{ role, content, toolCalls?, drafts?, listLinks? }]
   const [streaming, setStreaming] = useState(false);
@@ -275,6 +280,7 @@ export default function AssistantPanel() {
       )}
 
       {previewItem && <PreviewDrawer item={previewItem} orgSlug={orgSlug} onClose={() => setPreviewItem(null)} />}
+      <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} prefill={{ subject: lastUserQuestion ? `Help with: ${lastUserQuestion.slice(0, 80)}` : '', threadId: threadId || undefined, lastQuestion: lastUserQuestion || undefined }} />
 
       {open && (
         <div className="fixed bottom-5 right-5 z-40 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-dark-900 border border-dark-700 shadow-2xl shadow-black/40 overflow-hidden">
@@ -294,6 +300,7 @@ export default function AssistantPanel() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setSupportOpen(true)} className="text-[11px] text-dark-400 hover:text-dark-200 px-2 py-1 rounded hover:bg-dark-800" aria-label="Talk to a human" title="Talk to a human — email support with this conversation attached">Human</button>
               {(messages.length > 0 || threadId) && (
                 <button type="button" onClick={resetConversation} className="text-[11px] text-dark-400 hover:text-dark-200 px-2 py-1 rounded hover:bg-dark-800" aria-label="Start a new conversation">New</button>
               )}
@@ -350,6 +357,15 @@ export default function AssistantPanel() {
                 )}
               </div>
             ))}
+
+            {!streaming && messages.length > 0 && messages[messages.length - 1].role === 'assistant'
+              && /no result found|couldn.t find|can.t help with that|contact support/i.test(String(messages[messages.length - 1].content || '')) && (
+              <div className="flex justify-start">
+                <button type="button" onClick={() => setSupportOpen(true)} className="text-[11px] text-rivvra-300 hover:text-rivvra-200 px-2 py-1 rounded border border-rivvra-500/30 hover:bg-rivvra-500/10">
+                  Talk to a human →
+                </button>
+              </div>
+            )}
 
             {streaming && pending && !pending.content && pending.toolCalls.length === 0 && (
               <div className="flex justify-start">

@@ -6,6 +6,8 @@ Allow: /signup
 Allow: /login
 Allow: /terms
 Allow: /privacy
+Allow: /support
+Allow: /contact
 Allow: /careers/
 Disallow: /org/
 Disallow: /admin

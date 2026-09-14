@@ -1288,6 +1288,14 @@ class ApiClient {
 
   // ─── Auth Settings & Password Management ────────────────────────────────────
 
+  // Support — in-app (signed in) and public (marketing site) requests → support@rivvra.com
+  async sendSupportRequest(orgSlug, data) {
+    return this.request(`/api/org/${orgSlug}/support`, { method: 'POST', body: JSON.stringify(data) });
+  }
+  async sendPublicSupportRequest(data) {
+    return this.request('/api/public/support', { method: 'POST', body: JSON.stringify(data) });
+  }
+
   // Email identity — custom sending domain + Powered-by footer (Settings → General)
   async getEmailDomain(orgSlug) {
     return this.request(`/api/org/${orgSlug}/email-domain`);

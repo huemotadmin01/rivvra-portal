@@ -50,6 +50,7 @@ export default function MarketingFooter() {
           <div>
             <p className="text-[11px] font-semibold text-dark-500 uppercase tracking-widest mb-4">Support</p>
             <ul className="space-y-3">
+              <li><Link to="/support" className="text-sm text-dark-400 hover:text-white transition-colors">Support</Link></li>
               <li><a href="mailto:support@rivvra.com" className="text-sm text-dark-400 hover:text-white transition-colors">support@rivvra.com</a></li>
             </ul>
           </div>
