@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:legal": "node scripts/build-legal-static.mjs",
+    "prebuild": "npm run build:legal",
     "build": "vite build",
     "build:staging": "vite build --mode staging && node staging/check-no-prod-api.cjs",
     "start:staging": "node staging/server.cjs",
