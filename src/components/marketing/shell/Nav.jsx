@@ -41,22 +41,27 @@ export default function Nav({ onTalk }) {
         </Link>
 
         <nav className="hidden lg:flex items-center gap-1" aria-label="Primary">
-          <Dropdown label="Features" active={is('/features')} width={720}>
-            <div className="grid grid-cols-2 gap-1">
+          <Dropdown label="Features" active={is('/features')} width={660}>
+            <p className="mk-menu-head">Fourteen apps, one set of records</p>
+            <div className="grid grid-cols-2 gap-x-2">
               {APPS.map((a) => (
                 <Link key={a.id} to={appHref(a)} className="mk-menu-item">
-                  <AppIcon app={a} size={34} />
+                  <AppIcon app={a} size={32} />
                   <span><b>{a.name}</b><span>{a.short}</span></span>
                 </Link>
               ))}
             </div>
-            <div className="mk-divider my-2" />
-            <Link to="/features" className="mk-menu-item"><span><b>All features</b><span>The 14 apps and how they connect.</span></span></Link>
+            <div className="mk-divider mt-2" />
+            <div className="mk-menu-foot"><span>Every app is on every plan, including Free.</span><Link to="/features">All features →</Link></div>
           </Dropdown>
-          <Dropdown label="Solutions" active={is('/solutions')} width={520}>
-            <div className="grid gap-1">
+          <Dropdown label="Solutions" active={is('/solutions')} width={400}>
+            <p className="mk-menu-head">By the kind of team you run</p>
+            <div className="grid gap-x-2">
               {SOLUTIONS.map((s) => (
-                <Link key={s.slug} to={solutionHref(s)} className="mk-menu-item"><span><b>{s.name}</b><span>{s.short}</span></span></Link>
+                <Link key={s.slug} to={solutionHref(s)} className="mk-menu-item">
+                  <AppIcon app={s} size={32} />
+                  <span><b>{s.name}</b><span>{s.short}</span></span>
+                </Link>
               ))}
             </div>
           </Dropdown>

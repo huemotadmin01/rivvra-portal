@@ -5,11 +5,13 @@
 export const EXTENSION_URL = 'https://chromewebstore.google.com/detail/rivvra-linkedin-lead-extr/afmjolicodhklbppiknbbjpjbhfjhipm';
 export const SUPPORT_EMAIL = 'support@rivvra.com';
 
+import { Building2, Globe, UserSearch, Users } from 'lucide-react';
+
 export const SOLUTIONS = [
-  { slug: 'india-staffing', name: 'India IT staffing', short: 'Contract staffing with PF, ESI, PT and TDS payroll, GST invoicing and timesheets that close the month.', hero: '/shots/payroll/run-detail.webp' },
-  { slug: 'us-canada-staffing', name: 'US and Canada staffing', short: 'Consultant timesheets, USD and CAD client invoicing, hourly rates and margins.', hero: '/shots/timesheet/approvals.webp' },
-  { slug: 'recruitment-agencies', name: 'Recruitment agencies', short: 'ATS, careers site, AI résumé scoring, CRM and outreach for permanent placement.', hero: '/shots/ats/pipeline.webp' },
-  { slug: 'hr-teams', name: 'In-house HR teams', short: 'Self service, attendance, leave, expenses, documents and e-signature for your own people.', hero: '/shots/ess/my-salary.webp' },
+  { slug: 'india-staffing', icon: Building2, tint: 'amber', name: 'India IT staffing', short: 'Contract staffing with PF, ESI, PT and TDS payroll, GST invoicing and timesheets that close the month.', hero: '/shots/payroll/run-detail.webp' },
+  { slug: 'us-canada-staffing', icon: Globe, tint: 'blue', name: 'US and Canada staffing', short: 'Consultant timesheets, USD and CAD client invoicing, hourly rates and margins.', hero: '/shots/timesheet/approvals.webp' },
+  { slug: 'recruitment-agencies', icon: UserSearch, tint: 'purple', name: 'Recruitment agencies', short: 'ATS, careers site, AI résumé scoring, CRM and outreach for permanent placement.', hero: '/shots/ats/pipeline.webp' },
+  { slug: 'hr-teams', icon: Users, tint: 'green', name: 'In-house HR teams', short: 'Self service, attendance, leave, expenses, documents and e-signature for your own people.', hero: '/shots/ess/my-salary.webp' },
 ];
 export const solutionHref = (s) => `/solutions/${s.slug}`;
 

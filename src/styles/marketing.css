@@ -118,11 +118,16 @@
 .mk-nav-inner { height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .mk-nav-link { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--mk-ink-2); }
 .mk-nav-link:hover, .mk-nav-link[aria-expanded="true"], .mk-nav-link--active { color: var(--mk-ink); background: var(--mk-surface-2); }
-.mk-menu { position: absolute; top: calc(100% + 8px); left: 0; background: var(--mk-surface); border: 1px solid var(--mk-line-2); border-radius: 14px; padding: 10px; box-shadow: 0 12px 40px rgba(16, 20, 24, 0.08); }
-.mk-menu-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px; border-radius: 10px; }
+.mk-menu { position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); background: var(--mk-surface); border: 1px solid var(--mk-line-2); border-radius: 14px; padding: 8px; box-shadow: 0 16px 48px rgba(16, 20, 24, 0.10), 0 1px 2px rgba(16, 20, 24, 0.06); }
+.mk-menu::before { content: ''; position: absolute; top: -6px; left: 50%; width: 10px; height: 10px; background: var(--mk-surface); border-left: 1px solid var(--mk-line-2); border-top: 1px solid var(--mk-line-2); transform: translateX(-50%) rotate(45deg); }
+.mk-menu-head { font-family: var(--mk-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mk-faint); padding: 8px 10px 6px; }
+.mk-menu-item { display: grid; grid-template-columns: 32px 1fr; align-items: start; gap: 12px; padding: 9px 10px; border-radius: 10px; min-height: 60px; }
+.mk-menu-item > .mk-app-icon { margin-top: 1px; }
 .mk-menu-item:hover { background: var(--mk-surface-2); }
-.mk-menu-item b { display: block; font-size: 14px; font-weight: 600; color: var(--mk-ink); line-height: 1.3; }
-.mk-menu-item span { display: block; font-size: 12.5px; color: var(--mk-muted); line-height: 1.4; margin-top: 2px; }
+.mk-menu-item b { display: block; font-size: 13.5px; font-weight: 600; color: var(--mk-ink); line-height: 1.3; }
+.mk-menu-item span span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; color: var(--mk-muted); line-height: 1.4; margin-top: 2px; }
+.mk-menu-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 6px; font-size: 13px; color: var(--mk-ink-2); }
+.mk-menu-foot a { color: var(--mk-brand-hi); font-weight: 500; }
 .mk-wordmark { font-family: var(--mk-display); font-weight: 700; font-size: 19px; letter-spacing: -0.02em; color: var(--mk-ink); }
 
 /* Footer */
