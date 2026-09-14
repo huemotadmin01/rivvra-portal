@@ -279,9 +279,10 @@ class ApiClient {
   }
 
   // Auth endpoints
-  async sendOtp(email, isSignup = false, inviteToken = undefined) {
+  async sendOtp(email, isSignup = false, inviteToken = undefined, turnstileToken = undefined) {
     const payload = { email, isSignup };
     if (inviteToken) payload.inviteToken = inviteToken;
+    if (turnstileToken) payload.turnstileToken = turnstileToken;
     return this.request('/api/auth/send-otp', {
       method: 'POST',
       body: JSON.stringify(payload),

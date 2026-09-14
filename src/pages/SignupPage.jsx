@@ -9,6 +9,7 @@ import {
 import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 import { GOOGLE_CLIENT_ID } from '../utils/config';
+import TurnstileWidget from '../components/TurnstileWidget';
 import { trackSignupStarted, trackSignupVerified, trackWorkspaceCreated } from '../lib/analytics';
 import { getAttribution, clearAttribution } from '../lib/attribution';
 
@@ -223,12 +224,21 @@ function SignupPage() {
   // Whether new-workspace registration is open (super-admin toggle). Invite
   // signups join an existing workspace and are always allowed. null = loading.
   const [registrationOpen, setRegistrationOpen] = useState(null);
+  // Bot challenge for new-workspace signups. The API says whether it is on
+  // (SIGNUP_TURNSTILE_ENABLED) and hands over the site key; nothing loads from
+  // Cloudflare otherwise. Invitees skip it — their admin vetted them.
+  const [turnstileCfg, setTurnstileCfg] = useState({ enabled: false, siteKey: null });
+  const [turnstileToken, setTurnstileToken] = useState(null);
   useEffect(() => {
     if (inviteToken) { setRegistrationOpen(true); return; }
     api.getRegistrationStatus()
-      .then(r => setRegistrationOpen(r?.open !== false))
+      .then(r => {
+        setRegistrationOpen(r?.open !== false);
+        setTurnstileCfg(r?.turnstile?.enabled && r?.turnstile?.siteKey ? r.turnstile : { enabled: false, siteKey: null });
+      })
       .catch(() => setRegistrationOpen(true)); // fail open
   }, [inviteToken]);
+  const turnstileRequired = turnstileCfg.enabled && !inviteToken;
 
   // Handle email submission
   const handleEmailSubmit = async (e) => {
@@ -247,7 +257,11 @@ function SignupPage() {
     setError('');
 
     try {
-      const response = await api.sendOtp(email, true, inviteToken || undefined); // pass invite token if present
+      if (turnstileRequired && !turnstileToken) {
+        setError('Please complete the "I am human" check first.');
+        return;
+      }
+      const response = await api.sendOtp(email, true, inviteToken || undefined, turnstileRequired ? turnstileToken : undefined);
       if (response.success) {
         trackSignupStarted({ flow: inviteToken ? 'invite' : 'self_serve' });
         setCurrentStep(STEPS.OTP);
@@ -665,9 +679,18 @@ function SignupPage() {
                   )}
                 </div>
 
+                {turnstileRequired && (
+                  <TurnstileWidget
+                    siteKey={turnstileCfg.siteKey}
+                    onToken={(t) => { setTurnstileToken(t); if (t) setError(''); }}
+                    theme="dark"
+                    className="flex justify-center"
+                  />
+                )}
+
                 <button
                   type="submit"
-                  disabled={loading || !email}
+                  disabled={loading || !email || (turnstileRequired && !turnstileToken)}
                   className="btn-primary w-full flex items-center justify-center gap-2"
                 >
                   {loading ? (
