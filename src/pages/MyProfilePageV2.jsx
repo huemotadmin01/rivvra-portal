@@ -27,6 +27,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { downscaleImage } from '../utils/downscaleImage';
 import { useOrg } from '../context/OrgContext';
 import { useCompany } from '../context/CompanyContext';
 import { API_BASE_URL } from '../utils/config';
@@ -73,6 +75,7 @@ function resolvePhotoUrl(picture) {
 export default function MyProfilePageV2() {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
+  const { showToast } = useToast();
   const { currentOrg, membership } = useOrg();
   const { currentCompany } = useCompany();
 
@@ -88,12 +91,17 @@ export default function MyProfilePageV2() {
     if (!file) return;
     setUploadingPhoto(true);
     try {
-      const res = await api.uploadProfilePhoto(file);
+      // The photo is stored inline on the user record, so keep it small —
+      // see utils/downscaleImage. The server caps uploads at 500 KB.
+      const upload = await downscaleImage(file);
+      const res = await api.uploadProfilePhoto(upload);
       if (res.success && res.user) {
         updateUser({ picture: res.user.picture, hasCustomPhoto: res.user.hasCustomPhoto });
+        showToast('Profile photo updated', 'success');
       }
-    } catch {
-      /* ignore */
+    } catch (err) {
+      // Was a bare `catch {}` — a rejected upload looked like nothing happened.
+      showToast(err?.message || 'Could not upload that photo', 'error');
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
