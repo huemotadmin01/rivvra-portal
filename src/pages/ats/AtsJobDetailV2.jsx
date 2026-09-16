@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -18,6 +18,7 @@ import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
 import SourcingStrings from '../../components/ats/SourcingStrings';
+import { AiScoreBadge } from '../../components/ats/AiResumeInsights';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -25,7 +26,7 @@ import {
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
   CheckCircle2, Clock, XCircle, AlertTriangle,
-  Globe, Copy, ExternalLink, Check, Share2,
+  Globe, Copy, ExternalLink, Check, Share2, Sparkles, RefreshCw,
 } from 'lucide-react';
 import api from '../../utils/api';
 import DOMPurify from 'dompurify';
@@ -471,6 +472,11 @@ export default function AtsJobDetail() {
   const [appsTotal, setAppsTotal] = useState(0);
   const [appsPage, setAppsPage] = useState(1);
   const [appsTotalPages, setAppsTotalPages] = useState(1);
+  // 2026-09-16: ranked view. 'fit' = AI job-fit score desc (Mongo sorts
+  // null/missing lowest, so unscored rows naturally fall to the end);
+  // 'newest' = the pre-existing appliedOn desc order.
+  const [appsSort, setAppsSort] = useState('fit');
+  const [rescoringAppId, setRescoringAppId] = useState(null);
   const [appsLoading, setAppsLoading] = useState(false);
   // Bumped to force the Suggested Candidates card to re-fetch (e.g. after
   // editing required skills).
@@ -698,8 +704,11 @@ export default function AtsJobDetail() {
         jobId,
         page: appsPage,
         limit: 15,
-        sort: 'appliedOn',
+        sort: appsSort === 'fit' ? 'aiJobFitScore' : 'appliedOn',
         dir: 'desc',
+        // Ask the list endpoint to keep aiJobFitReasoning (stripped by
+        // default) — shown as the hover title on the AI Fit badge.
+        withFit: 1,
       });
       if (res.success) {
         setApplications(res.applications || []);
@@ -711,7 +720,32 @@ export default function AtsJobDetail() {
     } finally {
       setAppsLoading(false);
     }
-  }, [orgSlug, jobId, appsPage]);
+  }, [orgSlug, jobId, appsPage, appsSort]);
+
+  // 2026-09-16: re-score one unscored / failed application from the ranked
+  // table. The API gate (ensureJobWriter) admits admin, the job's Account
+  // Owner and its Approver — mirrored below as canRescore for the button.
+  const handleRescoreApp = async (e, appId) => {
+    e.stopPropagation();
+    if (rescoringAppId) return;
+    setRescoringAppId(appId);
+    try {
+      const res = await atsApi.rescoreApplicationAi(orgSlug, appId);
+      if (res?.success) {
+        const status = res.application?.aiJobFitStatus;
+        if (status === 'done') showToast('AI fit score updated', 'success');
+        else if (status === 'skipped') showToast('Still not scorable — this application has no résumé attached', 'warning');
+        else showToast('Re-score finished without a score', 'warning');
+        await fetchApplications();
+      } else {
+        showToast(res?.error || 'Re-score failed', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Re-score failed', 'error');
+    } finally {
+      setRescoringAppId(null);
+    }
+  };
 
   useEffect(() => { fetchJob(); }, [fetchJob]);
 
@@ -1560,11 +1594,34 @@ export default function AtsJobDetail() {
                 inline link here. Empty-state button below still renders
                 when applications.length === 0 because at that point the
                 header CTA needs reinforcing as the next action. */}
-            <div className="mb-4">
+            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
               <h2 className="text-lg font-semibold text-white">
                 Applications
                 <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
               </h2>
+              {appsTotal > 0 && (
+                <div className="flex items-center gap-1 text-xs" role="group" aria-label="Sort applications">
+                  <span className="text-dark-500 mr-1">Sort</span>
+                  {[
+                    { key: 'fit', label: 'AI fit rank' },
+                    { key: 'newest', label: 'Newest first' },
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => { if (appsSort !== key) { setAppsSort(key); setAppsPage(1); } }}
+                      aria-pressed={appsSort === key}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border transition-colors ${
+                        appsSort === key
+                          ? 'bg-rivvra-500/15 border-rivvra-500/40 text-rivvra-300'
+                          : 'border-dark-700 text-dark-400 hover:text-dark-200 hover:border-dark-600'
+                      }`}
+                    >
+                      {key === 'fit' ? <Sparkles size={12} /> : <Clock size={12} />} {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {appsLoading ? (
@@ -1591,7 +1648,13 @@ export default function AtsJobDetail() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-dark-700">
+                          {appsSort === 'fit' && (
+                            <th className="text-right pl-4 pr-2 py-3 text-dark-400 font-medium w-10">#</th>
+                          )}
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
+                          <th className="text-center px-4 py-3 text-dark-400 font-medium" title="AI job-fit score (0–100): this application's résumé scored against this job's description">
+                            <span className="inline-flex items-center gap-1"><Sparkles size={12} className="text-amber-400" /> AI Fit</span>
+                          </th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
@@ -1601,7 +1664,25 @@ export default function AtsJobDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {applications.map((app) => {
+                        {applications.map((app, idx) => {
+                          // 2026-09-16 ranked view: rank counts only SCORED
+                          // rows, continuing across pages. Unscored rows
+                          // (no résumé, parse failure, still processing)
+                          // group under a divider at the first such row
+                          // on the page and can be re-scored inline.
+                          const isScored = typeof app.aiJobFitScore === 'number';
+                          const prevScored = idx === 0 ? null : typeof applications[idx - 1].aiJobFitScore === 'number';
+                          const showUnscoredDivider = appsSort === 'fit' && !isScored && (idx === 0 || prevScored);
+                          const rank = isScored ? (appsPage - 1) * 15 + idx + 1 : null;
+                          const fitStatus = app.aiJobFitStatus;
+                          const fitLabel = isScored ? null
+                            : fitStatus === 'pending' ? 'Scoring…'
+                            : fitStatus === 'failed' ? 'Failed'
+                            : fitStatus === 'quota_exceeded' ? 'AI quota hit'
+                            : fitStatus === 'skipped' ? 'No résumé'
+                            : 'Not scored';
+                          const canRescore = (isAdmin || isAccountOwner || isAssignedApprover) && !job?.archived && fitStatus !== 'pending';
+                          const isRescoring = rescoringAppId === app._id;
                           // recruiterId on applications now stores the
                           // employee _id (semantic shifted with the People
                           // field migration). Older rows may still hold a
@@ -1616,11 +1697,26 @@ export default function AtsJobDetail() {
                           const isRefused = appStatus === 'refused' || !!app.refused;
                           const isHired = appStatus === 'hired' || !!app.hireDate;
                           return (
+                            <Fragment key={app._id}>
+                            {showUnscoredDivider && (
+                              <tr className="bg-dark-800/40">
+                                <td colSpan={99} className="px-4 py-2 text-[11px] uppercase tracking-wider text-dark-500 font-semibold">
+                                  Not ranked — no AI fit score yet
+                                  <span className="normal-case tracking-normal font-normal ml-2 text-dark-500">
+                                    (no résumé on the application, a parse failure, or still processing)
+                                  </span>
+                                </td>
+                              </tr>
+                            )}
                             <tr
-                              key={app._id}
                               onClick={() => openApp(app._id)}
                               className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                             >
+                              {appsSort === 'fit' && (
+                                <td className="pl-4 pr-2 py-3 text-right tabular-nums text-dark-400 text-xs">
+                                  {rank ?? '—'}
+                                </td>
+                              )}
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-3">
                                   {app.candidateId ? (
@@ -1648,6 +1744,31 @@ export default function AtsJobDetail() {
                                   >
                                     {app.candidateName || 'Unnamed'}
                                   </Link>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-center gap-2">
+                                  {isScored ? (
+                                    <span title={app.aiJobFitReasoning || 'AI job-fit score'} className="cursor-help">
+                                      <AiScoreBadge score={app.aiJobFitScore} size="sm" />
+                                    </span>
+                                  ) : (
+                                    <span className={`text-[11px] ${fitStatus === 'failed' || fitStatus === 'quota_exceeded' ? 'text-red-400' : 'text-dark-500'}`}>
+                                      {fitLabel}
+                                    </span>
+                                  )}
+                                  {!isScored && canRescore && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleRescoreApp(e, app._id)}
+                                      disabled={isRescoring || !!rescoringAppId}
+                                      title="Run AI scoring for this application now"
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dark-700 text-[11px] text-dark-300 hover:text-white hover:border-dark-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <RefreshCw size={11} className={isRescoring ? 'animate-spin' : ''} />
+                                      {isRescoring ? 'Scoring' : 'Score'}
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
@@ -1687,6 +1808,7 @@ export default function AtsJobDetail() {
                                 {formatDate(app.appliedOn)}
                               </td>
                             </tr>
+                            </Fragment>
                           );
                         })}
                       </tbody>
