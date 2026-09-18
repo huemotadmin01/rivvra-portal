@@ -194,6 +194,19 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
                           {result.errors.filter(e => e.reason === 'already_enrolled').length} already enrolled
                         </p>
                       )}
+                      {result.errors?.some((e) => e.reason === 'recently_contacted') && (
+                        <div className="text-xs opacity-70 ml-2">
+                          <p className="flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {result.errors.filter(e => e.reason === 'recently_contacted').length} contacted too recently (cooling-off after the last chain)
+                          </p>
+                          <ul className="ml-4 mt-0.5 space-y-0.5 list-disc">
+                            {result.errors.filter(e => e.reason === 'recently_contacted').slice(0, 5).map((e) => (
+                              <li key={e.leadId}>{e.name || 'Contact'}: {e.detail}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {result.errors?.some((e) => e.reason === 'in_active_sequence') && (
                         <div className="text-xs opacity-70 ml-2">
                           <p className="flex items-center gap-1">
