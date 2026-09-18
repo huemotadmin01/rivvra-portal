@@ -194,6 +194,22 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
                           {result.errors.filter(e => e.reason === 'already_enrolled').length} already enrolled
                         </p>
                       )}
+                      {result.errors?.some((e) => e.reason === 'in_active_sequence') && (
+                        <div className="text-xs opacity-70 ml-2">
+                          <p className="flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {result.errors.filter(e => e.reason === 'in_active_sequence').length} already in an active sequence (one conversation per contact)
+                          </p>
+                          <ul className="ml-4 mt-0.5 space-y-0.5 list-disc">
+                            {result.errors.filter(e => e.reason === 'in_active_sequence').slice(0, 5).map((e) => (
+                              <li key={e.leadId}>{e.name || 'Contact'}: {e.detail}</li>
+                            ))}
+                            {result.errors.filter(e => e.reason === 'in_active_sequence').length > 5 && (
+                              <li>and {result.errors.filter(e => e.reason === 'in_active_sequence').length - 5} more</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
                       {result.errors?.some((e) => e.reason === 'suppressed') && (
                         <p className="text-xs opacity-70 flex items-center gap-1 ml-2">
                           <AlertCircle className="w-3 h-3" />
