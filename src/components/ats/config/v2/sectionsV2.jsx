@@ -588,6 +588,30 @@ export function SkillLevelsSectionV2({ orgSlug, showToast, icon: Icon }) {
 
 /* ── Stages — the only drag-reorder list (native HTML5 DnD, optimistic
       with rollback, same as legacy). Custom rows via DataTable children. ── */
+// A stage's ROLE drives the hard gates (offer required, documents checklist,
+// interview slot + result). It lives on the stage, not in its name — renaming
+// "Offer Signed" used to switch the hire gate off silently.
+const STAGE_ROLE_OPTIONS = [
+  { value: 'none', label: 'No special role', hint: 'An ordinary pipeline step. No gate attached.' },
+  { value: 'offer_proposal', label: 'Offer proposal', hint: 'Requires a full offer before entering. Offers can only be sent here.' },
+  { value: 'offer_signed', label: 'Offer signed', hint: 'Requires a countersigned offer. Hiring is blocked without one.' },
+  { value: 'documents', label: 'Documents collection', hint: 'Required documents must be collected before moving on.' },
+  { value: 'interview:l1', label: 'Interview — L1', hint: 'Needs a scheduled slot, and a result before the next stage.' },
+  { value: 'interview:l2', label: 'Interview — L2', hint: 'Needs a scheduled slot, and a result before the next stage.' },
+  { value: 'interview:l3', label: 'Interview — L3', hint: 'Needs a scheduled slot, and a result before the next stage.' },
+  { value: 'interview:hr', label: 'Interview — HR', hint: 'Needs a scheduled slot, and a result before the next stage.' },
+];
+const roleValueOf = (stage) => {
+  if (stage?.roundKey) return `interview:${stage.roundKey}`;
+  if (stage?.stageKind && stage.stageKind !== 'none') return stage.stageKind;
+  return 'none';
+};
+const roleLabelOf = (value) => STAGE_ROLE_OPTIONS.find((o) => o.value === value)?.label || 'No special role';
+// Split the single picker value back into the two fields the API stores.
+const rolePayload = (value) => (value.startsWith('interview:')
+  ? { roundKey: value.slice('interview:'.length), stageKind: 'none' }
+  : { roundKey: null, stageKind: value });
+
 export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
   const { currentCompany } = useCompany();
   const [stages, setStages] = useState([]);
@@ -598,7 +622,7 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
   const [overIndex, setOverIndex] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', sequence: 0, foldInKanban: false, isHiredStage: false, requiredAttachments: [] });
+  const [form, setForm] = useState({ name: '', sequence: 0, foldInKanban: false, isHiredStage: false, requiredAttachments: [], role: 'none' });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -626,7 +650,7 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', sequence: (stages[stages.length - 1]?.sequence ?? stages.length) + 1, foldInKanban: false, isHiredStage: false, requiredAttachments: [] });
+    setForm({ name: '', sequence: (stages[stages.length - 1]?.sequence ?? stages.length) + 1, foldInKanban: false, isHiredStage: false, requiredAttachments: [], role: 'none' });
     setModalOpen(true);
   };
   const openEdit = (stage) => {
@@ -637,6 +661,7 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
       foldInKanban: !!stage.foldInKanban,
       isHiredStage: !!stage.isHiredStage,
       requiredAttachments: Array.isArray(stage.requiredAttachments) ? stage.requiredAttachments.map(String) : [],
+      role: roleValueOf(stage),
     });
     setModalOpen(true);
   };
@@ -651,6 +676,7 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
         foldInKanban: form.foldInKanban,
         isHiredStage: form.isHiredStage,
         requiredAttachments: form.requiredAttachments,
+        ...rolePayload(form.role),
       };
       const res = editing
         ? await atsApi.updateStage(orgSlug, editing._id, payload)
@@ -723,6 +749,7 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
   const columns = [
     { key: 'seq', header: '#', width: 70 },
     { key: 'name', header: 'Name' },
+    { key: 'role', header: 'Role', width: 170 },
     { key: 'uploads', header: 'Required Uploads', width: 220 },
     { key: 'fold', header: 'Fold in Kanban', width: 120, align: 'center' },
     { key: 'hired', header: 'Hired Stage', width: 100, align: 'center' },
@@ -781,6 +808,11 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
             </td>
             <td style={td({ color: 'var(--fg)', fontWeight: 550 })}>{stage.name}</td>
             <td style={td()}>
+              {roleValueOf(stage) === 'none'
+                ? <span style={{ color: 'var(--fg-4)' }}>—</span>
+                : <Chip tone="info">{roleLabelOf(roleValueOf(stage))}</Chip>}
+            </td>
+            <td style={td()}>
               <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
                 {(stage.requiredAttachments || []).map((id) => (
                   <Chip key={String(id)}>{kindById.get(String(id))?.label || 'Unknown'}</Chip>
@@ -821,6 +853,20 @@ export function StagesSectionV2({ orgSlug, showToast, icon: Icon }) {
               onChange={(e) => setForm((f) => ({ ...f, sequence: e.target.value }))}
               style={{ height: 38, padding: '0 12px', border: 'none', outline: 'none', borderRadius: 'var(--r-2)', background: 'var(--surface-2)', color: 'var(--fg)', boxShadow: 'inset 0 0 0 1px var(--line)', font: "450 13.5px/1 'Inter', system-ui, sans-serif" }}
             />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ font: "550 12.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>Role in the pipeline</span>
+            <select
+              value={form.role}
+              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+              style={{ height: 38, padding: '0 10px', border: 'none', outline: 'none', borderRadius: 'var(--r-2)', background: 'var(--surface-2)', color: 'var(--fg)', font: '450 13.5px/1 var(--font)' }}
+            >
+              {STAGE_ROLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <span style={{ font: '450 11.5px/1.4 var(--font)', color: 'var(--fg-4)' }}>
+              {STAGE_ROLE_OPTIONS.find((o) => o.value === form.role)?.hint}
+              {' '}The role is what drives the gate, so you can rename this stage to anything without changing how it behaves.
+            </span>
           </label>
           {[['foldInKanban', 'Fold in Kanban', 'Collapse this stage column by default on the Pipeline board.'], ['isHiredStage', 'Hired stage', 'Applications reaching this stage count as hires.']].map(([key, label, hint]) => (
             <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
