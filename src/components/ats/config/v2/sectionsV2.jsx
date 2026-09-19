@@ -15,7 +15,44 @@ import { ConfigList, ConfigDot, InlineSelect } from '../../../ds';
 
 /* ── Generic picklist (tags / sources / refuse_reasons / degrees /
       employment_types) with copy-from-company ─────────────────────── */
+// The two closed lists that sit behind an employment type's NAME. The name is
+// a free label the customer can rename at will; these two carry the meaning,
+// and payroll keys off them — see the API's helpers/atsEmploymentMeaning.js.
+// Duplicated here only as UI option labels; they change with a release, never
+// with customer data.
+const SALARY_UNIT_OPTIONS = [
+  { value: 'per_day', label: 'A day rate' },
+  { value: 'per_hour', label: 'An hourly rate' },
+  { value: 'per_month', label: 'A monthly amount' },
+  { value: 'lpa', label: 'An annual package, in lakhs' },
+];
+const PAYROLL_KEY_OPTIONS = [
+  { value: 'confirmed', label: 'Employee on payroll' },
+  { value: 'internal_consultant', label: 'Internal consultant' },
+  { value: 'external_consultant', label: 'External consultant (billable)' },
+  { value: 'intern', label: 'Intern' },
+];
+const EMPLOYMENT_TYPE_EXTRAS = {
+  columns: [
+    {
+      key: 'meaning', header: 'Salary figure means', width: 190, muted: true,
+      render: (it) => SALARY_UNIT_OPTIONS.find((o) => o.value === (it.salaryUnit || it.meaning?.salaryUnit))?.label || '—',
+    },
+    {
+      key: 'payroll', header: 'Hired as', width: 190, muted: true,
+      render: (it) => PAYROLL_KEY_OPTIONS.find((o) => o.value === (it.payrollKey || it.meaning?.payrollKey))?.label || '—',
+    },
+  ],
+  fields: [
+    { key: 'salaryUnit', label: 'The salary figure on an offer means', type: 'select', options: SALARY_UNIT_OPTIONS, required: true },
+    { key: 'payrollKey', label: 'On hire, this person becomes', type: 'select', options: PAYROLL_KEY_OPTIONS, required: true },
+  ],
+};
+
 export function PicklistSectionV2({ orgSlug, showToast, entity, entityLabel, icon: Icon }) {
+  // Employment types are the one picklist whose rows carry meaning as well as a
+  // name, so they get two extra columns and two extra fields.
+  const extras = entity === 'employment_types' ? EMPLOYMENT_TYPE_EXTRAS : { columns: [], fields: [] };
   const apiEntity = entity.replace(/_/g, '-');
   const singular = entityLabel.replace(/s$/, '');
   const { companies = [], currentCompany } = useCompany();
@@ -83,12 +120,16 @@ export function PicklistSectionV2({ orgSlug, showToast, entity, entityLabel, ico
               </span>
             ),
           },
+          ...extras.columns,
           ...(hasUsage ? [{
             key: 'usageCount', header: 'Used by', width: 110, muted: true,
             render: (it) => typeof it.usageCount === 'number' ? `${it.usageCount}` : null,
           }] : []),
         ]}
-        fields={[{ key: 'name', label: 'Name', required: true, autoFocus: true }]}
+        fields={[
+          { key: 'name', label: 'Name', required: true, autoFocus: true },
+          ...extras.fields,
+        ]}
         onCreate={async (values) => {
           const res = await atsApi.createConfig(orgSlug, apiEntity, values);
           if (res.success === false) throw new Error(res.error || 'Failed to create');

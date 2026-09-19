@@ -51,7 +51,7 @@ import {
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import SubmittalSummary from '../../components/ats/SubmittalSummary';
-import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
+import { SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
 
 
 import {

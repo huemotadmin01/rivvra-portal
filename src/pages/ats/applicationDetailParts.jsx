@@ -4,7 +4,7 @@ import atsApi from '../../utils/atsApi';
 import signApi from '../../utils/signApi';
 import employeeApi from '../../utils/employeeApi';
 import { withFromContext } from '../../utils/entityDescribe';
-import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
+import { SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import ReasonPromptDialog from '../../components/shared/ReasonPromptDialog';
 import {
@@ -126,7 +126,13 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // Only the label/unit config choice changes; save/compute logic is
   // untouched.
   const effectiveEmploymentType = application?.employmentType || application?.jobEmploymentType || null;
-  const empMeta = getEmploymentTypeMeta(effectiveEmploymentType);
+  // 2026-09-19: the meaning comes from the SERVER, read off the customer's own
+  // employment-type row (what the figure means + which payroll category the
+  // hire becomes). This used to match the type's NAME against a local copy of a
+  // four-name map, so an agency that picked "Contract" — a name we seeded —
+  // silently captured a day rate as an annual package. There is deliberately no
+  // local fallback: for a money field, refusing to capture beats guessing.
+  const empMeta = application?.employmentMeaning || null;
   // 2026-08-31 offer-capture hard gate (audit §6.3.3, authorized): when
   // neither the application nor its linked job carries an employment type,
   // the salary unit is unknowable (fallback meta = LPA) and an offer
@@ -134,7 +140,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // Save is disabled with an inline explanation pointing at the job; the
   // API enforces the same gate server-side (PATCH /offer → 400
   // EMPLOYMENT_TYPE_MISSING), so this is UX, not the security boundary.
-  const employmentTypeMissing = !effectiveEmploymentType;
+  const employmentTypeMissing = !effectiveEmploymentType || !empMeta?.salaryUnit;
   // 2026-08-31 per-hour rates (Muneer Sunkesula case): rate-based types —
   // meta salaryUnit 'per_day', i.e. External Consultant — can be agreed
   // per-HOUR. Only those get a rate-unit choice; Intern (per_month) and
@@ -143,12 +149,14 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // allowlist), so every offer self-describes its unit. Downstream
   // computation (hire promotion ats.js monthlyGross, payroll) is
   // deliberately NOT taught per_hour here — capture-side only.
-  const isRateBased = empMeta.salaryUnit === 'per_day';
+  const isRateBased = empMeta?.salaryUnit === 'per_day';
   const [rateUnit, setRateUnit] = useState(
     initialOffer?.offeredCTC?.unit === 'per_hour' ? 'per_hour' : 'per_day',
   );
-  const salaryUnit = isRateBased ? rateUnit : empMeta.salaryUnit;
-  const salaryLabel = (isRateBased && rateUnit === 'per_hour') ? 'Hourly rate' : empMeta.salaryLabel;
+  const salaryUnit = isRateBased ? rateUnit : (empMeta?.salaryUnit || 'lpa');
+  const salaryLabel = (isRateBased && rateUnit === 'per_hour')
+    ? 'Hourly rate'
+    : (empMeta?.salaryLabel || 'Salary — employment type not set');
   const salaryInputCfg = SALARY_UNIT_INPUT[salaryUnit] || SALARY_UNIT_INPUT.lpa;
 
   // 2026-07-18: the progressive offerLevel gate ('salary' / 'signed'
