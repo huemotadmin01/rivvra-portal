@@ -1096,18 +1096,22 @@ export default function AtsApplicationDetail() {
   // forward AND couldn't capture the offer because the button was hidden.
   // Lower the threshold by 1 so the button is reachable from the stage
   // immediately before Offer Proposal (typically HR Discussion).
-  const OFFER_PROPOSAL_NAMES = new Set(['offer proposal', 'offer extended', 'offer rolled out', 'offer']);
-  const offerProposalStage = stages.find((s) => OFFER_PROPOSAL_NAMES.has((s.name || '').toLowerCase().trim()));
+  // 2026-09-19: found by ROLE, not by name. This used to keep its own copy of
+  // the server's stage-name aliases; once the server moved roles onto the stage
+  // row those copies became actively harmful — renaming the stage still fired
+  // the server gate, while the button to satisfy it vanished from this page.
+  // `stageRole` is computed and sent by GET /ats/stages.
+  const offerProposalStage = stages.find((s) => s.stageRole === 'offer_proposal');
   const currentStage = stages.find((s) => s._id === currentStageId);
+  const currentStageRole = currentStage?.stageRole || null;
   const isAtOrPastOfferProposal = !!(offerProposalStage && currentStage
     && Number(currentStage.sequence ?? 0) >= Number((offerProposalStage.sequence ?? Infinity) - 1));
 
   // 2026-05-20 Documents Collection gate — show the checklist card on/after
-  // entry to Documents Collection (recruiter needs to track receipt and
-  // gate the next forward move). Match by sequence so renamed stages still
-  // trigger correctly — same convention as the Offer Proposal block above.
-  const DOCS_COLLECTION_NAMES = new Set(['documents collection', 'document collection', 'documents']);
-  const docsCollectionStage = stages.find((s) => DOCS_COLLECTION_NAMES.has((s.name || '').toLowerCase().trim()));
+  // entry to the documents stage (recruiter needs to track receipt and gate the
+  // next forward move). Located by role, then compared by sequence, so a
+  // renamed stage still shows its checklist.
+  const docsCollectionStage = stages.find((s) => s.stageRole === 'documents');
   const isAtOrPastDocsCollection = !!(docsCollectionStage && currentStage
     && Number(currentStage.sequence ?? 0) >= Number(docsCollectionStage.sequence ?? Infinity));
   const isAtDocsCollection = !!(docsCollectionStage && currentStage
@@ -2095,6 +2099,7 @@ export default function AtsApplicationDetail() {
         application={application}
         companies={companies}
         orgSlug={orgSlug}
+        currentStageRole={currentStageRole}
         onRefresh={fetchApplication}
       />
       <CreateEmployeeDrawer

@@ -114,7 +114,7 @@ export function StageBar({ stages, currentStageId, onStageClick, disabled = fals
  * (Q9.2-C) — many IN contract hires don't have a signed PDF day-1; we
  * surface a soft warning after submit instead of hard-blocking on /hire.
  */
-export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOffer = null, application = null, companies = [], orgSlug = null, onRefresh = null }) {
+export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOffer = null, application = null, companies = [], orgSlug = null, currentStageRole = null, onRefresh = null }) {
   // Phase-1 / Q21+Q22 (2026-05-10): the salary input adapts to the
   // application's employment type. Contract → "Day rate" + per_day unit;
   // Full-Time / Internal Consultant → "Annual CTC (LPA)" + lpa unit.
@@ -161,11 +161,13 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // By the time an app is at this stage, the signature is — by definition —
   // already done. Showing a "pick a template / send for signature" form
   // here was confusing recruiters into thinking they had to start a fresh
-  // envelope before hitting Hire. Mirrors the API's OFFER_SIGNED_STAGE_NAMES
-  // set (ats.js). Keep the lists in sync.
-  const OFFER_SIGNED_STAGE_NAMES = new Set(['offer signed', 'offer accepted']);
-  const currentStageNorm = String(application?.stageName || '').trim().toLowerCase();
-  const alreadyAtOfferSigned = OFFER_SIGNED_STAGE_NAMES.has(currentStageNorm);
+  // envelope before hitting Hire.
+  //
+  // 2026-09-19: this used to match the stage's display NAME against a copy of
+  // the server's alias list, so an agency that renamed the stage lost the
+  // behaviour silently. The role now travels with the stage (`stageRole`,
+  // computed by GET /ats/stages) and the parent passes it down.
+  const alreadyAtOfferSigned = currentStageRole === 'offer_signed';
 
   // Phase-1 / Q11+Q12 (2026-05-10): Sign integration. The offer letter
   // is sent for e-signature via the existing Sign module. Director slot
