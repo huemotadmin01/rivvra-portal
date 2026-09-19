@@ -36,6 +36,17 @@ const crmApi = {
     ).toString();
     return api.request(`/api/org/${orgSlug}/crm/opportunities${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
+  // Bulk import: rows of { contactEmail, name?, stage?, expectedRevenue?,
+  // currency?, expectedClosing?, probability?, source?, notes? }. The server
+  // resolves the contact by email and the stage by name within the active
+  // company, then returns { success, summary, results[] }.
+  bulkImportOpportunities(orgSlug, rows) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/bulk-import`, {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    });
+  },
+
   getOpportunity(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`);
   },

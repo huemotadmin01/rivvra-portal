@@ -12,7 +12,8 @@ import {
   useListParams, usePageParam, useSearchParamValue,
   SelectChipV2, GroupByChipV2, ArchivedToggleV2, MoreFiltersV2, PageHeaderV2,
 } from '../../components/platform/v2/listkit';
-import { Plus, Briefcase } from 'lucide-react';
+import { Plus, Briefcase, Upload } from 'lucide-react';
+import BulkImportModal from '../../components/BulkImportModal';
 import AtsEmailsDisabledBanner from '../../components/ats/AtsEmailsDisabledBanner';
 
 const PAGE_SIZE = 25;
@@ -23,6 +24,29 @@ const JOB_GROUP_BY_OPTIONS = [
   { value: 'status', label: 'Status' },
   { value: 'department', label: 'Department' },
 ];
+// Column config for the bulk-import modal. Department and employment type are
+// matched against this company's picklists by name, so a typo fails the row
+// here rather than surfacing weeks later as a failed hire. Imported jobs land
+// as drafts; the page drops its approval filter afterwards so they are visible.
+const JOB_IMPORT_FIELDS = [
+  { key: 'name', label: 'Job Title', required: true, aliases: ['job title', 'title', 'position', 'role', 'name', 'job'] },
+  { key: 'department', label: 'Department', required: false, aliases: ['department', 'dept', 'function'] },
+  { key: 'employmentType', label: 'Employment Type', required: false, aliases: ['employment type', 'type', 'job type', 'engagement'] },
+  { key: 'location', label: 'Location', required: false, aliases: ['location', 'city', 'work location', 'base location'] },
+  { key: 'status', label: 'Status', required: false, aliases: ['status', 'job status'] },
+  { key: 'expectedHires', label: 'Openings', required: false, aliases: ['openings', 'expected hires', 'positions', 'vacancies', 'headcount'] },
+  { key: 'isClientRole', label: 'Client Role', required: false, aliases: ['client role', 'is client role', 'client facing', 'external'] },
+  { key: 'clientName', label: 'Client Name', required: false, aliases: ['client name', 'client', 'customer', 'account'] },
+  { key: 'clientBudget', label: 'Client Budget', required: false, aliases: ['client budget', 'budget', 'bill rate'] },
+  { key: 'maxBudget', label: 'Candidate Max Budget', required: false, aliases: ['candidate max budget', 'max budget', 'ctc budget', 'pay rate'] },
+  { key: 'recruiterEmail', label: "Recruiter's Email", required: false, aliases: ['recruiter email', 'recruiter', 'assigned to', 'owner'] },
+  { key: 'requiredExperience', label: 'Experience', required: false, aliases: ['experience', 'required experience', 'exp', 'years'] },
+  { key: 'hiringMode', label: 'Hiring Mode', required: false, aliases: ['hiring mode', 'mode', 'engagement type'] },
+  { key: 'description', label: 'Job Description', required: false, aliases: ['description', 'job description', 'jd', 'details'] },
+  { key: 'requiredSkills', label: 'Skills', required: false, aliases: ['skills', 'required skills', 'tech stack', 'keywords'] },
+  { key: 'tags', label: 'Tags', required: false, aliases: ['tags', 'labels'] },
+];
+
 const JOB_APPROVAL_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
@@ -88,6 +112,7 @@ export default function AtsJobPositionsV2() {
   const [loading, setLoading] = useState(true);
 
   const isAdmin = getAppRole('ats') === 'admin';
+  const [showImport, setShowImport] = useState(false);
   const orgSlug = currentOrg?.slug;
 
   // Landing defaults (status=open, approvalStatus=approved, groupBy=status)
@@ -307,13 +332,38 @@ export default function AtsJobPositionsV2() {
           <>
             <DensityToggle density={density} onChange={setDensity} />
             {isAdmin && (
-              <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => navigate(orgPath('/ats/jobs/new'))}>
-                New Internal Job
-              </Button>
+              <>
+                <Button variant="secondary" size="sm" iconLeft={<Upload size={14} />} onClick={() => setShowImport(true)}>Import</Button>
+                <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => navigate(orgPath('/ats/jobs/new'))}>
+                  New Internal Job
+                </Button>
+              </>
             )}
           </>
         )}
       />
+
+      {isAdmin && (
+        <BulkImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          title="Import Job Positions"
+          itemNoun="job"
+          templateName="jobs-import-template.csv"
+          fields={JOB_IMPORT_FIELDS}
+          onImport={(rows) => atsApi.bulkImportJobs(orgSlug, rows)}
+          onDone={() => {
+            // Imported jobs are drafts, and this page lands filtered to
+            // Approved — without dropping that filter the import looks like it
+            // did nothing.
+            const np = new URLSearchParams(searchParams);
+            np.delete('approvalStatus');
+            np.delete('page');
+            setSearchParams(np, { replace: true });
+            fetchJobs();
+          }}
+        />
+      )}
 
       <FilterBar
         search={searchValue}

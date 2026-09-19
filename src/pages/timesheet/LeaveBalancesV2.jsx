@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
+import { useOrg } from '../../context/OrgContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { useCompany } from '../../context/CompanyContext';
-import { getAllLeaveBalances } from '../../utils/timesheetApi';
+import { getAllLeaveBalances, bulkImportLeaveBalances } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
-import { CalendarDays, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronUp, History, Upload } from 'lucide-react';
+import BulkImportModal from '../../components/BulkImportModal';
 import { DataTable, FilterBar, EmptyState, Button, Chip, InlineSelect } from '../../components/ds';
 import { PageHeaderV2 } from '../../components/platform/v2/listkit';
 
@@ -17,6 +19,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigit
 export default function LeaveBalancesV2() {
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
+  const { getAppRole } = useOrg();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -27,6 +30,8 @@ export default function LeaveBalancesV2() {
   const [expandedEmp, setExpandedEmp] = useState(null);
   const [deptFilter, setDeptFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [showImport, setShowImport] = useState(false);
+  const isAdmin = getAppRole('timesheet') === 'admin';
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, [orgSlug, currentCompany?._id, fy, statusFilter]);
@@ -96,7 +101,37 @@ export default function LeaveBalancesV2() {
       <PageHeaderV2
         title="Leave Balances"
         sub={`${filtered.length} employees · FY ${fy}`}
+        actions={isAdmin && visibleTypes.length > 0 && (
+          <Button variant="secondary" size="sm" iconLeft={<Upload size={14} />} onClick={() => setShowImport(true)}>
+            Import opening balances
+          </Button>
+        )}
       />
+
+      {/* Import columns come from this workspace's own leave policy rather than
+          a fixed list, because leave types are configurable per org. The
+          imported number is what the employee has left today; the server files
+          it as carried-forward for FY {fy} so future accrual still runs. */}
+      {isAdmin && (
+        <BulkImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          title={`Import opening balances · FY ${fy}`}
+          itemNoun="employee"
+          templateName={`leave-opening-balances-${fy}.csv`}
+          fields={[
+            { key: 'employeeEmail', label: 'Employee Email', required: true, aliases: ['employee email', 'email', 'e-mail', 'work email', 'employee'] },
+            ...visibleTypes.map((t) => ({
+              key: t.code,
+              label: t.name || t.code,
+              required: false,
+              aliases: [t.code, t.name, (t.name || '').replace(/\s+/g, ''), `${t.name} balance`, `${t.code} balance`].filter(Boolean),
+            })),
+          ]}
+          onImport={(rows) => bulkImportLeaveBalances(rows, fy)}
+          onDone={() => loadData()}
+        />
+      )}
 
       <FilterBar
         search={search}

@@ -12,7 +12,8 @@ import {
   useListParams, usePageParam, useSearchParamValue,
   SelectChipV2, BooleanChipV2, GroupByChipV2, MoreFiltersV2, RangeFilterV2, PageHeaderV2,
 } from '../../components/platform/v2/listkit';
-import { Plus, Star, Trophy, Loader2, Download, Target } from 'lucide-react';
+import { Plus, Star, Trophy, Loader2, Download, Target, Upload } from 'lucide-react';
+import BulkImportModal from '../../components/BulkImportModal';
 
 const REQUIREMENT_TYPE_OPTIONS = [
   { value: 'Staff Augmentation', label: 'Staff Augmentation' },
@@ -23,6 +24,23 @@ const CLIENT_TYPE_OPTIONS = [
   { value: 'new', label: 'New' },
   { value: 'existing', label: 'Existing' },
 ];
+// Column config for the bulk-import modal. A spreadsheet names the contact by
+// email and the stage by its label; the server resolves both inside the active
+// company and rejects a row rather than guessing. The contact must already
+// exist — net-new people come in through Contacts or an Outreach conversion.
+const OPPORTUNITY_IMPORT_FIELDS = [
+  { key: 'contactEmail', label: 'Contact Email', required: true, aliases: ['contact email', 'email', 'e-mail', 'contact', 'primary contact'] },
+  { key: 'name', label: 'Opportunity Name', required: false, aliases: ['opportunity', 'opportunity name', 'deal', 'deal name', 'title'] },
+  { key: 'stage', label: 'Stage', required: false, aliases: ['stage', 'status', 'pipeline stage'] },
+  { key: 'expectedRevenue', label: 'Expected Revenue', required: false, aliases: ['expected revenue', 'revenue', 'value', 'deal value', 'amount'] },
+  { key: 'currency', label: 'Currency', required: false, aliases: ['currency', 'ccy'] },
+  { key: 'expectedClosing', label: 'Expected Closing', required: false, aliases: ['expected closing', 'close date', 'closing date', 'expected close'] },
+  { key: 'probability', label: 'Probability %', required: false, aliases: ['probability', 'probability %', 'win %', 'confidence'] },
+  { key: 'expectedRole', label: 'Expected Role', required: false, aliases: ['expected role', 'role', 'requirement'] },
+  { key: 'source', label: 'Source', required: false, aliases: ['source', 'lead source', 'channel'] },
+  { key: 'notes', label: 'Notes', required: false, aliases: ['notes', 'note', 'comments', 'description'] },
+];
+
 const EVALUATION_OPTIONS = [
   { value: '1', label: '★☆☆' },
   { value: '2', label: '★★☆' },
@@ -188,6 +206,7 @@ export default function CrmOpportunitiesV2() {
   const [sources, setSources] = useState([]);
   const [tags, setTags] = useState([]);
   const [exporting, setExporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
   const effectiveLimit = groupBy ? 200 : limit;
@@ -392,10 +411,24 @@ export default function CrmOpportunitiesV2() {
         title="Opportunities"
         sub={`${total} total`}
         actions={(
-          <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}>
-            New Opportunity
-          </Button>
+          <>
+            <Button variant="secondary" size="sm" iconLeft={<Upload size={14} />} onClick={() => setShowImport(true)}>Import</Button>
+            <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}>
+              New Opportunity
+            </Button>
+          </>
         )}
+      />
+
+      <BulkImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        title="Import Opportunities"
+        itemNoun="opportunity"
+        templateName="opportunities-import-template.csv"
+        fields={OPPORTUNITY_IMPORT_FIELDS}
+        onImport={(rows) => crmApi.bulkImportOpportunities(slug, rows)}
+        onDone={() => fetchData()}
       />
 
       <FilterBar

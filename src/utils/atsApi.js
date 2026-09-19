@@ -537,6 +537,17 @@ const atsApi = {
     });
   },
 
+  // Bulk import jobs: rows of { name, department?, employmentType?, location?,
+  // status?, expectedHires?, isClientRole?, clientName?, clientBudget?,
+  // maxBudget?, recruiterEmail?, requiredExperience?, description?, tags? }.
+  // Imported jobs land as drafts so nobody's approver is paged 300 times.
+  bulkImportJobs(orgSlug, rows) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/bulk-import`, {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    });
+  },
+
   updateCandidate(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/ats/candidates/${id}`, {
       method: 'PUT',

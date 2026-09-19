@@ -223,6 +223,14 @@ export async function adjustLeaveBalance(data) {
   return res.data;
 }
 
+// Opening-balance import. Rows are wide: { employeeEmail, <leaveCode>: number }.
+// The server writes the number as carried-forward for the financial year and
+// logs a migration row per code, so it never double-counts against accrual.
+export async function bulkImportLeaveBalances(rows, financialYear) {
+  const res = await timesheetApi.post('/leave-balances/bulk-import', { rows, financialYear });
+  return res.data;
+}
+
 export async function getLeaveHistory(employeeId, params) {
   const res = await timesheetApi.get(`/leave-balances/${employeeId}/history`, { params });
   return res.data;

@@ -38,8 +38,13 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Column config for the bulk-import modal → employee create payload.
-// Import posture = migrating existing staff: Sourced By blank, no probation,
-// no salary (set CTC later via Revise CTC).
+// Import posture = migrating existing staff: Sourced By blank, no probation.
+// Pay, department and manager were added 2026-09-19 so a migrating agency can
+// land a payroll-ready directory from one file. Department is matched by name
+// and manager by email (a manager created by the same file is linked after the
+// batch lands). Annual CTC builds the employee's first salary record through
+// the same path Set CTC uses; a row whose CTC cannot be applied still creates
+// the employee and reports why.
 const EMPLOYEE_IMPORT_FIELDS = [
   { key: 'fullName', label: 'Full Name', required: true, aliases: ['full name', 'name', 'employee name', 'fullname'] },
   { key: 'email', label: 'Email', required: true, aliases: ['email', 'e-mail', 'email address', 'work email', 'mail'] },
@@ -51,6 +56,11 @@ const EMPLOYEE_IMPORT_FIELDS = [
   { key: 'status', label: 'Status', required: false, aliases: ['status', 'employment status'] },
   { key: 'lastWorkingDate', label: 'Last Working Date', required: false, aliases: ['last working date', 'lwd', 'exit date', 'end date'] },
   { key: 'dateOfBirth', label: 'Date of Birth', required: false, aliases: ['date of birth', 'dob', 'birth date', 'birthday'] },
+  { key: 'department', label: 'Department', required: false, aliases: ['department', 'dept', 'team', 'function'] },
+  { key: 'manager', label: "Manager's Email", required: false, aliases: ['manager', 'manager email', 'reports to', 'reporting manager', 'supervisor'] },
+  { key: 'billable', label: 'Billable', required: false, aliases: ['billable', 'is billable', 'billability'] },
+  { key: 'ctcAnnual', label: 'Annual CTC', required: false, aliases: ['annual ctc', 'ctc', 'ctc per annum', 'salary', 'annual salary', 'package'] },
+  { key: 'ctcEffectiveFrom', label: 'CTC Effective From', required: false, aliases: ['ctc effective from', 'salary effective from', 'effective from', 'ctc date'] },
 ];
 
 // Employment type carries meaning, so each gets its own Chip tone rather than a
