@@ -102,6 +102,9 @@ export default function AtsJobPositionsV2() {
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  // Server-counted group totals + whether the rows were capped. Counting in
+  // the browser broke silently once a company passed the row ceiling.
+  const [groupMeta, setGroupMeta] = useState({ counts: null, truncated: false });
   const [page, setPage] = usePageParam();
   const [searchValue, setSearchValue] = useSearchParamValue('search');
 
@@ -142,6 +145,16 @@ export default function AtsJobPositionsV2() {
       });
       if (res.success) {
         setJobs(res.jobs || []);
+        // 2026-09-19: group totals are counted on the SERVER now. Rows are
+        // still capped, so a big group may hold only part of its records —
+        // `groupedTruncated` is how we know, and the header says so instead of
+        // quietly showing a wrong number.
+        setGroupMeta({
+          counts: Array.isArray(res.groupCounts)
+            ? new Map(res.groupCounts.map((g) => [String(g.key), g.count]))
+            : null,
+          truncated: !!res.groupedTruncated,
+        });
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
       }
@@ -292,7 +305,10 @@ export default function AtsJobPositionsV2() {
       <GroupedHeader
         key={`__group__${key}`}
         label={group.label}
-        count={group.records.length}
+        // The count comes from the server, over the whole filtered set. It
+        // used to be group.records.length, which silently went wrong the
+        // moment a company had more records than one response could carry.
+        count={groupMeta.counts?.get(String(key)) ?? group.records.length}
         noun="job"
         colSpan={columns.length}
         collapsed={collapsed}
@@ -301,6 +317,12 @@ export default function AtsJobPositionsV2() {
         avatarText={groupBy === 'client' ? undefined : ''}
         sticky
         stickyTop={30}
+        children={
+          groupMeta.truncated
+          && (groupMeta.counts?.get(String(key)) ?? group.records.length) > group.records.length
+            ? <span style={{ color: 'var(--warn, #b45309)' }}>{group.records.length} loaded</span>
+            : null
+        }
       />
     );
     const pad = density === 'compact' ? '6px 12px' : '11px 14px';
