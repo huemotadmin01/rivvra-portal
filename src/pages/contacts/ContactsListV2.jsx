@@ -268,6 +268,7 @@ export default function ContactsListV2({ filterType }) {
           open={showImport}
           onClose={() => setShowImport(false)}
           title="Import Contacts"
+          dedupeKey="email"
           itemNoun="contact"
           templateName="contacts-import-template.csv"
           fields={CONTACT_IMPORT_FIELDS}

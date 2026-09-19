@@ -19,6 +19,9 @@ import {
  *  onImport    — async (rows[]) => { success, summary, results } (server shape)
  *  onDone      — called after a successful import (e.g. reload the list)
  *  templateName— filename for the downloadable template (default "import-template.csv")
+ *  dedupeKey   — optional field key to collapse repeated rows on before sending.
+ *                Set it ONLY where that column is the record's identity
+ *                (a person's email); leave it off where repeats are valid.
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const norm = (s) => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -79,10 +82,22 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+// "opportunity" must not become "opportunitys". Callers can always override
+// with itemNounPlural for anything this does not cover.
+function pluralise(noun, n, explicit) {
+  if (n === 1) return noun;
+  if (explicit) return explicit;
+  if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
+  return `${noun}s`;
+}
+
 export default function BulkImportModal({
   open, onClose, title, fields, onImport, onDone,
   templateName = 'import-template.csv',
   itemNoun = 'record',
+  itemNounPlural,
+  dedupeKey = null,
 }) {
   const [step, setStep] = useState('upload'); // upload | map | result
   const [fileName, setFileName] = useState('');
@@ -184,26 +199,44 @@ export default function BulkImportModal({
   // Client-side preview validation (guidance only; server re-validates).
   // `rows` is the valid/deduped subset — the set actually posted, so the
   // "Import {valid}" button label always matches what gets sent.
+  // Client-side dedup is OPT-IN via `dedupeKey`, never guessed.
+  //
+  // It used to key off the first field whose name contained "email". That is
+  // wrong in two directions, and both now have live callers:
+  //   • Jobs have an OPTIONAL recruiter email. Left unmapped, every row shared
+  //     the same empty value, so rows 2..n were silently dropped as duplicates
+  //     and a 300-row file offered to import one job.
+  //   • Opportunities legitimately repeat a contact — one client can have
+  //     several open deals — so collapsing on contact email would throw away
+  //     real rows before the server ever saw them.
+  // Email FORMAT is still checked on any email-ish column that has a value.
   const preview = useMemo(() => {
     const requiredKeys = fields.filter((f) => f.required).map((f) => f.key);
-    const emailKey = fields.find((f) => /email/i.test(f.key))?.key;
+    const emailKeys = fields.filter((f) => /email/i.test(f.key)).map((f) => f.key);
     let invalid = 0, dupes = 0;
     const rows = [];
     const seen = new Set();
     for (const row of mappedRows) {
       let ok = true;
       for (const k of requiredKeys) if (!row[k]) ok = false;
-      if (ok && emailKey && row[emailKey] && !EMAIL_RE.test(row[emailKey].toLowerCase())) ok = false;
+      if (ok) {
+        for (const k of emailKeys) {
+          const v = (row[k] || '').trim();
+          if (v && !EMAIL_RE.test(v.toLowerCase())) { ok = false; break; }
+        }
+      }
       if (!ok) { invalid++; continue; }
-      if (emailKey) {
-        const e = row[emailKey].toLowerCase();
-        if (seen.has(e)) { dupes++; continue; }
-        seen.add(e);
+      if (dedupeKey) {
+        const v = (row[dedupeKey] || '').trim().toLowerCase();
+        if (v) {
+          if (seen.has(v)) { dupes++; continue; }
+          seen.add(v);
+        }
       }
       rows.push(row);
     }
     return { valid: rows.length, invalid, dupes, total: mappedRows.length, rows };
-  }, [mappedRows, fields]);
+  }, [mappedRows, fields, dedupeKey]);
 
   const requiredUnmapped = fields.filter((f) => f.required && (mapping[f.key] == null || mapping[f.key] < 0));
 
@@ -430,7 +463,7 @@ export default function BulkImportModal({
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-rivvra-500 hover:bg-rivvra-600 text-white disabled:opacity-50 flex items-center gap-1.5"
               >
                 {importing ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-                {importing ? 'Importing…' : `Import ${preview.valid} ${itemNoun}${preview.valid === 1 ? '' : 's'}`}
+                {importing ? 'Importing…' : `Import ${preview.valid} ${pluralise(itemNoun, preview.valid, itemNounPlural)}`}
               </button>
             )}
             {step === 'result' && (

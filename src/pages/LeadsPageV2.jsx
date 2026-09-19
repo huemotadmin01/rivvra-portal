@@ -355,6 +355,7 @@ export default function LeadsPageV2() {
           open={showImport}
           onClose={() => setShowImport(false)}
           title="Import Contacts"
+          dedupeKey="email"
           itemNoun="contact"
           templateName="leads-import-template.csv"
           fields={LEAD_IMPORT_FIELDS}

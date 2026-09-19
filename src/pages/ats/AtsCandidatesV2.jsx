@@ -366,6 +366,7 @@ export default function AtsCandidatesV2() {
           open={showImport}
           onClose={() => setShowImport(false)}
           title="Import Candidates"
+          dedupeKey="email"
           itemNoun="candidate"
           templateName="candidates-import-template.csv"
           fields={CANDIDATE_IMPORT_FIELDS}

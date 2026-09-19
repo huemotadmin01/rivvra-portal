@@ -260,6 +260,7 @@ export default function EmployeeDirectoryV2() {
           open={showImport}
           onClose={() => setShowImport(false)}
           title="Import Employees"
+          dedupeKey="email"
           itemNoun="employee"
           templateName="employees-import-template.csv"
           fields={EMPLOYEE_IMPORT_FIELDS}

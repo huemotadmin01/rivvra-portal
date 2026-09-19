@@ -118,6 +118,7 @@ export default function LeaveBalancesV2() {
           onClose={() => setShowImport(false)}
           title={`Import opening balances · FY ${fy}`}
           itemNoun="employee"
+          dedupeKey="employeeEmail"
           templateName={`leave-opening-balances-${fy}.csv`}
           fields={[
             { key: 'employeeEmail', label: 'Employee Email', required: true, aliases: ['employee email', 'email', 'e-mail', 'work email', 'employee'] },
