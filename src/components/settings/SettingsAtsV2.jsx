@@ -8,6 +8,8 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { Save, Loader2, AlertCircle, UserSearch, BarChart3, Globe, Copy, ExternalLink, Check } from 'lucide-react';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
+import { useCompany } from '../../context/CompanyContext';
 import api from '../../utils/api';
 import {
   Panel, Button, Input, Select, Switch, SettingRow, Callout, EmptyState, PageSpinner,
@@ -66,6 +68,14 @@ function UnitNumber({ id, unit, ...rest }) {
  * Careers" on a job is gated; the toggle just won't save without org-admin.
  */
 function CareersCard({ orgSlug }) {
+  const { currentCompany } = useCompany();
+  // Who owns an application nobody has claimed yet. Stored per company as an
+  // employee id — it used to be found by searching for an employee NAMED
+  // "HR Team", so renaming that person made every parked application
+  // unclaimable with no warning.
+  const [holdingAccounts, setHoldingAccounts] = useState([]);
+  const [holdingChoice, setHoldingChoice] = useState('');
+  const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -91,6 +101,10 @@ function CareersCard({ orgSlug }) {
         setPrimaryColor(c.branding?.primaryColor || '');
         setLogoUrl(c.branding?.logoUrl || '');
         setPublicUrl(c.publicUrl || '');
+        const accounts = Array.isArray(c.holdingAccounts) ? c.holdingAccounts : [];
+        setHoldingAccounts(accounts);
+        const mine = accounts.find((a) => String(a.companyId) === String(currentCompany?._id));
+        setHoldingChoice(mine?.employeeId || '');
         setInitial({
           enabled: !!c.enabled,
           tagline: c.branding?.tagline || '',
@@ -100,14 +114,21 @@ function CareersCard({ orgSlug }) {
       })
       .catch((err) => setError(err.message || 'Failed to load careers settings'))
       .finally(() => setLoading(false));
-  }, [orgSlug]);
+    // The employee list is scoped to the active company, so the picker edits
+    // this company's holding account; the others are shown read-only.
+    employeeApi.list(orgSlug, { status: 'active', limit: 200 })
+      .then((res) => setStaff(res?.employees || []))
+      .catch(() => setStaff([]));
+  }, [orgSlug, currentCompany?._id]);
 
-  const hasChanges = initial && (
+  const currentHolding = holdingAccounts.find((a) => String(a.companyId) === String(currentCompany?._id));
+  const holdingChanged = !!currentCompany?._id && holdingChoice !== (currentHolding?.employeeId || '');
+  const hasChanges = (initial && (
     enabled !== initial.enabled ||
     tagline !== initial.tagline ||
     primaryColor !== initial.primaryColor ||
     logoUrl !== initial.logoUrl
-  );
+  )) || holdingChanged;
   const colorValid = !primaryColor || /^#[0-9a-fA-F]{6}$/.test(primaryColor);
 
   const handleSave = async () => {
@@ -121,6 +142,9 @@ function CareersCard({ orgSlug }) {
           primaryColor: primaryColor.trim() || null,
           logoUrl: logoUrl.trim() || null,
         },
+        ...(holdingChanged && currentCompany?._id
+          ? { holdingAccounts: [{ companyId: String(currentCompany._id), employeeId: holdingChoice || null }] }
+          : {}),
       });
       if (res.success) {
         const c = res.careers || {};
@@ -131,6 +155,11 @@ function CareersCard({ orgSlug }) {
           logoUrl: c.branding?.logoUrl || '',
         });
         setPublicUrl(c.publicUrl || publicUrl);
+        if (Array.isArray(c.holdingAccounts)) {
+          setHoldingAccounts(c.holdingAccounts);
+          const mine = c.holdingAccounts.find((a) => String(a.companyId) === String(currentCompany?._id));
+          setHoldingChoice(mine?.employeeId || '');
+        }
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       } else {
@@ -153,7 +182,8 @@ function CareersCard({ orgSlug }) {
       <div style={{ padding: 6, display: 'grid', gap: 14 }}>
         <p style={{ font: "400 11px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 }}>
           Publish Open + Approved job positions to a public careers page.
-          Applicants land in ATS with the HR Team employee as recruiter.
+          Applicants land in ATS owned by the holding account below, until a
+          recruiter claims them.
         </p>
 
         {loading ? (
@@ -170,6 +200,51 @@ function CareersCard({ orgSlug }) {
               description="When off, the public URL returns Not Found."
               control={<Switch label="Enable Careers Site" checked={enabled} onChange={setEnabled} />}
             />
+
+            {/* Holding account for unclaimed applications */}
+            <FieldBlock
+              label="Unclaimed applications go to"
+              hint={`Applications from the careers site are owned by this person until a recruiter claims them. Renaming them is safe — the setting stores who, not what they are called.${holdingAccounts.length > 1 ? ' Each company has its own; switch company to change another.' : ''}`}
+            >
+              <select
+                value={holdingChoice}
+                onChange={(e) => setHoldingChoice(e.target.value)}
+                style={{
+                  height: 38, padding: '0 12px', width: '100%', appearance: 'none',
+                  border: 'none', outline: 'none', borderRadius: 'var(--r-2)',
+                  background: 'var(--surface-2)', color: 'var(--fg)',
+                  boxShadow: 'inset 0 0 0 1px var(--line)',
+                  font: "450 13.5px/1 'Inter', system-ui, sans-serif",
+                }}
+              >
+                <option value="">Nobody — applications arrive unowned</option>
+                {staff.map((e) => (
+                  <option key={e._id} value={e._id}>{e.fullName || e.email || e._id}</option>
+                ))}
+              </select>
+              {currentHolding?.source === 'legacy-name' && (
+                <span style={{ font: "400 11px/1.5 'Inter', system-ui, sans-serif", color: 'var(--warn, #b45309)' }}>
+                  Currently matched by the name “HR Team”. Save to pin it properly, so renaming that employee cannot break claiming.
+                </span>
+              )}
+            </FieldBlock>
+
+            {holdingAccounts.length > 1 && (
+              <FieldBlock label="Across your companies" hint="Where unclaimed applications land in each entity.">
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {holdingAccounts.map((a) => (
+                    <div key={a.companyId} style={{
+                      display: 'flex', justifyContent: 'space-between', gap: 12,
+                      font: "400 12px/1.5 'Inter', system-ui, sans-serif",
+                      color: String(a.companyId) === String(currentCompany?._id) ? 'var(--fg)' : 'var(--fg-3)',
+                    }}>
+                      <span>{a.companyName}</span>
+                      <span>{a.employeeName || 'Nobody'}</span>
+                    </div>
+                  ))}
+                </div>
+              </FieldBlock>
+            )}
 
             {/* Public URL */}
             <FieldBlock label="Public URL" hint="Paste this on your WordPress careers menu.">
