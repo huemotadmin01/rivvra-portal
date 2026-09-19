@@ -81,6 +81,18 @@ export function buildOnboardingGroups({ data, apps, orgPath }) {
           done: !!cfg.careersEnabled,
           to: orgPath('/settings/ats'), cta: 'Enable',
         },
+        // Only once the careers page is on: until then nothing can arrive, so
+        // asking who should receive it is noise. Counts as done when the
+        // workspace has made a choice at all — picking nobody is a legitimate
+        // answer, since an unowned application is still claimable.
+        ...(cfg.careersEnabled ? [{
+          label: 'Choose who new applications go to',
+          desc: cfg.careersHoldingName
+            ? `Applications wait with ${cfg.careersHoldingName} until a recruiter claims them`
+            : 'Applications from your careers page wait with this person until a recruiter claims them',
+          done: !!cfg.careersHoldingDecided,
+          to: orgPath('/settings/ats'), cta: 'Choose',
+        }] : []),
         {
           label: 'Post your first job',
           desc: 'Jobs drive candidates, pipelines and placements',
