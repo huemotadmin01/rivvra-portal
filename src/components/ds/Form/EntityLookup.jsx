@@ -56,6 +56,9 @@ export function EntityLookup({
   /** variant='button' trigger text. */
   triggerLabel = 'Add',
   placeholder = 'Search…',
+  // Optional line under the results, e.g. "showing 100 of 340 — keep typing".
+  // Without it a truncated list looks like the whole list.
+  note = '',
   /** Read-mode link target for the current selection. */
   href,
   /**
@@ -226,6 +229,12 @@ export function EntityLookup({
       {!searching && results.length === 0 && !showCreate && (
         <div style={{ padding: '8px 12px', font: `450 12px/1.4 ${FONT}`, fontStyle: 'italic', color: 'var(--fg-4, #828e9f)' }}>
           No matches.
+        </div>
+      )}
+
+      {!searching && note && results.length > 0 && (
+        <div style={{ padding: '6px 12px', font: `450 11.5px/1.4 ${FONT}`, color: 'var(--fg-4, #828e9f)', borderTop: '1px solid var(--line, #232b36)' }}>
+          {note}
         </div>
       )}
 

@@ -250,6 +250,14 @@ export default function AtsApplicationDetail() {
           // 2026-08-31: linked JOB's employment type — offer modal salary
           // units fall back to this when the app's own type is blank.
           jobEmploymentType: res.jobEmploymentType || null,
+          // 2026-09-20 REGRESSION FIX: the API returns this as a SIBLING of
+          // `application`, like jobEmploymentType above, and this merge is what
+          // moves siblings onto the record. It was added server-side on 09-19
+          // and never added here, so the offer screen — which refuses to
+          // capture money when the meaning is unknown — disabled itself for
+          // every application. Shipped and caught the next day by a test that
+          // asserted the field reaches the browser.
+          employmentMeaning: res.employmentMeaning || null,
           stageName: res.stageName || a.stageName,
           recruiterName: res.recruiterName || a.recruiterName || null,
           accountOwnerName: res.accountOwnerName || a.accountOwnerName || null,
@@ -378,9 +386,17 @@ export default function AtsApplicationDetail() {
       if (value === '' || value == null) {
         coerced = null;
       } else {
-        const n = Number(value);
-        if (!Number.isFinite(n) || n < 0) throw new Error('Must be a positive number');
-        coerced = n;
+        // 2026-09-20: accept the format people actually type. "12,00,000" used
+        // to be rejected as "not a positive number" with nothing explaining
+        // why, while the SERVER read the same text as 12 — so the browser and
+        // the API disagreed about what the user meant. Strip separators and
+        // currency symbols, then require a real number.
+        const cleaned = String(value).replace(/[,\s\u20B9$€£]/g, '');
+        const num = Number(cleaned);
+        if (!Number.isFinite(num) || num < 0) {
+          throw new Error('Enter an amount, for example 12 or 12,00,000');
+        }
+        coerced = num;
       }
     }
     const res = await atsApi.updateApplication(orgSlug, applicationId, { [field]: coerced });
@@ -1104,6 +1120,22 @@ export default function AtsApplicationDetail() {
   const offerProposalStage = stages.find((s) => s.stageRole === 'offer_proposal');
   const currentStage = stages.find((s) => s._id === currentStageId);
   const currentStageRole = currentStage?.stageRole || null;
+
+  // What the two pre-offer salary figures mean. Same source the offer screen
+  // uses — the employment type's own stored meaning, resolved server-side —
+  // so a day-rate role says "day rate" here too instead of an unlabelled box.
+  const salaryMeaning = application?.employmentMeaning || null;
+  const SALARY_UNIT_WORDS = {
+    per_day: { suffix: ' (day rate)', eg: 'e.g. 4500' },
+    per_hour: { suffix: ' (hourly rate)', eg: 'e.g. 600' },
+    per_month: { suffix: ' (per month)', eg: 'e.g. 80,000' },
+    lpa: { suffix: ' (annual, in lakhs)', eg: 'e.g. 12' },
+  };
+  const salaryWords = SALARY_UNIT_WORDS[salaryMeaning?.salaryUnit] || null;
+  // No employment type means the unit is genuinely unknown; say so rather than
+  // implying a default, which is what the offer screen does for the same reason.
+  const salaryUnitSuffix = salaryWords ? salaryWords.suffix : '';
+  const salaryPlaceholder = salaryWords ? salaryWords.eg : 'Amount';
   const isAtOrPastOfferProposal = !!(offerProposalStage && currentStage
     && Number(currentStage.sequence ?? 0) >= Number((offerProposalStage.sequence ?? Infinity) - 1));
 
@@ -1654,22 +1686,27 @@ export default function AtsApplicationDetail() {
                 { value: 'AED', label: 'AED — UAE Dirham' },
               ]}
             />
+            {/* 2026-09-20: both fields now state WHAT the number means, taken
+                from the same server-resolved employment meaning the offer
+                screen uses. They used to be bare "Salary Expected" text boxes,
+                so one recruiter entered 12 meaning lakhs and another entered
+                1200000 meaning the same thing, into the same column. */}
             <InlineField
-              label="Salary Expected"
+              label={`Salary Expected${salaryUnitSuffix}`}
               field="salaryExpected"
               value={application.salaryExpected}
               editable={canEdit}
               onSave={saveField}
-              placeholder="0"
+              placeholder={salaryPlaceholder}
               displayValue={fmtSalary(application.salaryExpected, application.compensationCurrency) || undefined}
             />
             <InlineField
-              label="Salary Proposed"
+              label={`Salary Proposed${salaryUnitSuffix}`}
               field="salaryProposed"
               value={application.salaryProposed}
               editable={canEdit}
               onSave={saveField}
-              placeholder="0"
+              placeholder={salaryPlaceholder}
               displayValue={fmtSalary(application.salaryProposed, application.compensationCurrency) || undefined}
             />
           </Panel>

@@ -121,6 +121,22 @@ export function InlineField({
       return;
     }
 
+    // 2026-09-20: this editor renders `type="email"` but lives OUTSIDE a
+    // <form> and commits on blur/Enter, so the browser's native email check
+    // never fires. Nothing validated the address on either side, and
+    // production collected phone numbers, an address with a space inside
+    // "gmail. com", one prefixed with a pipe and one ending in a bullet —
+    // each of them a candidate who silently receives nothing. The server now
+    // refuses these too; this is so the user hears about it before the save.
+    if (type === 'email' && String(newVal || '').trim()) {
+      const v = String(newVal).trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(v)) {
+        setErrMsg('That does not look like an email address');
+        setStatus('error');
+        return;
+      }
+    }
+
     setStatus('saving');
     try {
       await onSave(field, newVal);

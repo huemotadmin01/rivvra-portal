@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import contactsApi from '../../utils/contactsApi';
 import { EntityLookup } from '../ds';
 
@@ -56,10 +56,18 @@ export default function PersonLookup({
   // would cost a round-trip and could miss, since the pick may have come from
   // a filtered page the unfiltered query does not return.
   const namesRef = useRef(new Map());
+  // 2026-09-20: the endpoint used to return a hard 20 with nothing saying so,
+  // then the picker said "No matches" for everyone else — which reads as "that
+  // person does not exist". It now returns the true total, and we say when the
+  // list is partial instead of letting it look complete.
+  const [note, setNote] = useState('');
 
   const search = useCallback(async (q) => {
     const res = await contactsApi.listSalespersons(orgSlug, q);
     const rows = res?.salespersons || [];
+    setNote(res?.truncated
+      ? `Showing ${rows.length} of ${res.total}. Keep typing to narrow it down.`
+      : '');
     rows.forEach((e) => namesRef.current.set(String(e._id), e.name));
     return rows.map((e) => ({
       value: e._id,
@@ -88,6 +96,7 @@ export default function PersonLookup({
 
   return (
     <EntityLookup
+      note={note}
       label={label}
       field={field}
       value={currentValue || ''}
