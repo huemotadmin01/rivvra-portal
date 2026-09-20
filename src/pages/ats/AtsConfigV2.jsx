@@ -3,7 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import {
   Layers, Tag, Globe, ThumbsDown, GraduationCap, Briefcase,
-  Zap, Award, BarChart3, Mail, FileCheck, Paperclip,
+  Zap, Award, BarChart3, Mail, FileCheck, Paperclip, TrendingUp,
 } from 'lucide-react';
 import { EmptyState } from '../../components/ds';
 import {
@@ -22,6 +22,7 @@ const TABS = [
   { key: 'refuse_reasons', label: 'Refuse Reasons', icon: ThumbsDown },
   { key: 'required_documents', label: 'Required Documents', icon: FileCheck },
   { key: 'degrees', label: 'Degrees', icon: GraduationCap },
+  { key: 'experience_levels', label: 'Experience Levels', icon: TrendingUp },
   { key: 'employment_types', label: 'Employment Types', icon: Briefcase },
   { key: 'skill_types', label: 'Skill Types', icon: Zap },
   { key: 'skills', label: 'Skills', icon: Award },
@@ -96,6 +97,7 @@ export default function AtsConfigV2() {
       {activeTab === 'refuse_reasons' && <PicklistSectionV2 entity="refuse_reasons" entityLabel="Refuse Reasons" icon={ThumbsDown} {...sectionProps} />}
       {activeTab === 'required_documents' && <RequiredDocumentsSectionV2 icon={FileCheck} {...sectionProps} />}
       {activeTab === 'degrees' && <PicklistSectionV2 entity="degrees" entityLabel="Degrees" icon={GraduationCap} {...sectionProps} />}
+      {activeTab === 'experience_levels' && <PicklistSectionV2 entity="experience_levels" entityLabel="Experience Levels" icon={TrendingUp} {...sectionProps} />}
       {activeTab === 'employment_types' && <PicklistSectionV2 entity="employment_types" entityLabel="Employment Types" icon={Briefcase} {...sectionProps} />}
       {activeTab === 'skill_types' && <SkillTypesSectionV2 icon={Zap} {...sectionProps} />}
       {activeTab === 'skills' && <SkillsSectionV2 icon={Award} {...sectionProps} />}

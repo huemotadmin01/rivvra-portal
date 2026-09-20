@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../utils/formatCurrency';
 import atsApi from '../../utils/atsApi';
+import { withCurrentValue } from '../../utils/picklistOptions';
 import signApi from '../../utils/signApi';
 import employeeApi from '../../utils/employeeApi';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
@@ -97,6 +98,8 @@ export default function AtsApplicationDetail() {
   // Dropdown data
   const [stages, setStages] = useState([]);
   const [refuseReasons, setRefuseReasons] = useState([]);
+  const [sourceOptions, setSourceOptions] = useState([]);
+  const [degreeOptions, setDegreeOptions] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
 
   // Modal / action UI state
@@ -323,14 +326,23 @@ export default function AtsApplicationDetail() {
   const fetchDropdowns = useCallback(async () => {
     if (!orgSlug) return;
     try {
-      const [stagesRes, reasonsRes, recruitersRes] = await Promise.all([
+      // 2026-09-20: Source and Degree were free-text boxes. The Applications
+      // filter builds its Source dropdown from the picklist, so anything typed
+      // here that was not a picklist name became unfilterable — and the
+      // placeholder actively suggested "Naukri", which is not a seeded value.
+      // Degrees had a picklist and an admin tab that NOTHING read.
+      const [stagesRes, reasonsRes, recruitersRes, sourcesRes, degreesRes] = await Promise.all([
         atsApi.listStages(orgSlug),
         atsApi.listConfig(orgSlug, 'refuse-reasons').catch(() => ({ success: true, items: [] })),
         atsApi.listRecruiters(orgSlug).catch(() => ({ success: true, recruiters: [] })),
+        atsApi.listConfig(orgSlug, 'sources').catch(() => ({ success: true, items: [] })),
+        atsApi.listConfig(orgSlug, 'degrees').catch(() => ({ success: true, items: [] })),
       ]);
       if (stagesRes.success) setStages(stagesRes.stages || []);
       if (reasonsRes.success) setRefuseReasons(reasonsRes.items || reasonsRes.reasons || []);
       if (recruitersRes.success) setRecruiters(recruitersRes.recruiters || recruitersRes.users || []);
+      if (sourcesRes.success) setSourceOptions((sourcesRes.items || []).map((i) => i.name).filter(Boolean));
+      if (degreesRes.success) setDegreeOptions((degreesRes.items || []).map((i) => i.name).filter(Boolean));
     } catch (err) {
       console.error('Failed to load dropdowns:', err);
     }
@@ -1712,9 +1724,24 @@ export default function AtsApplicationDetail() {
           </Panel>
 
           <Panel title="Sourcing" icon={<FileText size={14} />}>
-            <InlineField label="Source" field="source" value={application.source} editable={canEdit} onSave={saveField} placeholder="e.g. Naukri, Referral" />
+            <InlineField
+              label="Source" field="source" value={application.source}
+              type="select" options={withCurrentValue(sourceOptions, application.source)}
+              // The "not in the configured list" marker belongs in the open
+              // dropdown, not on the collapsed row — 2,762 applications hold
+              // `legacy` and would otherwise all read as an error.
+              displayValue={application.source || undefined}
+              editable={canEdit} onSave={saveField}
+              placeholder={sourceOptions.length ? 'Pick a source' : 'No sources — add in ATS Configuration'}
+            />
             <InlineField label="Medium" field="medium" value={application.medium} editable={canEdit} onSave={saveField} placeholder="e.g. Online, Email" />
-            <InlineField label="Degree" field="degree" value={application.degree} editable={canEdit} onSave={saveField} placeholder="e.g. B.Tech, MBA" />
+            <InlineField
+              label="Degree" field="degree" value={application.degree}
+              type="select" options={withCurrentValue(degreeOptions, application.degree)}
+              displayValue={application.degree || undefined}
+              editable={canEdit} onSave={saveField}
+              placeholder={degreeOptions.length ? 'Pick a degree' : 'No degrees — add in ATS Configuration'}
+            />
             <InlineField label="Availability" field="availability" value={application.availability} editable={canEdit} onSave={saveField} placeholder="e.g. 30 days notice" />
             <InlineField label="Applied On" field="appliedOn" value={application.appliedOn} type="date" editable={canEdit} onSave={saveField} />
             <InlineField label="Notes" field="note" value={application.note} type="textarea" editable={canEdit} onSave={saveField} placeholder="Internal notes…" />

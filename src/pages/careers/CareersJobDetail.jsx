@@ -34,7 +34,12 @@ const sanitizeJd = (html) => DOMPurify.sanitize(html || '', { ALLOWED_TAGS: JD_A
 
 const MAX_RESUME_MB = 10;
 const RESUME_ACCEPT = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-const LINKEDIN_RE = /linkedin\.com\/(in|pub)\//i;
+// 2026-09-20: LinkedIn is OPTIONAL and this pattern is wider than the old
+// /linkedin\.com\/(in|pub)\//, which rejected `lnkd.in/…` — the short link
+// LinkedIn's OWN share button hands out. Host must BE linkedin.com / lnkd.in or
+// end in ".linkedin.com", so notlinkedin.com.evil.example is not accepted.
+// Kept in step with the API's src/helpers/linkedinUrl.js — change both.
+const LINKEDIN_RE = /^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:linkedin\.com|lnkd\.in)(?:\/\S*)?$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_ACCENT = '#5b6cff';
 
@@ -414,7 +419,12 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
     if (!form.name.trim() || form.name.trim().length < 2) errs.name = 'Enter your full name.';
     if (!EMAIL_RE.test(form.email)) errs.email = 'Enter a valid email.';
     if (form.phone.replace(/[^\d]/g, '').length < 7) errs.phone = 'Enter a valid phone number.';
-    if (!LINKEDIN_RE.test(form.linkedinUrl)) errs.linkedinUrl = 'Enter your LinkedIn profile URL.';
+    // Optional: blank is fine. A wrong-looking value is still worth catching,
+    // since the recruiter who clicks it later is the one who pays for it.
+    const li = form.linkedinUrl.trim();
+    if (li && !LINKEDIN_RE.test(li)) {
+      errs.linkedinUrl = 'That does not look like a LinkedIn link. Paste your profile URL, or leave it blank.';
+    }
     if (!resumeFile) errs.resume = 'Attach your resume (PDF, DOC, or DOCX).';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -545,11 +555,15 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
             />
           )}
         </Field>
-        <Field icon={Linkedin} label="LinkedIn profile" required error={fieldErrors.linkedinUrl}>
+        <Field icon={Linkedin} label="LinkedIn profile (optional)" error={fieldErrors.linkedinUrl}>
           {(a) => (
             <input
               {...a}
-              type="url" value={form.linkedinUrl} onChange={setField('linkedinUrl')}
+              // NOT type="url": that rejects "linkedin.com/in/foo" natively,
+              // and a URL pasted without its protocol is now accepted and
+              // given one on the server.
+              type="text" inputMode="url"
+              value={form.linkedinUrl} onChange={setField('linkedinUrl')}
               placeholder="https://linkedin.com/in/your-handle"
               className={inputCls(fieldErrors.linkedinUrl, accent)}
               autoComplete="url" maxLength={250}
@@ -653,9 +667,8 @@ function Field({ icon: Icon, label, required, error, children }) {
       {/* `aria-required`, deliberately NOT the native `required` attribute.
           Adding `required` here turned on native HTML5 validation, which
           preempts the submit event entirely — so `validate()` never ran and
-          none of this form's own messages ("Enter your LinkedIn profile URL",
-          which is the only thing telling a candidate a generic URL won't do)
-          could ever appear. `aria-required` announces the same thing to
+          none of this form's own messages (the LinkedIn one, which is the only
+          thing telling a candidate a generic URL won't do) could ever appear. `aria-required` announces the same thing to
           assistive tech and changes no behaviour. */}
       {children({ id, 'aria-required': required || undefined, 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? errId : undefined })}
       {error && <p id={errId} className="mt-1 text-xs text-red-600">{error}</p>}

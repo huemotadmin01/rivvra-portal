@@ -100,6 +100,7 @@ function AtsJobNewV2() {
   const [saving, setSaving] = useState(false);
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [employmentTypeOptions, setEmploymentTypeOptions] = useState([]);
+  const [experienceOptions, setExperienceOptions] = useState([]);
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -115,6 +116,18 @@ function AtsJobNewV2() {
         if (res?.success) {
           const items = res.items || res.employmentTypes || [];
           setEmploymentTypeOptions(items.map(i => i.name || i.value).filter(Boolean));
+        }
+      })
+      .catch(() => {});
+    // 2026-09-20: was a free-text box. What was typed here had to match, byte
+    // for byte, a value in a hardcoded list on the job detail page and a
+    // DIFFERENT hardcoded list in the jobs filter — so a job created here was
+    // usually findable by neither. One configurable list now feeds all three.
+    atsApi.listConfig(orgSlug, 'experience-levels')
+      .then(res => {
+        if (res?.success) {
+          const items = res.items || res.experienceLevels || [];
+          setExperienceOptions(items.map(i => i.name || i.value).filter(Boolean));
         }
       })
       .catch(() => {});
@@ -241,9 +254,13 @@ function AtsJobNewV2() {
             </Field>
 
             <Field label="Required Exp." htmlFor="jn-exp">
-              <Input id="jn-exp" type="text"
-                value={form.requiredExperience} onChange={(e) => handleChange('requiredExperience', e.target.value)}
-                placeholder="e.g. 0-2 Years" />
+              <Select id="jn-exp" value={form.requiredExperience}
+                onChange={(e) => handleChange('requiredExperience', e.target.value)}>
+                <option value="">
+                  {experienceOptions.length ? '— Select —' : 'No levels — add in ATS Configuration'}
+                </option>
+                {experienceOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+              </Select>
             </Field>
 
             <Field label="Expected Hires" htmlFor="jn-hires">

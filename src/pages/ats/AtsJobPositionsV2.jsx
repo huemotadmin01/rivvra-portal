@@ -57,13 +57,6 @@ const JOB_HIRING_MODE_OPTIONS = [
   { value: 'Full-time Hire', label: 'Full-time Hire' },
   { value: 'Contract', label: 'Contract' },
 ];
-const JOB_EXPERIENCE_OPTIONS = [
-  { value: '0-2', label: '0–2 years' },
-  { value: '3-4', label: '3–4 years' },
-  { value: '5+', label: '5+ years' },
-  { value: '7-8', label: '7–8 years' },
-  { value: '8-10', label: '8–10 years' },
-];
 const STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
   { value: 'on_hold', label: 'On Hold' },
@@ -189,6 +182,11 @@ export default function AtsJobPositionsV2() {
   // jobs slice (not the current page).
   const [facetDepartments, setFacetDepartments] = useState([]);
   const [facetClients, setFacetClients] = useState([]);
+  // 2026-09-20: the Experience chip used to be a list hardcoded here. It shared
+  // no value with the list the job detail page offered, and the server matches
+  // exactly — so '3-4' found nothing and jobs saved as '5-8 Years' were
+  // unreachable. Built from the values actually stored, so it cannot drift.
+  const [facetExperience, setFacetExperience] = useState([]);
   useEffect(() => {
     if (!orgSlug) return undefined;
     const controller = new AbortController();
@@ -197,6 +195,7 @@ export default function AtsJobPositionsV2() {
         if (controller.signal.aborted || !res?.success) return;
         setFacetDepartments(res.departments || []);
         setFacetClients(res.clients || []);
+        setFacetExperience(res.experienceLevels || []);
       })
       .catch(() => {});
     return () => controller.abort();
@@ -204,6 +203,12 @@ export default function AtsJobPositionsV2() {
 
   const departmentOptions = useMemo(() => facetDepartments.map((d) => ({ value: d.value, label: d.value })), [facetDepartments]);
   const clientOptions = useMemo(() => facetClients.map((c) => ({ value: c.value, label: c.value })), [facetClients]);
+  // Label carries the count, so a value left over from before the configurable
+  // list ('5+', '7-8') is still selectable and its size is visible.
+  const experienceFilterOptions = useMemo(
+    () => facetExperience.map((e) => ({ value: e.value, label: `${e.value} (${e.count})` })),
+    [facetExperience],
+  );
 
   const groupedJobs = useMemo(() => {
     if (!groupBy) return null;
@@ -404,7 +409,12 @@ export default function AtsJobPositionsV2() {
             <GroupByChipV2 options={JOB_GROUP_BY_OPTIONS} />
             <MoreFiltersV2 paramKeys={['hiringMode', 'requiredExperience']}>
               <SelectChipV2 paramKey="hiringMode" label="Hiring Mode" options={JOB_HIRING_MODE_OPTIONS} />
-              <SelectChipV2 paramKey="requiredExperience" label="Experience" options={JOB_EXPERIENCE_OPTIONS} />
+              <SelectChipV2
+                paramKey="requiredExperience"
+                label="Experience"
+                options={experienceFilterOptions}
+                placeholder="No experience levels set"
+              />
             </MoreFiltersV2>
             <ArchivedToggleV2 activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
           </>

@@ -5,6 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { withCurrentValue } from '../../utils/picklistOptions';
 import employeeApi from '../../utils/employeeApi';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
@@ -410,9 +411,6 @@ const HIRING_MODE_FULL = {
   'C2C or Full-time Hire':'Contract-to-Contract or Full-time Hire',
 };
 
-const EXPERIENCE_OPTIONS = ['0-2 Years', '2-5 Years', '5-8 Years', '8-11 Years', '11-14 Years', '14+ Years']
-  .map((v) => ({ value: v, label: v }));
-
 const HIRING_MODE_OPTIONS = ['C2C', 'C2H', 'Full-time Hire', 'C2C or Full-time Hire']
   .map((v) => ({ value: v, label: v }));
 
@@ -461,6 +459,7 @@ export default function AtsJobDetail() {
   //     and lets each org curate values.
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [employmentTypeOptions, setEmploymentTypeOptions] = useState([]);
+  const [experienceOptions, setExperienceOptions] = useState([]);
   usePageTitle(job?.name);
   const [loading, setLoading] = useState(true);
 
@@ -768,6 +767,18 @@ export default function AtsJobDetail() {
         if (res?.success) {
           const items = res.items || res.employmentTypes || [];
           setEmploymentTypeOptions(items.map(i => ({ value: i.name || i.value, label: i.name || i.label })));
+        }
+      })
+      .catch(() => {});
+    // 2026-09-20: this page used to hardcode six values ('0-2 Years' …
+    // '14+ Years') while the jobs LIST FILTER hardcoded five different ones
+    // ('0-2', '3-4', '5+' …). The two shared no value, so a job saved here
+    // could never be found by that filter. Both now read this one list.
+    atsApi.listConfig(orgSlug, 'experience-levels')
+      .then(res => {
+        if (res?.success) {
+          const items = res.items || res.experienceLevels || [];
+          setExperienceOptions(items.map(i => ({ value: i.name || i.value, label: i.name || i.label })));
         }
       })
       .catch(() => {});
@@ -1080,6 +1091,11 @@ export default function AtsJobDetail() {
   // user reading "7-8" doesn't have to guess whether that's years or
   // months. Idempotent — won't double-suffix values that already include
   // years/yr/months.
+  // A job may hold a value that predates the list ('5+', '7-8', an imported
+  // string). Keep it as a selectable option so opening the editor cannot
+  // silently replace it, and say why it looks different.
+  const experienceOptionsWithCurrent = withCurrentValue(experienceOptions, job.requiredExperience);
+
   const requiredExpDisplay = job.requiredExperience
     ? (/years?|yrs?|months?|mos?\b/i.test(job.requiredExperience)
         ? job.requiredExperience
@@ -1481,7 +1497,7 @@ export default function AtsJobDetail() {
               field="requiredExperience"
               value={job.requiredExperience}
               type="select"
-              options={EXPERIENCE_OPTIONS}
+              options={experienceOptionsWithCurrent}
               editable={canEdit}
               onSave={saveField}
               displayValue={requiredExpDisplay || undefined}
