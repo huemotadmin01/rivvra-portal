@@ -237,6 +237,7 @@ const SettingsInvoicingV2 = lazy(() => import('./components/settings/SettingsInv
 const TdsConfigV2 = lazy(() => import('./pages/invoicing/TdsConfigV2'));
 const ExpenseCategoriesConfigV2 = lazy(() => import('./pages/invoicing/ExpenseCategoriesConfigV2'));
 const JournalsConfigV2 = lazy(() => import('./pages/invoicing/JournalsConfigV2'));
+const RemindersConfigV2 = lazy(() => import('./pages/invoicing/RemindersConfigV2'));
 const VendorBillListV2 = lazy(() => import('./pages/invoicing/VendorBillListV2'));
 const PaymentsListV2 = lazy(() => import('./pages/invoicing/PaymentsListV2'));
 const AgedReceivablesV2 = lazy(() => import('./pages/invoicing/AgedReceivablesV2'));
@@ -748,6 +749,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/config/payment-terms" element={<ErrorBoundary><PaymentTermsConfigV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/expense-categories" element={<ErrorBoundary><ExpenseCategoriesConfigV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/journals" element={<ErrorBoundary><JournalsConfigV2 /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/reminders" element={<ErrorBoundary><RemindersConfigV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/settings" element={<ErrorBoundary><SettingsInvoicingV2 /></ErrorBoundary>} />
                 </Route>
               </Route>

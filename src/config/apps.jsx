@@ -571,6 +571,7 @@ export const APP_REGISTRY = {
             { path: '/invoicing/config/payment-terms', label: 'Payment Terms', icon: Clock },
             { path: '/invoicing/config/expense-categories', label: 'Expense Categories', icon: Tag },
             { path: '/invoicing/config/journals', label: 'Journals', icon: FileText },
+            { path: '/invoicing/config/reminders', label: 'Reminders', icon: Mail },
             { path: '/invoicing/config/settings', label: 'Settings', icon: Settings },
           ],
         },

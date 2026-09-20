@@ -266,11 +266,16 @@ export default function BulkImportModal({
     downloadCsv(templateName, [labels, example]);
   };
 
+  // 2026-09-21: the reference column used to be hardcoded to `email`, so an
+  // import of anything that is not a person produced a report of blank cells —
+  // you could see that four rows failed and not which four. Callers may now
+  // send `ref` (an invoice number, a job title, whatever identifies the row);
+  // `email` still works for the screens that already pass it.
   const downloadErrorReport = () => {
-    const rows = [['row', 'email', 'status', 'reason']];
+    const rows = [['row', 'reference', 'status', 'reason']];
     (result?.results || [])
       .filter((r) => r.status !== 'created')
-      .forEach((r) => rows.push([r.row, r.email || '', r.status, r.reason || '']));
+      .forEach((r) => rows.push([r.row, r.ref || r.email || '', r.status, r.reason || '']));
     downloadCsv('import-errors.csv', rows);
   };
 

@@ -44,6 +44,13 @@ const invoicingApi = {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/invoices${qs ? '?' + qs : ''}`);
   },
+  // Opening balances from a previous system. Server keeps the customer's own
+  // invoice numbers and excludes these from GST/TDS reports — see the route.
+  importInvoices(orgSlug, rows) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/import`, {
+      method: 'POST', body: JSON.stringify({ rows }),
+    });
+  },
   getInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`);
   },

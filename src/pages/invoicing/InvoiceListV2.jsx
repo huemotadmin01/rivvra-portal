@@ -36,12 +36,13 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import BulkImportModal from '../../components/BulkImportModal';
 import { formatCurrency } from '../../utils/formatCurrency';
 import ResizableTable from '../../components/ResizableTable';
 import FYFilter from '../../components/shared/FYFilter';
 // ChevronLeft/ChevronRight are used by the RETAINED ResizableTable footer,
 // not by the migrated chrome — don't drop them when trimming this list.
-import { Plus, Inbox, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Inbox, Download, X, ChevronLeft, ChevronRight , Upload } from 'lucide-react';
 import {
   Button, EmptyState, PageHeader, PageSpinner, Panel, SearchInput, Spinner, Tabs,
 } from '../../components/ds';
@@ -143,6 +144,22 @@ function StatusChips({ invoice }) {
 // Main component
 // ---------------------------------------------------------------------------
 
+// Opening-balance import. Deliberately small: a switching customer needs the
+// outstanding amount and who owes it, not reconstructed line-level tax for
+// periods they have already filed.
+const INVOICE_IMPORT_FIELDS = [
+  { key: 'number', label: 'Invoice Number', required: true, aliases: ['number', 'invoice number', 'invoice no', 'invoice #', 'doc number', 'reference'] },
+  { key: 'customerName', label: 'Customer Name', required: false, aliases: ['customer', 'customer name', 'client', 'client name', 'party', 'bill to'] },
+  { key: 'customerEmail', label: 'Customer Email', required: false, aliases: ['email', 'customer email', 'client email', 'e-mail'] },
+  { key: 'date', label: 'Invoice Date', required: true, aliases: ['date', 'invoice date', 'issue date', 'billed on'] },
+  { key: 'dueDate', label: 'Due Date', required: false, aliases: ['due date', 'due', 'payment due', 'due on'] },
+  { key: 'amount', label: 'Total Amount', required: true, aliases: ['amount', 'total', 'invoice amount', 'grand total', 'value'] },
+  { key: 'amountPaid', label: 'Amount Already Paid', required: false, aliases: ['paid', 'amount paid', 'received', 'settled'] },
+  { key: 'currency', label: 'Currency', required: false, aliases: ['currency', 'ccy'] },
+  { key: 'description', label: 'Description', required: false, aliases: ['description', 'particulars', 'details', 'narration'] },
+  { key: 'notes', label: 'Notes', required: false, aliases: ['notes', 'remarks', 'comment'] },
+];
+
 export default function InvoiceListV2() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
@@ -193,6 +210,7 @@ export default function InvoiceListV2() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [fy, setFy] = useState({ preset: 'all', dateFrom: null, dateTo: null });
   const [exporting, setExporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => { localStorage.setItem('invoicing.customerInvoices.pageSize', String(pageSize)); }, [pageSize]);
 
@@ -441,7 +459,49 @@ export default function InvoiceListV2() {
         >
           Export CSV
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setShowImport(true)}
+          iconLeft={<Upload size={14} />}
+          title="Bring unpaid invoices across from another system"
+        >
+          Import
+        </Button>
       </div>
+
+      {/* 2026-09-21: a customer switching to Rivvra could import their contacts
+          but not their book, so day-one receivables were empty and every open
+          invoice had to be keyed by hand. These arrive posted, keep the
+          customer's own numbers, and are excluded from GST/TDS reports because
+          they were filed from the previous system. */}
+      <BulkImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        title="Import opening balances"
+        itemNoun="invoice"
+        templateName="invoice-opening-balances.csv"
+        fields={INVOICE_IMPORT_FIELDS}
+        onImport={async (rows) => {
+          const res = await invoicingApi.importInvoices(orgSlug, rows);
+          // Shape the server's reply into what the modal renders, and put the
+          // invoice number in the reference column so a failed row is findable.
+          return {
+            ...res,
+            summary: {
+              total: rows.length,
+              created: res.imported || 0,
+              failed: res.failedCount || 0,
+              duplicates: (res.failed || []).filter((f) => /already exists/i.test(f.error || '')).length,
+            },
+            results: [
+              ...(res.created || []).map((c) => ({ row: c.row, ref: c.number, status: 'created' })),
+              ...(res.failed || []).map((f) => ({ row: f.row, ref: f.number, status: 'failed', reason: f.error })),
+            ],
+          };
+        }}
+        onDone={() => { fetchInvoices(); }}
+      />
 
       {loading ? (
         <Panel><PageSpinner minHeight="40vh" /></Panel>

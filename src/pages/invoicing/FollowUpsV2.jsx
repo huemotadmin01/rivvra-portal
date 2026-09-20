@@ -74,8 +74,14 @@ function LevelDot({ level }) {
 // Follow-up Config Section
 // ---------------------------------------------------------------------------
 
-function FollowUpConfig({ orgSlug, showToast }) {
-  const [expanded, setExpanded] = useState(false);
+// 2026-09-21: exported, and able to start open. The reminder wording and
+// cadence were only reachable by scrolling past the overdue table on this page
+// and clicking a collapsed row — so the one screen that decides what we email
+// a late-paying customer was found by accident. Configuration → Reminders now
+// renders this directly with `alwaysOpen`, and the accordion here is unchanged
+// for anyone who already knows where it lives.
+export function FollowUpConfig({ orgSlug, showToast, alwaysOpen = false }) {
+  const [expanded, setExpanded] = useState(alwaysOpen);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -128,9 +134,12 @@ function FollowUpConfig({ orgSlug, showToast }) {
 
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+      {/* On its own Configuration page the header is not a toggle — there is
+          nothing to collapse into. */}
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-dark-800/50 transition-colors text-left"
+        onClick={() => { if (!alwaysOpen) setExpanded(!expanded); }}
+        disabled={alwaysOpen}
+        className={`w-full flex items-center justify-between p-4 text-left transition-colors ${alwaysOpen ? 'cursor-default' : 'hover:bg-dark-800/50'}`}
       >
         <div className="flex items-center gap-3">
           {expanded ? <ChevronDown size={18} className="text-dark-400" /> : <ChevronRight size={18} className="text-dark-400" />}
