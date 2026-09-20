@@ -160,7 +160,14 @@ function AtsJobNewV2() {
         employmentType: form.employmentType || undefined,
         requiredExperience: form.requiredExperience.trim() || undefined,
         expectedHires: parseInt(form.expectedHires, 10) || 1,
+        // 2026-09-20: this box is labelled "Work Location" but only ever wrote
+        // `location` (our own office). The detail page reads and the approval
+        // gate REQUIRES `clientJobLocation` — so a recruiter filled in Work
+        // Location, saw it come back blank, and approval then refused the job
+        // for a missing Work Location. Mirror both, exactly as the detail
+        // page's saveWorkLocation already does.
         location: form.location.trim() || undefined,
+        clientJobLocation: form.location.trim() || undefined,
         description: form.description.trim() || undefined,
         approverId: form.approverId || undefined,
         // Internal-only flow: client roles come from CRM Won conversion.

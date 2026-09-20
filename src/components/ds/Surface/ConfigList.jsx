@@ -253,15 +253,29 @@ export function ConfigList({
         </div>
       </Modal>
 
+      {/* A caller can mark the delete as `blocked` — the server will refuse it,
+          so the dialog explains why instead of offering a Delete button that
+          only produces an error toast. */}
       <ConfirmDialog
         open={!!confirmDelete}
         title={confirmCfg?.title}
         message={confirmCfg?.message}
-        confirmLabel="Delete"
-        danger
+        confirmLabel={confirmCfg?.blocked ? 'Rename instead' : 'Delete'}
+        cancelLabel={confirmCfg?.blocked ? 'Close' : 'Cancel'}
+        danger={!confirmCfg?.blocked}
         busy={deleting}
         onCancel={() => { if (!deleting) setConfirmDelete(null); }}
-        onConfirm={async () => { if (confirmDelete) await handleDelete(confirmDelete); }}
+        onConfirm={async () => {
+          // Blocked: the delete cannot happen, so the primary button offers the
+          // thing that can — renaming, which cascades to every record using it.
+          if (confirmCfg?.blocked) {
+            const item = confirmDelete;
+            setConfirmDelete(null);
+            if (item) openEdit(item);
+            return;
+          }
+          if (confirmDelete) await handleDelete(confirmDelete);
+        }}
       />
     </div>
   );

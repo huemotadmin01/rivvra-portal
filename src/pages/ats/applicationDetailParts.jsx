@@ -1711,7 +1711,13 @@ export function InterviewScheduleModal({ show, onClose, onConfirm, saving, level
       interviewerId,
       interviewerName,
       mode,
-      meetingLink: meetingLink.trim() || null,
+      // 2026-09-20: the link input only RENDERS for Video, but the value was
+      // submitted whatever the mode. Type a link, switch to Phone, and the
+      // phone interview was saved carrying a video link the scheduler could no
+      // longer see — and the confirmation email sent it to both sides. The
+      // state is kept so switching back to Video restores what was typed; it
+      // just is not stored against a non-video interview.
+      meetingLink: mode === 'Video' ? (meetingLink.trim() || null) : null,
       durationMinutes: Number(durationMinutes) || 60,
     });
   };

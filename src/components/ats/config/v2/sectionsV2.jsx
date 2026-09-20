@@ -62,6 +62,9 @@ export function PicklistSectionV2({ orgSlug, showToast, entity, entityLabel, ico
   );
 
   const [items, setItems] = useState([]);
+  // Whether the server refuses to delete a row records still point at. Told to
+  // us rather than guessed, so the confirmation copy cannot drift from the rule.
+  const [deleteBlockedWhenUsed, setDeleteBlockedWhenUsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCopy, setShowCopy] = useState(false);
   const [copyFromId, setCopyFromId] = useState('');
@@ -70,7 +73,10 @@ export function PicklistSectionV2({ orgSlug, showToast, entity, entityLabel, ico
   const fetchItems = useCallback(async () => {
     try {
       const res = await atsApi.listConfig(orgSlug, apiEntity);
-      if (res.success) setItems(res.items || res[entity] || []);
+      if (res.success) {
+        setItems(res.items || res[entity] || []);
+        setDeleteBlockedWhenUsed(!!res.deleteBlockedWhenUsed);
+      }
     } catch {
       showToast(`Failed to load ${entityLabel.toLowerCase()}`, 'error');
     } finally {
@@ -157,10 +163,18 @@ export function PicklistSectionV2({ orgSlug, showToast, entity, entityLabel, ico
         }}
         rowDelete={false}
         deleteConfirm={(item) => ({
-          title: `Delete ${singular.toLowerCase()}?`,
+          title: (deleteBlockedWhenUsed && item.usageCount > 0)
+            ? `${singular} is in use`
+            : `Delete ${singular.toLowerCase()}?`,
+          // 2026-09-20: this used to promise the same outcome for every
+          // picklist. The by-name lists now REFUSE the delete, so the old copy
+          // had users confirm an action that then failed.
           message: typeof item.usageCount === 'number' && item.usageCount > 0
-            ? `"${item.name}" is used on ${item.usageCount} application${item.usageCount === 1 ? '' : 's'}. Those keep the value, but it can no longer be selected.`
+            ? (deleteBlockedWhenUsed
+              ? `"${item.name}" is in use on ${item.usageCount} record${item.usageCount === 1 ? '' : 's'}, so it cannot be deleted — those records store it by name and would lose the value. Renaming it updates all ${item.usageCount} automatically.`
+              : `"${item.name}" is used on ${item.usageCount} application${item.usageCount === 1 ? '' : 's'}. Those keep the value, but it can no longer be selected.`)
             : `Delete "${item.name}"? This cannot be undone.`,
+          blocked: deleteBlockedWhenUsed && typeof item.usageCount === 'number' && item.usageCount > 0,
         })}
         headerActions={siblingCompanies.length > 0 && (
           <Button variant="secondary" size="sm" iconLeft={<Copy size={13} />} onClick={() => { setCopyFromId(String(siblingCompanies[0]?._id || '')); setShowCopy(true); }}>
