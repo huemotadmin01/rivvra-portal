@@ -415,6 +415,7 @@ export default function ContactDetailV2() {
     return () => { cancelled = true; };
   }, [orgSlug, isAdminRaw]);
   const teamIds = useMemo(() => new Set(spScope?.mode === 'team' ? spScope.employeeIds : []), [spScope]);
+  const followsCompany = contact?.type === 'individual' && !!contact?.parentCompanyId;
   const leadCanReassign = !isAdminRaw && !contact?.archived && spScope?.mode === 'team'
     && (!contact?.salespersonId || teamIds.has(String(contact.salespersonId)));
 
@@ -639,11 +640,23 @@ export default function ContactDetailV2() {
                     displayValue={contact.parentCompanyName}
                     editable={isAdmin}
                     onSave={async (field, val) => {
-                      await saveField(field, val || null);
+                      // Moving someone to a company adopts its salesperson (API
+                      // inherit rule) — take it from the response.
+                      let res;
+                      try {
+                        res = await contactsApi.update(orgSlug, contactId, { parentCompanyId: val || null });
+                      } catch (err) {
+                        showToast(err.message || 'Failed to save', 'error');
+                        throw err;
+                      }
                       setContact((prev) => ({
                         ...prev,
+                        parentCompanyId: val || null,
                         parentCompanyName: companies.find((c) => c._id === val)?.name || null,
+                        salespersonId: res?.contact?.salespersonId ?? prev.salespersonId,
+                        salespersonName: res?.contact?.salespersonName ?? prev.salespersonName,
                       }));
+                      showToast(val ? 'Saved — salesperson now follows the company' : 'Saved');
                     }}
                     placeholder="Search companies…"
                   />
@@ -678,8 +691,17 @@ export default function ContactDetailV2() {
                 field="salespersonId"
                 value={contact.salespersonId || ''}
                 options={salespersonOptions}
-                displayValue={contact.salespersonName}
-                editable={isAdmin || leadCanReassign}
+                // Inherit rule (2026-09-22): a person attached to a company has
+                // the company's salesperson — shown read-only, set on the company.
+                displayValue={followsCompany
+                  ? (
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                      <span>{contact.salespersonName || '— None —'}</span>
+                      <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>from {contact.parentCompanyName || 'company'}</span>
+                    </span>
+                  )
+                  : contact.salespersonName}
+                editable={!followsCompany && (isAdmin || leadCanReassign)}
                 onSave={async (field, val) => {
                   // A company's people who were following it move too (API
                   // cascade, 2026-09-22) — say how many, so it isn't a surprise.
