@@ -13,6 +13,12 @@ const STATUS_LIST_LABELS = {
   'no_response': 'No Response'
 };
 
+const REPLY_INTENT_LABELS = {
+  interested: 'Interested', referral: 'Referral', later: 'Follow up later',
+  not_interested: 'Not interested', wrong_person: 'Wrong person',
+  left_company: 'Left company', ooo: 'Auto-reply', unclear: 'Unclear',
+};
+
 function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, teamMembers = [], onAssign }) {
   const { showToast } = useToast();
   const [newNote, setNewNote] = useState('');
@@ -318,13 +324,25 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, teamMember
                     <span className="text-xs text-dark-400 truncate max-w-[180px]">
                       {replyData.replyFrom || lead.email || 'Contact'}
                     </span>
-                    <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded border ${
-                      replyData.status === 'replied'
+                    {/* 2026-09-21: show the AI's verdict. This used to print
+                        "Interested" for ANY reply that was not a hard no, so a
+                        bounce notice or "not right now" read as a hot lead. */}
+                    {(() => {
+                      const hot = replyData.intent ? ['interested', 'referral'].includes(replyData.intent) : false;
+                      const label = replyData.intent
+                        ? (REPLY_INTENT_LABELS[replyData.intent] || replyData.intent)
+                        : (replyData.status === 'replied' ? 'Replied' : 'Not Interested');
+                      const tone = hot
                         ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                        : 'text-orange-400 bg-orange-500/10 border-orange-500/20'
-                    }`}>
-                      {replyData.status === 'replied' ? 'Interested' : 'Not Interested'}
-                    </span>
+                        : (replyData.intent === 'later' || (!replyData.intent && replyData.status === 'replied'))
+                          ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                          : 'text-orange-400 bg-orange-500/10 border-orange-500/20';
+                      return (
+                        <span title={replyData.intentHint || undefined} className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded border ${tone}`}>
+                          {label}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
 
