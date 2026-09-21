@@ -284,7 +284,7 @@ export default function GstReportV2() {
               <Kpi label="Output GST" amount={totals.outputTax} tone="green" hint={`collected on ${formatCurrency(totals.taxableTurnover, 'INR')} of sales`} />
               <Kpi label="ITC (books)" amount={totals.itcBooks} tone="blue" hint="credit from GST paid on vendor bills" />
               <Kpi label="ITC matched in 2B" amount={totals.itc2b} tone="blue" hint="confirmed by vendors' filings" />
-              <Kpi label="Net payable" amount={totals.netPayable} tone={totals.netPayable > 0 ? 'amber' : 'green'} hint="Output GST − ITC (books)" />
+              <Kpi label="Net payable" amount={totals.netPayable} tone={totals.netPayable > 0 ? 'amber' : 'green'} hint="Output GST − claimable ITC (2B where reconciled)" />
               <Kpi label="Paid (3B challans)" amount={totals.amountPaid} tone={totals.amountPaid >= totals.netPayable ? 'green' : 'red'} hint="tax actually paid to GSTN" />
             </div>
 
@@ -334,7 +334,7 @@ export default function GstReportV2() {
                         <TermHint label="ITC (2B)">The portion of your credit that vendors have confirmed by filing their returns — it appears in your GSTR-2B statement. Only confirmed credit is safe to claim. Kept current by the GST 2B Recon page.</TermHint>
                       </th>
                       <th className={`${numCls} font-medium text-amber-400`}>
-                        <TermHint label="Net payable">Output GST minus ITC (books) — the tax this month owes the government via GSTR-3B.</TermHint>
+                        <TermHint label="Net payable">Output GST minus the ITC you may actually claim. Where a month's GSTR-2B has been reconciled, that is the credit the 2B confirms (Rule 36(4)) — not everything in your books. Months marked "books" have no 2B reconciled yet, so their credit is unverified and the real liability may be higher.</TermHint>
                       </th>
                       <th className={`${numCls} font-medium`}>
                         <TermHint label="Paid">Tax actually paid — the GSTR-3B challan amounts recorded against this month.</TermHint>
@@ -396,6 +396,13 @@ export default function GstReportV2() {
                         </td>
                         <td className={`${numCls} font-semibold ${row.netPayable > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                           {formatCurrency(row.netPayable, 'INR')}
+                          {/* Which ITC the figure rests on. 'books' means no 2B has
+                              been reconciled for the month — the number is a best
+                              case, not a confirmed liability. */}
+                          {row.itcBasis === 'books' && row.itcBooks > 0 && (
+                            <span title="No GSTR-2B reconciled for this month — ITC is taken from your books and is unverified. Reconcile the 2B to confirm what you may claim."
+                              className="ml-1.5 align-middle text-[10px] font-medium uppercase tracking-wide text-dark-400 border border-dark-600 rounded px-1 py-px">books</span>
+                          )}
                           {row.key && row.itcUnbooked > 0 && (
                             <button onClick={() => openDrill('itcunbooked', row)}
                               title={`Projected 3B payable = Output GST ${formatCurrency(row.outputTax, 'INR')} − (2B-verified ITC ${formatCurrency(row.itc2b, 'INR')} + unbooked 2B credit ${formatCurrency(row.itcUnbooked, 'INR')}) once those bills are booked — click to view them`}

@@ -229,7 +229,6 @@ const TaxReportInvV2 = lazy(() => import('./pages/invoicing/TaxReportV2'));
 const GstReconciliationV2 = lazy(() => import('./pages/invoicing/GstReconciliationV2'));
 const ProfitabilityV2 = lazy(() => import('./pages/invoicing/ProfitabilityV2'));
 const BankReconciliationUnavailable = lazy(() => import('./pages/invoicing/BankReconciliationUnavailable'));
-const FollowUpsV2 = lazy(() => import('./pages/invoicing/FollowUpsV2'));
 const InvoiceFormV2 = lazy(() => import('./pages/invoicing/InvoiceFormV2'));
 const VendorBillFormV2 = lazy(() => import('./pages/invoicing/VendorBillFormV2'));
 const TdsReportInvV2 = lazy(() => import('./pages/invoicing/TdsReportV2'));
@@ -237,7 +236,6 @@ const SettingsInvoicingV2 = lazy(() => import('./components/settings/SettingsInv
 const TdsConfigV2 = lazy(() => import('./pages/invoicing/TdsConfigV2'));
 const ExpenseCategoriesConfigV2 = lazy(() => import('./pages/invoicing/ExpenseCategoriesConfigV2'));
 const JournalsConfigV2 = lazy(() => import('./pages/invoicing/JournalsConfigV2'));
-const RemindersConfigV2 = lazy(() => import('./pages/invoicing/RemindersConfigV2'));
 const VendorBillListV2 = lazy(() => import('./pages/invoicing/VendorBillListV2'));
 const PaymentsListV2 = lazy(() => import('./pages/invoicing/PaymentsListV2'));
 const AgedReceivablesV2 = lazy(() => import('./pages/invoicing/AgedReceivablesV2'));
@@ -355,6 +353,17 @@ function OrgPlatformLayout() {
       </CompanyProvider>
     </OrgProvider>
   );
+}
+
+// Invoicing Follow-ups was removed from the product on 2026-09-22 (owner's
+// call): most firms chase late payers by hand, and the page duplicated what the
+// invoice list's Overdue view already shows. Its screens — and the Reminders
+// settings page that only fed its Send button — are unrouted, not deleted
+// (pages/invoicing/FollowUpsV2.jsx, RemindersConfigV2.jsx). Old bookmarks land
+// on the Overdue view, which is the manual equivalent.
+function InvoicingOverdueRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/invoicing/invoices?overdue=true`} replace />;
 }
 
 // Helper: redirect from /org/:slug/settings to /org/:slug/settings/general
@@ -735,7 +744,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PaymentsListV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/products" element={<ErrorBoundary><ProductCatalogV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliationUnavailable /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><FollowUpsV2 /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/follow-ups" element={<InvoicingOverdueRedirect />} />
                   <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><AgedReceivablesV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><AgedPayablesV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/tax" element={<ErrorBoundary><TaxReportInvV2 /></ErrorBoundary>} />
@@ -749,7 +758,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/config/payment-terms" element={<ErrorBoundary><PaymentTermsConfigV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/expense-categories" element={<ErrorBoundary><ExpenseCategoriesConfigV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/journals" element={<ErrorBoundary><JournalsConfigV2 /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/config/reminders" element={<ErrorBoundary><RemindersConfigV2 /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/reminders" element={<InvoicingOverdueRedirect />} />
                   <Route path="/org/:slug/invoicing/config/settings" element={<ErrorBoundary><SettingsInvoicingV2 /></ErrorBoundary>} />
                 </Route>
               </Route>

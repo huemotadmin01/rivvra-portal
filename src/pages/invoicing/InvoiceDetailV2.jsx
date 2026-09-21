@@ -57,6 +57,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import { useBreadcrumbContext } from '../../context/BreadcrumbContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { tdsRateFor, TDS_KIND_NOTE } from '../../utils/tdsRate';
 import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -2806,25 +2807,27 @@ export default function InvoiceDetailV2() {
                         { value: '', label: 'No TDS' },
                         ...tdsConfigs.map(t => ({
                           value: t._id,
-                          label: `${t.sectionCode} @ ${t.rateIndividual}% — ${t.description || ''}`.trim(),
+                          // The rate that applies to THIS vendor — see utils/tdsRate.
+                          label: `${t.sectionCode} @ ${tdsRateFor(t, invoice.tdsDeducteeKind || 'individual')}% — ${t.description || ''}`.trim(),
                         })),
                       ]}
                       editable={isDraft}
                       displayValue={
                         <span style={valueStyle}>
                           {invoice.tdsSection
-                            ? `${invoice.tdsSection} @ ${invoice.tdsRate ?? 0}%`
+                            ? `${invoice.tdsSection} @ ${invoice.tdsRate ?? 0}%${TDS_KIND_NOTE[invoice.tdsRateBasis === 'no_pan' ? 'none' : invoice.tdsRateBasis] ? ` · ${TDS_KIND_NOTE[invoice.tdsRateBasis === 'no_pan' ? 'none' : invoice.tdsRateBasis]}` : ''}`
                             : <span style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>No TDS</span>}
                         </span>
                       }
                       onSave={async (_field, value) => {
                         const cfg = tdsConfigs.find(t => t._id === value);
-                        // TDS config docs use sectionCode/rateIndividual (see
-                        // TdsConfig.jsx + API invoicingTds.js) — not section/rate.
+                        // The SERVER resolves the rate from the section + the
+                        // vendor's PAN; this value is only the optimistic one
+                        // shown until its reply lands.
                         const updates = {
                           tdsConfigId: value || null,
                           tdsSection: cfg?.sectionCode || null,
-                          tdsRate: cfg ? Number(cfg.rateIndividual) || 0 : 0,
+                          tdsRate: cfg ? tdsRateFor(cfg, invoice.tdsDeducteeKind || 'individual') : 0,
                         };
                         setEditForm(prev => ({ ...prev, ...updates }));
                         try {
@@ -3572,6 +3575,9 @@ export default function InvoiceDetailV2() {
             isVendorBill={isVendorBill}
             isIndia={isIndia}
             gstHold={invoice.gstHold}
+            tdsDeducteeKind={invoice.tdsDeducteeKind}
+            billTdsAmount={Number(invoice.tdsAmount) || 0}
+            billTdsSection={invoice.tdsSection || null}
             onClose={() => setShowPaymentModal(false)}
             onSuccess={() => {
               setShowPaymentModal(false);
@@ -4042,7 +4048,7 @@ function ActionBtn({ icon: Icon, label, onClick, loading, primary, danger }) {
 // RecordPaymentModal
 // ============================================================================
 
-function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isVendorBill, isIndia, gstHold, onClose, onSuccess, showToast }) {
+function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isVendorBill, isIndia, gstHold, tdsDeducteeKind, billTdsAmount = 0, billTdsSection = null, onClose, onSuccess, showToast }) {
   const [journals, setJournals] = useState([]);
   const [tdsConfigs, setTdsConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4071,13 +4077,19 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
   })();
 
   const selectedTds = tdsConfigs.find(t => t._id === tdsConfigId);
-  const tdsRate = selectedTds ? (Number(selectedTds.rateIndividual) || 0) : 0;
+  const tdsRate = selectedTds ? tdsRateFor(selectedTds, tdsDeducteeKind || 'individual') : 0;
 
   const isCustomerInvoice = invoiceType === 'customer_invoice';
   // TDS applies to both directions in India:
   //  - Customer invoice: customer deducts TDS before paying us
   //  - Vendor bill: we deduct TDS before paying the vendor (we are the deductor)
-  const tdsApplicable = isIndia && (isCustomerInvoice || isVendorBill);
+  // 2026-09-21: a vendor bill that ALREADY withheld TDS (set on the bill, so its
+  // balance is net of it) must not be offered TDS again here. This modal was
+  // never told, and above ₹30,000 it actively prompted for it — acting on the
+  // prompt withheld the same TDS twice: the vendor was paid short by the full
+  // amount and a phantom second deduction went into the 26Q figures.
+  const tdsAlreadyOnBill = isVendorBill && Number(billTdsAmount) > 0;
+  const tdsApplicable = isIndia && (isCustomerInvoice || isVendorBill) && !tdsAlreadyOnBill;
   const showTdsWarning = tdsApplicable && !tdsEnabled && Number(total) >= 30000;
 
   // Fetch journals + tds configs in parallel
@@ -4256,6 +4268,13 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             </Callout>
           )}
           {/* TDS Warning Banner */}
+          {tdsAlreadyOnBill && (
+            <p style={{ margin: 0, font: '450 12.5px/1.5 var(--font)', color: 'var(--fg-3)' }}>
+              TDS of {formatCurrency(billTdsAmount, currency)}{billTdsSection ? ` (${billTdsSection})` : ''} was
+              already deducted on this bill, so the amount due is what the vendor is actually owed.
+              No further TDS applies to this payment.
+            </p>
+          )}
           {showTdsWarning && (
             <Callout tone="warn" icon={<AlertTriangle size={16} />}>
               <div style={{ font: "400 11.5px/1.5 'Inter', system-ui, sans-serif" }}>
@@ -4349,7 +4368,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
                           <option value="">Select section…</option>
                           {tdsConfigs.map(t => (
                             <option key={t._id} value={t._id}>
-                              {t.sectionCode} — {t.description} ({t.rateIndividual}%)
+                              {t.sectionCode} — {t.description} ({tdsRateFor(t, tdsDeducteeKind || 'individual')}%)
                             </option>
                           ))}
                         </Select>

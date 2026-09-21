@@ -37,6 +37,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import BulkImportModal from '../../components/BulkImportModal';
+import { fetchAllPages } from '../../utils/fetchAllPages';
 import { formatCurrency } from '../../utils/formatCurrency';
 import ResizableTable from '../../components/ResizableTable';
 import FYFilter from '../../components/shared/FYFilter';
@@ -365,8 +366,9 @@ export default function InvoiceListV2() {
     if (exporting) return;
     setExporting(true);
     try {
-      // Fetch up to 5000 rows in one shot — well above any realistic single-period filter.
-      const params = { page: 1, limit: 5000, sort: sortField, order: sortOrder };
+      // Paged — see utils/fetchAllPages. This used to ask for 5000 rows at once;
+      // the server caps a page at 200, so the file silently stopped there.
+      const params = { sort: sortField, order: sortOrder };
       const tab = STATUS_TABS.find(t => t.key === statusFilter);
       if (tab?.filterKind === 'status') params.status = tab.value;
       else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
@@ -377,8 +379,8 @@ export default function InvoiceListV2() {
       if (fy.dateFrom) params.dateFrom = fy.dateFrom;
       if (fy.dateTo) params.dateTo = fy.dateTo;
 
-      const res = await invoicingApi.listInvoices(orgSlug, params);
-      const rows = res.invoices || res.data || [];
+      const { rows, total, truncated } = await fetchAllPages(
+        (pg) => invoicingApi.listInvoices(orgSlug, pg), params, (res) => res.invoices || res.data);
       const headers = ['Number', 'Type', 'Customer', 'Date', 'Due Date', 'Currency', 'Total', 'Amount Paid', 'Amount Due', 'Status', 'Payment Status', 'Reversed', 'Credit Note For'];
       const csv = [headers.join(',')].concat(rows.map(r => {
         const isReversed = !!r.reversedByCreditNoteId;
@@ -410,7 +412,9 @@ export default function InvoiceListV2() {
       link.download = `customer-invoices-${ts}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      showToast(`Exported ${rows.length} rows`);
+      showToast(truncated
+        ? `Exported the first ${rows.length} of ${total} rows — narrow the date range to get the rest`
+        : `Exported all ${rows.length} rows`, truncated ? 'error' : undefined);
     } catch {
       showToast('Failed to export', 'error');
     } finally {

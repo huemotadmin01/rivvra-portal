@@ -31,6 +31,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { fetchAllPages } from '../../utils/fetchAllPages';
 import contactsApi from '../../utils/contactsApi';
 import employeeApi from '../../utils/employeeApi';
 import EmployeePicker from '../../components/employee/EmployeePicker';
@@ -495,8 +496,9 @@ export default function VendorBillListV2({ mode = 'vendor' } = {}) {
     if (exporting) return;
     setExporting(true);
     try {
+      // Paged — see utils/fetchAllPages (the old limit:5000 was capped at 200).
       const params = {
-        page: 1, limit: 5000, type: 'vendor_bill',
+        type: 'vendor_bill',
         sort: sortField, order: sortOrder,
       };
       if (isEmployeeMode) params.journalCode = EMPLOYEE_JOURNAL_CODE;
@@ -512,13 +514,13 @@ export default function VendorBillListV2({ mode = 'vendor' } = {}) {
         if (submitterEmployeeId) params.submitterEmployeeId = submitterEmployeeId;
         if (approverEmployeeId) params.approverEmployeeId = approverEmployeeId;
       }
-      const res = await invoicingApi.listBills(orgSlug, params);
-      const rows = res.bills || res.data || [];
+      const { rows, total, truncated } = await fetchAllPages(
+        (pg) => invoicingApi.listBills(orgSlug, pg), params, (res) => res.bills || res.invoices || res.data);
       const headers = ['Number', 'Vendor', 'Reference', 'Date', 'Due Date', 'Currency', 'Total', 'Amount Paid', 'Amount Due', 'Status', 'Payment Status'];
       const csv = [headers.join(',')].concat(rows.map(r => [
         r.number || '',
         (r.contactName || '').replace(/,/g, ' '),
-        (r.vendorReference || r.reference || '').replace(/,/g, ' '),
+        (r.vendorInvoiceNumber || r.vendorBillRef || '').replace(/,/g, ' '),
         r.date ? new Date(r.date).toISOString().slice(0, 10) : '',
         r.dueDate ? new Date(r.dueDate).toISOString().slice(0, 10) : '',
         r.currency || 'INR',
@@ -536,7 +538,9 @@ export default function VendorBillListV2({ mode = 'vendor' } = {}) {
       link.download = `${isEmployeeMode ? 'employee-bills' : 'vendor-bills'}-${ts}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      showToast(`Exported ${rows.length} rows`);
+      showToast(truncated
+        ? `Exported the first ${rows.length} of ${total} rows — narrow the date range to get the rest`
+        : `Exported all ${rows.length} rows`, truncated ? 'error' : undefined);
     } catch {
       showToast('Failed to export', 'error');
     } finally {
@@ -762,7 +766,7 @@ export default function VendorBillListV2({ mode = 'vendor' } = {}) {
             {
               key: 'reference', width: 160, minWidth: 80,
               headerRender: () => <span className="text-xs font-medium text-dark-400">Reference</span>,
-              render: (b) => <span className="text-dark-400 truncate block">{b.vendorReference || b.reference || '-'}</span>,
+              render: (b) => <span className="text-dark-400 truncate block">{b.vendorInvoiceNumber || b.vendorBillRef || '-'}</span>,
             },
             {
               key: 'date', width: 130, minWidth: 100,

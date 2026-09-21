@@ -354,7 +354,10 @@ export default function FollowUpsV2() {
 
   const handleSendFollowUp = async (invoice) => {
     const invoiceId = invoice._id || invoice.id;
-    const level = invoice.nextFollowUpLevel || invoice.followUpLevel || 1;
+    // `followUpLevel` never existed in the API, so this used to collapse to a
+    // literal 1. The level is whatever follows the last one actually sent.
+    const level = invoice.nextFollowUpLevel || invoice.upcomingFollowUpLevel;
+    if (!level) return;
     setSendingId(invoiceId);
     try {
       await invoicingApi.sendFollowUp(orgSlug, invoiceId, { level });
@@ -424,7 +427,10 @@ export default function FollowUpsV2() {
                 {invoices.map((inv) => {
                   const invId = inv._id || inv.id;
                   const pastDue = daysBetween(inv.dueDate);
-                  const nextLevel = inv.nextFollowUpLevel || inv.followUpLevel || 1;
+                  // Due now → send it. Not due yet → still sendable, but say so.
+                  // Nothing left → every reminder has gone; do not offer another.
+                  const nextLevel = inv.nextFollowUpLevel || inv.upcomingFollowUpLevel || null;
+                  const early = !inv.nextFollowUpLevel && !!inv.upcomingFollowUpLevel;
 
                   return (
                     <tr
@@ -456,19 +462,23 @@ export default function FollowUpsV2() {
                         {formatDate(inv.lastFollowUpDate || inv.lastFollowUp || inv.lastFollowUpAt)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <LevelDot level={nextLevel} />
+                        {nextLevel
+                          ? <LevelDot level={nextLevel} />
+                          : <span className="text-xs text-dark-500">All sent</span>}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => handleSendFollowUp(inv)}
-                          disabled={sendingId === invId}
+                          disabled={sendingId === invId || !nextLevel}
+                          title={!nextLevel ? 'Every reminder level has already been sent for this invoice'
+                            : early ? `Level ${nextLevel} is not due for another ${inv.upcomingDueInDays} day(s)` : undefined}
                           className="bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
                         >
                           {sendingId === invId
                             ? <Loader2 size={12} className="animate-spin" />
                             : <Send size={12} />
                           }
-                          Send Follow-up
+                          {!nextLevel ? 'All sent' : early ? `Send Level ${nextLevel} early` : `Send Level ${nextLevel}`}
                         </button>
                       </td>
                     </tr>
