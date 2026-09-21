@@ -7,7 +7,8 @@ export const ENGAGEMENT_META = {
   active_customer: { label: 'Active customer', tone: 'brand', hint: 'Has an active assignment, or a hire in the last 6 months' },
   past_customer: { label: 'Past customer', tone: 'purple', hint: 'Assignments have ended, or older hires only' },
   in_progress: { label: 'In progress', tone: 'info', hint: 'Has an open job, nothing hired yet' },
-  unconverted: { label: 'Unconverted', tone: 'warn', hint: 'Sent jobs, none hired, none open' },
+  on_hold: { label: 'On hold', tone: 'info', hint: 'No open job right now, but at least one job is on hold' },
+  unconverted: { label: 'Unconverted', tone: 'warn', hint: 'Sent jobs, none hired, none open or on hold' },
   prospect: { label: 'Prospect', tone: 'neutral', hint: 'CRM opportunities only, never sent a job' },
   never_engaged: { label: 'Never engaged', tone: 'neutral', hint: 'No jobs, assignments or opportunities' },
 };
