@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, Check, Pencil, ChevronDown, Search, X } from 'lucide-react';
 
 /**
@@ -35,6 +36,13 @@ export function InlineComboField({
   const [errMsg, setErrMsg] = useState('');
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const anchorRef = useRef(null);
+  const popRef = useRef(null);
+  // 2026-09-22: the list is portalled to <body> with fixed positioning. Drawn
+  // inside the field it was clipped by any ancestor with overflow:hidden —
+  // Panel has one (it clips its rounded corners), so the Salesperson list on
+  // the contact page showed ~2 rows and cut the rest off at the card edge.
+  const [popPos, setPopPos] = useState(null);
   const savedTimerRef = useRef(null);
 
   useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current); }, []);
@@ -43,11 +51,34 @@ export function InlineComboField({
     if (status === 'editing' && inputRef.current) inputRef.current.focus();
   }, [status]);
 
-  // Click-outside cancels — no commit, matching legacy.
+  // Place the popover under the input, or above it when there is not enough
+  // room below. Re-measured on scroll (any ancestor) and resize.
+  useLayoutEffect(() => {
+    if (status !== 'editing') { setPopPos(null); return undefined; }
+    const place = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const MAX = 240, GAP = 4;
+      const below = window.innerHeight - r.bottom - GAP - 8;
+      const above = r.top - GAP - 8;
+      const up = below < Math.min(MAX, 160) && above > below;
+      const maxHeight = Math.max(120, Math.min(MAX, up ? above : below));
+      setPopPos({ left: r.left, width: r.width, maxHeight, ...(up ? { bottom: window.innerHeight - r.top + GAP } : { top: r.bottom + GAP }) });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+  }, [status]);
+
+  // Click-outside cancels — no commit, matching legacy. The popover lives in a
+  // portal, so it is outside containerRef and must be allowed explicitly.
   useEffect(() => {
     if (status !== 'editing') return undefined;
     const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setStatus('idle');
+      if (containerRef.current?.contains(e.target) || popRef.current?.contains(e.target)) return;
+      setStatus('idle');
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -131,7 +162,7 @@ export function InlineComboField({
     <div ref={containerRef} style={{ ...row, padding: '6px 0' }}>
       <span style={{ ...labelStyle, paddingTop: 6 }}>{label}</span>
       <div style={{ position: 'relative' }}>
-        <div style={{ position: 'relative' }}>
+        <div ref={anchorRef} style={{ position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4, #828e9f)', pointerEvents: 'none' }} />
           <input
             ref={inputRef}
@@ -157,8 +188,9 @@ export function InlineComboField({
             <Loader2 size={14} className="animate-spin" style={{ position: 'absolute', right: 26, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4, #828e9f)' }} />
           )}
         </div>
-        <div style={{
-          position: 'absolute', zIndex: 60, left: 0, right: 0, marginTop: 4, maxHeight: 240, overflowY: 'auto',
+        {popPos && createPortal(<div ref={popRef} style={{
+          position: 'fixed', zIndex: 1000, left: popPos.left, width: popPos.width,
+          top: popPos.top, bottom: popPos.bottom, maxHeight: popPos.maxHeight, overflowY: 'auto',
           background: 'var(--surface-1, #0e131a)', borderRadius: 'var(--r-2, 10px)',
           boxShadow: '0 0 0 1px var(--line-2, rgba(255,255,255,.11)), var(--sh-3, 0 14px 34px -10px rgba(0,0,0,.6))',
         }}>
@@ -197,7 +229,7 @@ export function InlineComboField({
               </button>
             );
           })}
-        </div>
+        </div>, document.body)}
       </div>
     </div>
   );
