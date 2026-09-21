@@ -45,6 +45,18 @@ const contactsApi = {
     });
   },
 
+  // Sales team leads may reassign contacts within their own team even though
+  // they cannot edit the rest of the record (2026-09-21).
+  salespersonScope(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/contacts/salesperson-scope`);
+  },
+  setSalesperson(orgSlug, id, salespersonId) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/salesperson`, {
+      method: 'PATCH',
+      body: JSON.stringify({ salespersonId: salespersonId || null }),
+    });
+  },
+
   update(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/contacts/${id}`, {
       method: 'PUT',

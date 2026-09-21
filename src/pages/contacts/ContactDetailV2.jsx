@@ -403,8 +403,25 @@ export default function ContactDetailV2() {
   }, [orgSlug, contactId]);
 
   // -- Derived options --------------------------------------------------------
+  // Sales team lead: may reassign a contact that is unassigned or owned by
+  // someone on their team, to someone on their team. Admins keep full edit.
+  const [spScope, setSpScope] = useState(null);
+  useEffect(() => {
+    if (!orgSlug || isAdminRaw) { setSpScope(null); return undefined; }
+    let cancelled = false;
+    contactsApi.salespersonScope(orgSlug)
+      .then((res) => { if (!cancelled && res.success) setSpScope(res); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [orgSlug, isAdminRaw]);
+  const teamIds = useMemo(() => new Set(spScope?.mode === 'team' ? spScope.employeeIds : []), [spScope]);
+  const leadCanReassign = !isAdminRaw && !contact?.archived && spScope?.mode === 'team'
+    && (!contact?.salespersonId || teamIds.has(String(contact.salespersonId)));
+
   const salespersonOptions = useMemo(
-    () => salespersons.map((sp) => ({ value: sp._id, label: sp.name })), [salespersons]);
+    () => salespersons
+      .filter((sp) => !leadCanReassign || teamIds.has(String(sp._id)))
+      .map((sp) => ({ value: sp._id, label: sp.name })), [salespersons, leadCanReassign, teamIds]);
   const companyOptions = useMemo(
     () => companies.map((c) => ({ value: c._id, label: c.name })), [companies]);
   const paymentTermOptions = useMemo(
@@ -662,9 +679,20 @@ export default function ContactDetailV2() {
                 value={contact.salespersonId || ''}
                 options={salespersonOptions}
                 displayValue={contact.salespersonName}
-                editable={isAdmin}
+                editable={isAdmin || leadCanReassign}
                 onSave={async (field, val) => {
-                  await saveField(field, val || null);
+                  if (isAdmin) {
+                    await saveField(field, val || null);
+                  } else {
+                    try {
+                      await contactsApi.setSalesperson(orgSlug, contactId, val || null);
+                    } catch (err) {
+                      showToast(err.message || 'Failed to change salesperson', 'error');
+                      throw err;
+                    }
+                    setContact((prev) => ({ ...prev, salespersonId: val || null }));
+                    showToast('Salesperson updated');
+                  }
                   setContact((prev) => ({
                     ...prev,
                     salespersonName: salespersons.find((sp) => sp._id === val)?.name || null,
