@@ -3607,7 +3607,7 @@ export default function InvoiceDetailV2() {
           onClose={() => setShowCreditNoteModal(false)}
           onSuccess={(newId) => {
             setShowCreditNoteModal(false);
-            showToast('Credit note created');
+            showToast('Credit note drafted — confirm it to apply the credit');
             if (newId) navigate(orgPath(`/invoicing/invoices/${newId}`));
           }}
           showToast={showToast}
@@ -4899,6 +4899,16 @@ function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClo
       }
     >
       <div style={{ display: 'grid', gap: 12 }}>
+        {/* 2026-09-21: Reverse used to act immediately — number assigned,
+            invoice zeroed — while the note stayed a draft the GST return could
+            not see. It now drafts, and the credit takes effect on Confirm. That
+            makes it two steps, so say so before anyone assumes it is done. */}
+        <p style={{ margin: 0, font: '450 12.5px/1.5 var(--font)', color: 'var(--fg-3)' }}>
+          This creates a <strong>draft</strong> credit note. Nothing changes until you
+          confirm it — then it gets its number, reduces what the customer owes, and
+          appears on your GST return. You can edit the amount before confirming to
+          credit only part of the invoice.
+        </p>
         <Field label="Reason" htmlFor="cnm-reason">
           <Input
             id="cnm-reason"

@@ -43,7 +43,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { Settings2, Hash, Sparkles } from 'lucide-react';
 import {
-  Button, Field, PageSpinner, Panel, Select, SettingRow, Spinner, Switch,
+  Button, Field, PageSpinner, Panel, Select, Spinner,
 } from '../ds';
 
 const SEQUENCE_LABELS = {
@@ -246,40 +246,18 @@ export default function SettingsInvoicingV2() {
       </Panel>
 
       <Panel icon={<Settings2 size={18} />} title="Features" actions={<SaveButton section="features" />}>
-        <SettingRow
-          label="Stripe Payments"
-          description="Allow customers to pay invoices online via Stripe"
-          control={
-            <Switch
-              checked={settings.enableStripePayments}
-              onChange={(v) => update('enableStripePayments', v)}
-              label="Stripe Payments"
-            />
-          }
-        />
-        <SettingRow
-          label="Recurring Invoices"
-          description="Automatically generate invoices on a set schedule"
-          control={
-            <Switch
-              checked={settings.enableRecurring}
-              onChange={(v) => update('enableRecurring', v)}
-              label="Recurring Invoices"
-            />
-          }
-        />
-        <SettingRow
-          label="Automatic Follow-ups"
-          description="Send automated follow-up emails for overdue invoices"
-          control={
-            <Switch
-              checked={settings.enableFollowUps}
-              onChange={(v) => update('enableFollowUps', v)}
-              label="Automatic Follow-ups"
-            />
-          }
-        />
-        <div style={{ paddingTop: 16 }}>
+        {/* 2026-09-21: three toggles removed from here — Stripe Payments,
+            Recurring Invoices and Automatic Follow-ups. Each advertised a
+            feature and NOTHING in the API read it:
+              • Automatic Follow-ups defaulted ON, and no scheduled job sends a
+                reminder — only the manual button ever does. A customer saw it
+                enabled and trusted that late payers were being chased.
+              • Recurring Invoices defaulted ON, but there is no way to create
+                one and no job that would generate the next.
+              • Stripe Payments had no consumer and no pay button behind it.
+            A switch that does nothing is worse than a missing feature: it
+            makes a promise. Restore each only alongside the thing it controls. */}
+        <div>
           <Field
             label="Require consultant on invoice lines"
             hint="Staffing-augmentation billing requires a consultant and service dates on every customer-invoice line before it can be confirmed. Leave on Automatic unless you need to override."

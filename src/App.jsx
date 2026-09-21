@@ -228,7 +228,7 @@ const ProductCatalogV2 = lazy(() => import('./pages/invoicing/ProductCatalogV2')
 const TaxReportInvV2 = lazy(() => import('./pages/invoicing/TaxReportV2'));
 const GstReconciliationV2 = lazy(() => import('./pages/invoicing/GstReconciliationV2'));
 const ProfitabilityV2 = lazy(() => import('./pages/invoicing/ProfitabilityV2'));
-const BankReconciliationV2 = lazy(() => import('./pages/invoicing/BankReconciliationV2'));
+const BankReconciliationUnavailable = lazy(() => import('./pages/invoicing/BankReconciliationUnavailable'));
 const FollowUpsV2 = lazy(() => import('./pages/invoicing/FollowUpsV2'));
 const InvoiceFormV2 = lazy(() => import('./pages/invoicing/InvoiceFormV2'));
 const VendorBillFormV2 = lazy(() => import('./pages/invoicing/VendorBillFormV2'));
@@ -734,7 +734,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/bills/:billId/edit" element={<ErrorBoundary><VendorBillFormV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PaymentsListV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/products" element={<ErrorBoundary><ProductCatalogV2 /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliationV2 /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliationUnavailable /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><FollowUpsV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><AgedReceivablesV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><AgedPayablesV2 /></ErrorBoundary>} />

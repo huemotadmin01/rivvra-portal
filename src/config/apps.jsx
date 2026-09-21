@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield, User, Network, Package, Calculator, BookOpen, Receipt, CreditCard, Landmark,
+  Shield, User, Network, Package, Calculator, BookOpen, Receipt, CreditCard,
   TrendingUp, Award, Percent, FolderArchive, Folder, FolderDown,
 } from 'lucide-react';
 
@@ -560,7 +560,7 @@ export const APP_REGISTRY = {
               : []),
           ],
         },
-        { type: 'item', path: '/invoicing/reconciliation', label: 'Bank Reconciliation', icon: Landmark },
+        // Bank Reconciliation hidden 2026-09-21 until matching works — see pages/invoicing/BankReconciliationUnavailable.jsx
         { type: 'item', path: '/invoicing/follow-ups', label: 'Follow-ups', icon: Mail },
         {
           type: 'group', label: 'Configuration', icon: Settings,
