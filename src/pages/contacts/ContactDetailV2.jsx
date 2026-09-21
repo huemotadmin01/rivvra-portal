@@ -681,18 +681,25 @@ export default function ContactDetailV2() {
                 displayValue={contact.salespersonName}
                 editable={isAdmin || leadCanReassign}
                 onSave={async (field, val) => {
-                  if (isAdmin) {
-                    await saveField(field, val || null);
-                  } else {
-                    try {
-                      await contactsApi.setSalesperson(orgSlug, contactId, val || null);
-                    } catch (err) {
-                      showToast(err.message || 'Failed to change salesperson', 'error');
-                      throw err;
+                  // A company's people who were following it move too (API
+                  // cascade, 2026-09-22) — say how many, so it isn't a surprise.
+                  let cascaded = 0;
+                  try {
+                    if (isAdmin) {
+                      const res = await contactsApi.update(orgSlug, contactId, { salespersonId: val || null });
+                      cascaded = res?.cascadedSalesperson || 0;
+                    } else {
+                      const res = await contactsApi.setSalesperson(orgSlug, contactId, val || null);
+                      cascaded = res?.cascaded || 0;
                     }
-                    setContact((prev) => ({ ...prev, salespersonId: val || null }));
-                    showToast('Salesperson updated');
+                  } catch (err) {
+                    showToast(err.message || 'Failed to change salesperson', 'error');
+                    throw err;
                   }
+                  setContact((prev) => ({ ...prev, salespersonId: val || null }));
+                  showToast(cascaded > 0
+                    ? `Salesperson updated — ${cascaded} ${cascaded === 1 ? 'person' : 'people'} at this company moved too`
+                    : 'Salesperson updated');
                   setContact((prev) => ({
                     ...prev,
                     salespersonName: salespersons.find((sp) => sp._id === val)?.name || null,
