@@ -640,6 +640,28 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
                     </div>
                   )}
                 </div>
+                {/* 2026-09-22: the person is attached to a different company.
+                    We never move them automatically — they may have changed
+                    jobs, or be a vendor contact who works across both. */}
+                {exportResult?.individualContact?.linkedElsewhere && exportResult?.companyContact && (
+                  <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left">
+                    <p className="text-xs text-amber-200">
+                      {exportResult.individualContact.name} is linked to{' '}
+                      <span className="font-semibold">{exportResult.individualContact.linkedElsewhere.companyName || 'another company'}</span>
+                      , not {exportResult.companyContact.name}. The opportunity is owned by {exportResult.companyContact.name}'s salesperson.
+                    </p>
+                    {orgSlug && (
+                      <Link
+                        to={`/org/${orgSlug}/contacts/${exportResult.individualContact._id}`}
+                        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-300 hover:text-amber-200"
+                        onClick={handleClose}
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Update their company?
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {exportResult?.opportunityId && orgSlug && (
