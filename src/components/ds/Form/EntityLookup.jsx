@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, Check, Pencil, Plus, Search, X } from 'lucide-react';
 
 const FONT = "'Inter', system-ui, sans-serif";
@@ -83,6 +84,8 @@ export function EntityLookup({
   const [creating, setCreating] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const containerRef = useRef(null);
+  const popRef = useRef(null);
+  const [popPos, setPopPos] = useState(null);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
   const savedTimerRef = useRef(null);
@@ -135,11 +138,27 @@ export function EntityLookup({
   useEffect(() => {
     if (!open) return undefined;
     const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setStatus('idle');
+      if (containerRef.current?.contains(e.target) || popRef.current?.contains(e.target)) return;
+      setStatus('idle');
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Button variant: place the portalled popover under the trigger, right-aligned,
+  // kept on screen; re-measured on scroll (any ancestor) and resize.
+  useLayoutEffect(() => {
+    if (variant !== 'button' || !open) { setPopPos(null); return undefined; }
+    const place = () => {
+      const el = containerRef.current; if (!el) return;
+      const r = el.getBoundingClientRect(); const W = 280;
+      setPopPos({ top: r.bottom + 4, left: Math.max(8, Math.min(r.right - W, window.innerWidth - W - 8)) });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+  }, [variant, open]);
 
   const startEdit = () => {
     if (!editable || status === 'saving') return;
@@ -305,6 +324,9 @@ export function EntityLookup({
 
   /* ── Button variant ── */
   if (variant === 'button') {
+    // 2026-09-22: portalled + fixed. Drawn inside the Panel header it was
+    // clipped by the card's overflow:hidden and the search box (no
+    // background) had the table header painting through it.
     return (
       <span ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
         <button
@@ -322,7 +344,17 @@ export function EntityLookup({
           {status === 'saving' ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
           {triggerLabel}
         </button>
-        {open && <span style={{ position: 'absolute', top: '100%', right: 0, width: 260, display: 'block' }}>{searchBox}{list}</span>}
+        {open && popPos && createPortal(
+          <span ref={popRef} style={{
+            position: 'fixed', zIndex: 1000, top: popPos.top, left: popPos.left, width: 280, display: 'block',
+            padding: 6, background: 'var(--surface-1, #0e131a)', borderRadius: 'var(--r-2, 10px)',
+            boxShadow: '0 0 0 1px var(--line-2, rgba(255,255,255,.11)), var(--sh-3, 0 14px 34px -10px rgba(0,0,0,.6))',
+          }}>
+            {searchBox}
+            <span style={{ display: 'block', position: 'relative' }}>{list}</span>
+          </span>,
+          document.body,
+        )}
         {status === 'error' && errMsg && (
           <span style={{ display: 'block', font: `450 11px/1.4 ${FONT}`, color: 'var(--danger, #ef4444)', marginTop: 3 }}>{errMsg}</span>
         )}
