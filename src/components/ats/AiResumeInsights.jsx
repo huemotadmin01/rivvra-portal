@@ -17,6 +17,27 @@ export function aiScoreClass(score) {
   return 'bg-rose-500/15 text-rose-300 border border-rose-500/30';
 }
 
+/** True when a fit score was produced against an older JD than the job is
+ *  on now (2026-09-23). Both stamps come from the API; missing stamps on
+ *  legacy rows compare as "not stale" so nothing lights up spuriously. */
+export function isFitScoreStale(scoredStamp, jobStamp) {
+  if (!jobStamp) return false;
+  const j = new Date(jobStamp).getTime();
+  const s = scoredStamp ? new Date(scoredStamp).getTime() : 0;
+  return Number.isFinite(j) && s < j;
+}
+
+export function StaleFitMarker({ compact = false }) {
+  return (
+    <span
+      title="This score was calculated before the job description was last changed. Re-score to update it."
+      className={`inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'}`}
+    >
+      JD changed
+    </span>
+  );
+}
+
 export function AiScoreBadge({ score, label, size = 'md' }) {
   if (typeof score !== 'number') return null;
   const sz = size === 'sm' ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5';
@@ -76,6 +97,9 @@ export default function AiResumeInsights({
           </div>
           {application?.aiJobFitScore != null && (
             <AiScoreBadge score={application.aiJobFitScore} label="Job fit" />
+          )}
+          {application?.aiJobFitScore != null && isFitScoreStale(application.aiJobFitJobStamp, application.jobAiStamp) && (
+            <StaleFitMarker />
           )}
           {candidate?.aiQualityScore != null && (
             <AiScoreBadge score={candidate.aiQualityScore} label="Quality" size="sm" />

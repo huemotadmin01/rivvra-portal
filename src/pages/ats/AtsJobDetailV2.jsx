@@ -19,7 +19,7 @@ import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
 import SourcingStrings from '../../components/ats/SourcingStrings';
-import { AiScoreBadge } from '../../components/ats/AiResumeInsights';
+import { AiScoreBadge, StaleFitMarker, isFitScoreStale } from '../../components/ats/AiResumeInsights';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -1765,15 +1765,16 @@ export default function AtsJobDetail() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center justify-center gap-2">
                                   {isScored ? (
-                                    <span title={app.aiJobFitReasoning || 'AI job-fit score'} className="cursor-help">
+                                    <span title={app.aiJobFitReasoning || 'AI job-fit score'} className="cursor-help inline-flex items-center gap-1.5">
                                       <AiScoreBadge score={app.aiJobFitScore} size="sm" />
+                                      {isFitScoreStale(app.aiJobFitJobStamp, job?.aiJobStamp) && <StaleFitMarker compact />}
                                     </span>
                                   ) : (
                                     <span className={`text-[11px] ${fitStatus === 'failed' || fitStatus === 'quota_exceeded' ? 'text-red-400' : 'text-dark-500'}`}>
                                       {fitLabel}
                                     </span>
                                   )}
-                                  {!isScored && canRescore && (
+                                  {(!isScored || isFitScoreStale(app.aiJobFitJobStamp, job?.aiJobStamp)) && canRescore && (
                                     <button
                                       type="button"
                                       onClick={(e) => handleRescoreApp(e, app._id)}
