@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -695,9 +695,11 @@ export default function AtsJobDetail() {
   }, [orgSlug, jobId, showToast, handleScoped404]);
 
   // ── Fetch applications for this job ──────────────────────────────────
-  const fetchApplications = useCallback(async () => {
-    if (!orgSlug || !jobId) return;
-    setAppsLoading(true);
+  // `silent` re-fetches without flipping appsLoading, so the ranked table
+  // is not replaced by the spinner while we poll for fresh AI scores.
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
+    if (!orgSlug || !jobId) return null;
+    if (!silent) setAppsLoading(true);
     try {
       const res = await atsApi.listApplications(orgSlug, {
         jobId,
@@ -713,13 +715,37 @@ export default function AtsJobDetail() {
         setApplications(res.applications || []);
         setAppsTotal(res.total || 0);
         setAppsTotalPages(res.totalPages || 1);
+        return res.applications || [];
       }
     } catch (err) {
       console.error('Failed to load applications:', err);
     } finally {
-      setAppsLoading(false);
+      if (!silent) setAppsLoading(false);
     }
+    return null;
   }, [orgSlug, jobId, appsPage, appsSort]);
+
+  // 2026-09-23: editing the JD (name / description / experience / skills)
+  // bumps job.aiJobStamp and the API re-scores every ongoing application in
+  // the background (~3s each). Without this the fresh scores only appeared
+  // after a manual page reload. Poll silently until no ongoing row is still
+  // stamped with the old JD, or give up after ~90s (quota / slow model).
+  const rescorePollRef = useRef(0);
+  const pollForRescoredApplications = useCallback((jobStamp) => {
+    if (!jobStamp) return;
+    const token = ++rescorePollRef.current;
+    const startedAt = Date.now();
+    const tick = async () => {
+      if (rescorePollRef.current !== token) return; // a newer edit superseded this poll
+      const rows = await fetchApplications({ silent: true });
+      if (rescorePollRef.current !== token) return;
+      const pending = (rows || []).some((a) =>
+        a.applicationStatus === 'ongoing' && a.aiJobFitStatus !== 'skipped' && a.aiJobFitStatus !== 'failed'
+        && isFitScoreStale(a.aiJobFitJobStamp, jobStamp));
+      if (pending && Date.now() - startedAt < 90_000) setTimeout(tick, 5000);
+    };
+    setTimeout(tick, 4000);
+  }, [fetchApplications]);
 
   // 2026-09-16: re-score one unscored / failed application from the ranked
   // table. The API gate (ensureJobWriter) admits admin, the job's Account
@@ -870,6 +896,10 @@ export default function AtsJobDetail() {
     const res = await atsApi.updateJob(orgSlug, jobId, { [field]: coerced });
     if (res?.job) setJob(res.job);
     else setJob((prev) => ({ ...prev, [field]: coerced }));
+    // Mirrors the API's JD-stamp rule: these fields trigger a background re-score.
+    if (['name', 'description', 'requiredExperience'].includes(field)) {
+      pollForRescoredApplications(res?.job?.aiJobStamp);
+    }
     if (Array.isArray(res?.missingApprovalFields)) {
       setMissingApprovalFields(res.missingApprovalFields);
     }
@@ -903,6 +933,7 @@ export default function AtsJobDetail() {
     if (res?.job) setJob(res.job);
     else setJob((prev) => ({ ...prev, requiredSkills: next }));
     setSuggestRefresh((k) => k + 1);
+    pollForRescoredApplications(res?.job?.aiJobStamp);
   };
 
   // savePerson — atomic update of an id + denormalized name pair (e.g.
