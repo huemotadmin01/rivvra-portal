@@ -20,6 +20,7 @@ import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
 import SourcingStrings from '../../components/ats/SourcingStrings';
 import { AiScoreBadge, StaleFitMarker, isFitScoreStale } from '../../components/ats/AiResumeInsights';
+import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -1703,6 +1704,7 @@ export default function AtsJobDetail() {
                             <span className="inline-flex items-center gap-1"><Sparkles size={12} className="text-amber-400" /> AI Fit</span>
                           </th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium whitespace-nowrap" title="Rate & terms confirmation — signed by both parties, awaiting signature, or not sent">Rate Conf.</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
@@ -1822,6 +1824,7 @@ export default function AtsJobDetail() {
                               <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
                                 <span className="truncate block max-w-[180px]">{app.candidateEmail || '—'}</span>
                               </td>
+                              <td className="px-4 py-3"><RateConfirmationChip app={app} /></td>
                               <td className="px-4 py-3">
                                 <StageBadge stageName={app.stageName || app.stageId?.name} />
                               </td>

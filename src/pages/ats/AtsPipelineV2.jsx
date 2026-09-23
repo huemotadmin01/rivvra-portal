@@ -51,6 +51,7 @@ import {
   Search, Loader2, GripVertical, ChevronDown,
   Star, X, Calendar, User, Mail, Briefcase,
 } from 'lucide-react';
+import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
 
 /* ── Inline FilterChip component ───────────────────────────────────────
  * Local-state filter chip used only by the Pipeline page (other ATS
@@ -206,6 +207,7 @@ function KanbanCardInner({ application, onClick, canDrag = true }) {
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {application.candidateName || 'Unnamed'}
+            <RateConfirmationChip app={application} compact hideNone />
             {application.kanbanState === 'done' && (
               <span
                 style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--brand)', flexShrink: 0 }}

@@ -10,6 +10,7 @@ import { downloadFile } from '../../utils/download';
 import RefuseModal from '../../components/ats/RefuseModal';
 import StageBadge from '../../components/ats/StageBadge';
 import { AiScoreBadge } from '../../components/ats/AiResumeInsights';
+import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
 import { DataTable, FilterBar, Pagination, EmptyState, Button, Chip, DensityToggle, GroupedHeader, BulkActionBar } from '../../components/ds';
@@ -217,7 +218,7 @@ export default function AtsApplicationsV2() {
   const filterParams = useListParams([
     'search', 'stageId', 'jobId', 'recruiter', 'archived',
     'source', 'employmentType', 'applicationStatus', 'groupBy', 'sort', 'dir',
-    'hiredOnly', 'refusedOnly', 'mine', 'team', 'unclaimed', 'aiScoreMin',
+    'hiredOnly', 'refusedOnly', 'mine', 'team', 'unclaimed', 'aiScoreMin', 'rateConfirmation',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   const [page, setPage] = usePageParam();
@@ -576,6 +577,7 @@ export default function AtsApplicationsV2() {
     { key: 'recruiterName', header: 'Recruiter', width: 140 },
     { key: 'evaluation', header: 'Evaluation', sortable: true, align: 'center', width: 90 },
     { key: 'aiJobFitScore', header: 'AI Fit', sortable: true, align: 'center', width: 80 },
+    { key: 'rateConfirmation', header: 'Rate Conf.', width: 110 },
     { key: 'appliedOn', header: 'Applied', sortable: true, width: 110 },
     ...(showRoundColumns
       ? jobRounds.map((r) => ({ key: `round-${r.roundKey}`, header: r.label, width: 130 }))
@@ -659,6 +661,7 @@ export default function AtsApplicationsV2() {
         </td>
         <td style={td({ textAlign: 'center' })}><EvalStars value={app.evaluation || 0} /></td>
         <td style={td({ textAlign: 'center' })}><AiScoreBadge score={app.aiJobFitScore} size="sm" /></td>
+        <td style={td()}><RateConfirmationChip app={app} /></td>
         <td style={td({ color: 'var(--fg-4)', fontSize: 12, whiteSpace: 'nowrap' })}>{formatDate(app.appliedOn)}</td>
         {showRoundColumns ? (
           jobRounds.map((r) => {
@@ -745,7 +748,15 @@ export default function AtsApplicationsV2() {
             <SelectChipV2 paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
             <BooleanChipV2 paramKey="unclaimed" label="Unclaimed" />
             <GroupByChipV2 options={APP_GROUP_BY_OPTIONS} />
-            <MoreFiltersV2 paramKeys={['source', 'employmentType', 'aiScoreMin']}>
+            <MoreFiltersV2 paramKeys={['source', 'employmentType', 'aiScoreMin', 'rateConfirmation']}>
+              <SelectChipV2 paramKey="rateConfirmation" label="Rate Confirmation" options={[
+                { value: 'signed', label: 'Signed by both parties' },
+                { value: 'awaiting', label: 'Awaiting signature' },
+                { value: 'none', label: 'Not sent' },
+                { value: 'refused', label: 'Declined' },
+                { value: 'cancelled', label: 'Cancelled / expired' },
+                { value: 'bypassed', label: 'Bypassed by admin' },
+              ]} />
               <SelectChipV2 paramKey="source" label="Source" options={sourceOptions} placeholder="No sources" />
               <SelectChipV2 paramKey="employmentType" label="Employment Type" options={employmentTypeOptions} placeholder="No types" />
               <SelectChipV2 paramKey="aiScoreMin" label="AI Fit ≥" options={[
