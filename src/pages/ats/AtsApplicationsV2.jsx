@@ -11,6 +11,7 @@ import RefuseModal from '../../components/ats/RefuseModal';
 import StageBadge from '../../components/ats/StageBadge';
 import { AiScoreBadge } from '../../components/ats/AiResumeInsights';
 import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
+import useRefetchOnFocus from '../../hooks/useRefetchOnFocus';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
 import { DataTable, FilterBar, Pagination, EmptyState, Button, Chip, DensityToggle, GroupedHeader, BulkActionBar } from '../../components/ds';
@@ -309,9 +310,11 @@ export default function AtsApplicationsV2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
-  const fetchApplications = useCallback(async () => {
+  // `silent` keeps the current rows on screen (no spinner) — used by the
+  // focus refetch so a stale list updates in place.
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     if (!orgSlug) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     let aborted = false;
     try {
       const listParams = {
@@ -348,7 +351,7 @@ export default function AtsApplicationsV2() {
       setFetchError(err?.message || 'Failed to load applications');
       showToast('Failed to load applications', 'error');
     } finally {
-      if (!aborted) setLoading(false);
+      if (!aborted && !silent) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, page, lifecycle, JSON.stringify(filterParams), showToast]);
@@ -385,6 +388,8 @@ export default function AtsApplicationsV2() {
   }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
+  const refetchSilently = useCallback(() => fetchApplications({ silent: true }), [fetchApplications]);
+  useRefetchOnFocus(refetchSilently);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
   useEffect(() => {

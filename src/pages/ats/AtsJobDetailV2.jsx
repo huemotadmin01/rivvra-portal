@@ -21,6 +21,7 @@ import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
 import SourcingStrings from '../../components/ats/SourcingStrings';
 import { AiScoreBadge, StaleFitMarker, isFitScoreStale } from '../../components/ats/AiResumeInsights';
 import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
+import useRefetchOnFocus from '../../hooks/useRefetchOnFocus';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -811,6 +812,8 @@ export default function AtsJobDetail() {
       .catch(() => {});
   }, [orgSlug]);
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
+  const refetchAppsSilently = useCallback(() => fetchApplications({ silent: true }), [fetchApplications]);
+  useRefetchOnFocus(refetchAppsSilently);
 
   // 2026-07-18 audit D4: reset applications pagination when navigating to a
   // different job — the old page index used to survive the jobId change and

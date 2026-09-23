@@ -52,6 +52,7 @@ import {
   Star, X, Calendar, User, Mail, Briefcase,
 } from 'lucide-react';
 import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
+import useRefetchOnFocus from '../../hooks/useRefetchOnFocus';
 
 /* ── Inline FilterChip component ───────────────────────────────────────
  * Local-state filter chip used only by the Pipeline page (other ATS
@@ -489,6 +490,8 @@ export default function AtsPipelineV2() {
   }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => { fetchKanban(); }, [fetchKanban]);
+  const refetchBoard = useCallback(() => fetchKanban(), [fetchKanban]);
+  useRefetchOnFocus(refetchBoard);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
   // Debounced search
