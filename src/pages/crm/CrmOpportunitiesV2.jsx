@@ -60,15 +60,22 @@ const GROUP_BY_OPTIONS = [
   { value: 'closeMonth', label: 'Expected Close Month' },
   { value: 'company', label: 'Client / Company' },
 ];
+// An opportunity raised only to open an ATS job position (converted within an
+// hour of creation) is a filed requisition, not a deal — see crm.js.
+const JOB_INTAKE_OPTIONS = [
+  { value: 'false', label: 'Deals only' },
+  { value: 'true', label: 'Filed as jobs only' },
+];
+
 const FILTER_PARAM_KEYS = [
   'search', 'stageId', 'salespersonId', 'source', 'requirementType',
   'isLost', 'isConverted', 'evaluation', 'clientType',
   'tagId', 'expectedClosingFrom', 'expectedClosingTo',
   'expectedRevenueFrom', 'expectedRevenueTo', 'mine', 'archived', 'groupBy',
-  'status', 'nextStep',
+  'status', 'nextStep', 'jobIntake',
 ];
 const MORE_FILTER_KEYS = [
-  'tagId', 'clientType', 'evaluation', 'isConverted',
+  'tagId', 'clientType', 'evaluation', 'isConverted', 'jobIntake',
   'expectedClosingFrom', 'expectedClosingTo', 'expectedRevenueFrom', 'expectedRevenueTo',
 ];
 
@@ -461,6 +468,7 @@ export default function CrmOpportunitiesV2() {
               <SelectChipV2 paramKey="clientType" label="Client type" options={CLIENT_TYPE_OPTIONS} />
               <SelectChipV2 paramKey="evaluation" label="Rating" options={EVALUATION_OPTIONS} />
               <SelectChipV2 paramKey="isConverted" label="Converted" options={CONVERTED_OPTIONS} />
+              <SelectChipV2 paramKey="jobIntake" label="Record type" options={JOB_INTAKE_OPTIONS} />
               <RangeFilterV2 fromKey="expectedClosingFrom" toKey="expectedClosingTo" label="Expected close" type="date" />
               <RangeFilterV2 fromKey="expectedRevenueFrom" toKey="expectedRevenueTo" label="Revenue" type="number" />
             </MoreFiltersV2>

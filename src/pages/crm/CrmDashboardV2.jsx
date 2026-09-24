@@ -35,7 +35,7 @@ import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { formatMoney } from '../../utils/currency';
 import {
-  Briefcase, Trophy, XCircle, ArrowRight,
+  Briefcase, Trophy, XCircle, FileInput, ArrowRight,
   Clock, Calendar, BarChart3, RefreshCw,
   Sparkles, CheckCircle2, Settings2,
 } from 'lucide-react';
@@ -390,6 +390,21 @@ export default function CrmDashboardV2() {
           onClick={() => navigate(`/org/${slug}/crm/opportunities?status=won`)} />
         <Stat label="Lost" value={data.lost} icon={<XCircle size={14} />} color="var(--danger)"
           onClick={() => navigate(`/org/${slug}/crm/opportunities?status=lost`)} />
+        {/* 2026-09-25: opportunities created only to raise an ATS job position
+            and converted within the hour. They used to count as wins, which is
+            why this page reported a 67% win rate. Shown, not hidden — the
+            volume is real work, it just isn't selling. */}
+        {data.jobIntake > 0 && (
+          <Stat
+            label="Filed as Jobs"
+            value={data.jobIntake}
+            note="not counted above"
+            icon={<FileInput size={14} />}
+            color="var(--fg-3)"
+            title="Opportunities raised purely to open an ATS job position and converted within an hour. Excluded from the pipeline figures and rates so those describe selling."
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?jobIntake=true`)}
+          />
+        )}
       </div>
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', alignItems: 'start' }}>
