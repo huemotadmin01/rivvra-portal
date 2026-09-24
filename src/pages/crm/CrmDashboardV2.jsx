@@ -402,7 +402,10 @@ export default function CrmDashboardV2() {
             icon={<FileInput size={14} />}
             color="var(--fg-3)"
             title="Opportunities raised purely to open an ATS job position and converted within an hour. Excluded from the pipeline figures and rates so those describe selling."
-            onClick={() => navigate(`/org/${slug}/crm/opportunities?jobIntake=true`)}
+            // ...&status=won, because every filed requisition is converted —
+            // the list defaults to the Open segment, where these are 0 by
+            // definition, so the bare link landed on an empty table.
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?jobIntake=true&status=won`)}
           />
         )}
       </div>
