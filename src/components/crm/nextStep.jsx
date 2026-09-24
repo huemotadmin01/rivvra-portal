@@ -8,7 +8,7 @@
 // viewer's LOCAL calendar day — mixing the two is what made "due today" read
 // as tomorrow for IST users on the server side.
 
-import { AlertTriangle, CalendarClock, CircleDashed, CalendarCheck } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CircleDashed, CalendarCheck, Clock3 } from 'lucide-react';
 
 export function dueState(dueAt) {
   if (!dueAt) return 'none';
@@ -100,3 +100,55 @@ export const NEXT_STEP_SUGGESTIONS = [
   'Chase signed rate confirmation',
   'Collect job description',
 ];
+
+// ── Staleness ───────────────────────────────────────────────────────────────
+// Days since anyone did anything about this deal (`lastContactAt`, stamped
+// nightly by cron/crmStaleOpportunities). 30 = flag, 45 = ask for a decision.
+// Never used to close anything automatically.
+
+export const STALE_FLAG_DAYS = 30;
+export const STALE_DECISION_DAYS = 45;
+
+export function daysSinceContact(lastContactAt) {
+  if (!lastContactAt) return null;
+  const d = new Date(lastContactAt);
+  if (Number.isNaN(d.getTime())) return null;
+  const then = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const n = new Date();
+  const today = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+  return Math.max(0, Math.round((today - then) / 86400000));
+}
+
+export function staleLevel(opp) {
+  // Closed deals are not stale — they are done.
+  if (!opp || opp.isLost || opp.wonAt || opp.isConverted) return null;
+  const d = daysSinceContact(opp.lastContactAt);
+  if (d == null) return null;
+  if (d >= STALE_DECISION_DAYS) return 'decide';
+  if (d >= STALE_FLAG_DAYS) return 'stale';
+  return null;
+}
+
+export function StaleBadge({ opp }) {
+  const level = staleLevel(opp);
+  if (!level) return null;
+  const days = daysSinceContact(opp.lastContactAt);
+  const decide = level === 'decide';
+  return (
+    <span
+      title={decide
+        ? `No contact for ${days} days — decide whether this is still live, or mark it lost`
+        : `No contact for ${days} days`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+        padding: '1px 6px', borderRadius: 5, font: '500 10.5px/1.35 var(--font)',
+        color: decide ? 'var(--danger)' : 'var(--warn-ink)',
+        background: decide ? 'var(--danger-soft)' : 'var(--warn-soft)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Clock3 size={10} strokeWidth={2.25} />
+      {days}d quiet
+    </span>
+  );
+}

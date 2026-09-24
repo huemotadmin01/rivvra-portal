@@ -17,9 +17,10 @@ import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import {
   Archive, ArchiveRestore, Briefcase, ExternalLink, FileText, MapPin,
-  MoreHorizontal, RotateCcw, Send, Tag, Target, Trash2, Trophy, Unlink, User, XCircle,
+  AlertCircle, MoreHorizontal, RotateCcw, Send, Tag, Target, Trash2, Trophy, Unlink, User, XCircle,
 } from 'lucide-react';
 import OutreachTimeline from '../../components/crm/OutreachTimeline';
+import { staleLevel, daysSinceContact } from '../../components/crm/nextStep';
 import { NextStepChip } from '../../components/crm/nextStep';
 
 const FONT = "'Inter', system-ui, sans-serif";
@@ -550,6 +551,32 @@ export default function CrmOpportunityDetailV2() {
       {/* ── Body ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, gridColumn: 'span 2', minWidth: 0 }}>
+          {/* 45 days without contact is a decision nobody has made — 19 of
+              the 84 open opportunities were in that state on 2026-09-25, the
+              oldest at 156 days, against 1 marked lost in 90 days. Asks the
+              question and offers both answers; it never closes anything by
+              itself. */}
+          {staleLevel(opp) === 'decide' && canEdit && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+              padding: '10px 14px', borderRadius: 'var(--r-3, 16px)',
+              background: 'var(--danger-soft)',
+              boxShadow: '0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent)',
+            }}>
+              <AlertCircle size={16} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <p style={{ font: '550 12.5px/1.4 var(--font)', color: 'var(--fg)', margin: 0 }}>
+                  No contact for {daysSinceContact(opp.lastContactAt)} days — is this still live?
+                </p>
+                <p style={{ font: '450 11.5px/1.45 var(--font)', color: 'var(--fg-3)', margin: '2px 0 0' }}>
+                  Set a next step to keep it, or record why it was lost. Nothing closes on its own.
+                </p>
+              </div>
+              <Button variant="secondary" size="sm" iconLeft={<XCircle size={14} />}
+                onClick={() => setShowLostModal(true)}>Mark as Lost</Button>
+            </div>
+          )}
+
           {/* Next step (2026-09-25). Deliberately the FIRST panel: an audit
               found 72 of 89 outreach-sourced opportunities sitting in Initial
               Contact with no logged action, because nothing on this page ever
