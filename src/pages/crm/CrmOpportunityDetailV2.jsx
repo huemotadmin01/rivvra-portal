@@ -17,8 +17,9 @@ import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import {
   Archive, ArchiveRestore, Briefcase, ExternalLink, FileText, MapPin,
-  MoreHorizontal, RotateCcw, Tag, Target, Trash2, Trophy, Unlink, User, XCircle,
+  MoreHorizontal, RotateCcw, Send, Tag, Target, Trash2, Trophy, Unlink, User, XCircle,
 } from 'lucide-react';
+import OutreachTimeline from '../../components/crm/OutreachTimeline';
 import { NextStepChip } from '../../components/crm/nextStep';
 
 const FONT = "'Inter', system-ui, sans-serif";
@@ -581,6 +582,23 @@ export default function CrmOpportunityDetailV2() {
                   Set by {opp.nextStepSetByName} on {new Date(opp.nextStepSetAt).toLocaleDateString()}
                 </p>
               )}
+            </Panel>
+          )}
+
+          {/* Built by the API from the outreach enrollment for this contact's
+              address — nothing here was typed by a rep. Absent when the
+              contact was never enrolled (24 of 110 outreach opportunities). */}
+          {opp.outreach?.events?.length > 0 && (
+            <Panel
+              icon={<Send size={14} />}
+              title="Outreach History"
+              actions={opp.outreach.lastReply?.at
+                ? <span style={{ font: '450 11px/1.4 var(--font)', color: 'var(--fg-4)' }}>
+                    last reply {new Date(opp.outreach.lastReply.at).toLocaleDateString()}
+                  </span>
+                : null}
+            >
+              <OutreachTimeline outreach={opp.outreach} />
             </Panel>
           )}
 
