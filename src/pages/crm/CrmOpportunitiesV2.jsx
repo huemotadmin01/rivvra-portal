@@ -356,7 +356,7 @@ export default function CrmOpportunitiesV2() {
       // Keyed by the DUE DATE, not the text: DataTable sorts on col.key, and
       // the server's sort allowlist takes nextStepDueAt — sorting by the free
       // text would have silently fallen back to updatedAt.
-      key: 'nextStepDueAt', header: 'Next Step', sortable: true, width: 230,
+      key: 'nextStepDueAt', header: 'Next Step', sortable: true, width: 290,
       render: (opp) => <NextStepChip opp={opp} showText />,
     },
     { key: 'expectedRole', header: 'Expected Role', sortable: true, width: 160, render: (opp) => opp.expectedRole ? <span style={{ color: 'var(--brand)' }}>{opp.expectedRole}</span> : null },
