@@ -364,12 +364,14 @@ export default function CrmOpportunitiesV2() {
       // the server's sort allowlist takes nextStepDueAt — sorting by the free
       // text would have silently fallen back to updatedAt.
       key: 'nextStepDueAt', header: 'Next Step', sortable: true, width: 290,
-      render: (opp) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <NextStepChip opp={opp} showText />
-          <StaleBadge opp={opp} />
-        </span>
-      ),
+      render: (opp) => <NextStepChip opp={opp} showText />,
+    },
+    {
+      // Its own column rather than sharing Next Step: with the due chip and
+      // the step text alongside it, the badge was clipped mid-number ("15"
+      // for 150 days). Sortable so the most neglected sort to the top.
+      key: 'lastContactAt', header: 'Quiet', sortable: true, width: 110,
+      render: (opp) => <StaleBadge opp={opp} />,
     },
     { key: 'expectedRole', header: 'Expected Role', sortable: true, width: 160, render: (opp) => opp.expectedRole ? <span style={{ color: 'var(--brand)' }}>{opp.expectedRole}</span> : null },
     {
