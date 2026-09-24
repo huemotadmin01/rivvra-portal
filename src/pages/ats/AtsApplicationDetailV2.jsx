@@ -1225,10 +1225,18 @@ export default function AtsApplicationDetail() {
             Unarchive, Create Employee, Delete kebab) are gated individually
             inside. 2026-05-18 PM: with read-all opened up, the action bar
             is hidden entirely for non-owners — they see View Only pill instead. */}
+        {/* Submittal summary (2026-08-24): client-ready blurb — a READ
+            action, so it renders for anyone who can view the application.
+            2026-09-24: it used to sit inside the write bar below, which is
+            hidden for non-owners (View only) — a salesperson opening a
+            recruiter's application had no way to generate a submittal. */}
+        {canRecruit && !canActOnThis && application && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <SubmittalSummary orgSlug={orgSlug} applicationId={applicationId} />
+          </div>
+        )}
         {canRecruit && canActOnThis && (
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Submittal summary (2026-08-24): client-ready blurb — read-only
-                action, available to anyone who can view the application. */}
             <SubmittalSummary orgSlug={orgSlug} applicationId={applicationId} />
             {canEdit && (
               <>
