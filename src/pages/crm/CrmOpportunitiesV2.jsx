@@ -12,6 +12,7 @@ import {
   useListParams, usePageParam, useSearchParamValue,
   SelectChipV2, BooleanChipV2, GroupByChipV2, MoreFiltersV2, RangeFilterV2, PageHeaderV2,
 } from '../../components/platform/v2/listkit';
+import { NextStepChip, NEXT_STEP_FILTER_OPTIONS } from '../../components/crm/nextStep';
 import { Plus, Star, Trophy, Loader2, Download, Target, Upload } from 'lucide-react';
 import BulkImportModal from '../../components/BulkImportModal';
 
@@ -64,7 +65,7 @@ const FILTER_PARAM_KEYS = [
   'isLost', 'isConverted', 'evaluation', 'clientType',
   'tagId', 'expectedClosingFrom', 'expectedClosingTo',
   'expectedRevenueFrom', 'expectedRevenueTo', 'mine', 'archived', 'groupBy',
-  'status',
+  'status', 'nextStep',
 ];
 const MORE_FILTER_KEYS = [
   'tagId', 'clientType', 'evaluation', 'isConverted',
@@ -221,6 +222,7 @@ export default function CrmOpportunitiesV2() {
         sortBy,
         sortDir,
         ...filterParams,
+        tzOffset: new Date().getTimezoneOffset(),
         _requestKey: 'crm:opportunities:list',
       };
       delete params.groupBy;
@@ -350,6 +352,13 @@ export default function CrmOpportunitiesV2() {
       ) : (opp.companyName || null),
     },
     { key: 'stage', header: 'Stage', width: 120, render: (opp) => stageChip(opp) },
+    {
+      // Keyed by the DUE DATE, not the text: DataTable sorts on col.key, and
+      // the server's sort allowlist takes nextStepDueAt — sorting by the free
+      // text would have silently fallen back to updatedAt.
+      key: 'nextStepDueAt', header: 'Next Step', sortable: true, width: 230,
+      render: (opp) => <NextStepChip opp={opp} showText />,
+    },
     { key: 'expectedRole', header: 'Expected Role', sortable: true, width: 160, render: (opp) => opp.expectedRole ? <span style={{ color: 'var(--brand)' }}>{opp.expectedRole}</span> : null },
     {
       key: 'expectedRevenue', header: 'Revenue', sortable: true, align: 'right', width: 120,
@@ -446,6 +455,7 @@ export default function CrmOpportunitiesV2() {
             <SelectChipV2 paramKey="stageId" label="Stage" options={stages.map(s => ({ value: s._id, label: s.name }))} />
             <SelectChipV2 paramKey="source" label="Source" options={sources.map(s => ({ value: s, label: s }))} placeholder="No sources" />
             <SelectChipV2 paramKey="requirementType" label="Requirement" options={REQUIREMENT_TYPE_OPTIONS} />
+            <SelectChipV2 paramKey="nextStep" label="Next step" options={NEXT_STEP_FILTER_OPTIONS} />
             <MoreFiltersV2 paramKeys={MORE_FILTER_KEYS}>
               <SelectChipV2 paramKey="tagId" label="Tag" options={tags.map(t => ({ value: t._id, label: t.name }))} placeholder="No tags" />
               <SelectChipV2 paramKey="clientType" label="Client type" options={CLIENT_TYPE_OPTIONS} />

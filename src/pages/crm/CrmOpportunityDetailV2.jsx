@@ -17,8 +17,9 @@ import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import {
   Archive, ArchiveRestore, Briefcase, ExternalLink, FileText, MapPin,
-  MoreHorizontal, RotateCcw, Tag, Trash2, Trophy, Unlink, User, XCircle,
+  MoreHorizontal, RotateCcw, Tag, Target, Trash2, Trophy, Unlink, User, XCircle,
 } from 'lucide-react';
+import { NextStepChip } from '../../components/crm/nextStep';
 
 const FONT = "'Inter', system-ui, sans-serif";
 
@@ -167,6 +168,11 @@ export default function CrmOpportunityDetailV2() {
     setOpp((prev) => ({ ...prev, [field]: coerced }));
     clearErrorField(field);
     bumpActivities();
+    // The next-step fields are the only ones the server derives further:
+    // it stamps who set the step and when, and clearing the step clears its
+    // due date. The PUT returns no document, so re-read rather than let the
+    // optimistic patch show a due date whose step is already gone.
+    if (field === 'nextStep' || field === 'nextStepDueAt') fetchOpp();
   };
 
   const missingWonFields = (o) => WON_REQUIRED.filter(({ field }) => {
@@ -543,6 +549,41 @@ export default function CrmOpportunityDetailV2() {
       {/* ── Body ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, gridColumn: 'span 2', minWidth: 0 }}>
+          {/* Next step (2026-09-25). Deliberately the FIRST panel: an audit
+              found 72 of 89 outreach-sourced opportunities sitting in Initial
+              Contact with no logged action, because nothing on this page ever
+              said what was owed. Hidden once the deal is closed — a won or
+              lost opportunity has no next step. */}
+          {!opp.isLost && !opp.wonAt && !opp.isConverted && (
+            <Panel
+              icon={<Target size={14} />}
+              title="Next Step"
+              actions={opp.nextStepDueAt || opp.nextStep ? <NextStepChip opp={opp} /> : null}
+            >
+              <InlineField
+                label="What happens next"
+                field="nextStep"
+                value={opp.nextStep}
+                editable={canEdit}
+                onSave={saveField}
+                placeholder="e.g. Call to qualify the requirement"
+              />
+              <InlineField
+                label="Due"
+                field="nextStepDueAt"
+                type="date"
+                value={opp.nextStepDueAt}
+                editable={canEdit}
+                onSave={saveField}
+              />
+              {opp.nextStep && opp.nextStepSetByName && opp.nextStepSetAt && (
+                <p style={{ font: '450 11px/1.4 var(--font)', color: 'var(--fg-4)', marginTop: 8 }}>
+                  Set by {opp.nextStepSetByName} on {new Date(opp.nextStepSetAt).toLocaleDateString()}
+                </p>
+              )}
+            </Panel>
+          )}
+
           <Panel icon={<User size={14} />} title="Contact & Company">
             {opp.contactId
               ? linkedRow('Contact Name', withFromContext(`/org/${slug}/contacts/${opp.contactId}`, 'crm_opportunity', opportunityId), opp.contactName, 'View Contact')
