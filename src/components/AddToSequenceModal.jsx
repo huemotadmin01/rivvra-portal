@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Mail, Clock, Check, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, Send, Mail, Clock, Check, RefreshCw, AlertCircle, Building2 } from 'lucide-react';
 import api from '../utils/api';
 
 const STATUS_COLORS = {
@@ -14,6 +14,12 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [result, setResult] = useState(null);
+  // Leads the enrolment gate held because their scraped company name is not a
+  // company. Resolved in place so the rep never leaves the enrol flow — that
+  // detour is exactly where "sometimes they forget" came from.
+  const [fixingLeadId, setFixingLeadId] = useState(null);
+  const [fixedLeadIds, setFixedLeadIds] = useState(new Set());
+  const [fixError, setFixError] = useState(null);
   // For inline "Add contacts" from detail page - show lead picker instead
   const [showLeadPicker, setShowLeadPicker] = useState(!!preSelectedSequenceId);
   const [leads, setLeads] = useState([]);
@@ -93,6 +99,47 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
 
   if (!isOpen) return null;
 
+  // Accept the scraped name as-is, or replace it. Either way the gate reads
+  // the lead again on the next enrol attempt and lets it through.
+  const resolveCompany = async (leadId, companyName) => {
+    setFixingLeadId(leadId);
+    setFixError(null);
+    try {
+      await api.confirmLeadCompany(leadId, companyName);
+      setFixedLeadIds((prev) => new Set(prev).add(leadId));
+    } catch (err) {
+      setFixError(err.message || 'Could not update this contact');
+    } finally {
+      setFixingLeadId(null);
+    }
+  };
+
+  // Re-run enrolment for just the contacts that were held and have now been
+  // resolved, rather than making the rep start the whole flow again.
+  const retryFixed = async () => {
+    const ids = [...fixedLeadIds];
+    const seqId = preSelectedSequenceId || selectedId;
+    if (!seqId || !ids.length) return;
+    setEnrolling(true);
+    try {
+      const response = await api.enrollInSequence(seqId, ids);
+      setResult({
+        success: true,
+        enrolled: response.enrolled,
+        skipped: response.skipped,
+        errors: response.errors,
+      });
+      setFixedLeadIds(new Set());
+      if (response.enrolled > 0 && onEnrolled) {
+        onEnrolled({ enrolled: response.enrolled, leadIds: ids, sequenceId: seqId });
+      }
+    } catch (err) {
+      setFixError(err.message || 'Enrolment failed');
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   const handleEnroll = async () => {
     const idsToEnroll = preSelectedSequenceId ? Array.from(selectedLeadIds) : leadIds;
     const seqId = preSelectedSequenceId || selectedId;
@@ -113,8 +160,11 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
       if (response.enrolled > 0 && onEnrolled) {
         onEnrolled({ enrolled: response.enrolled, leadIds: idsToEnroll, sequenceId: seqId });
       }
-      // Auto-close after a brief delay so user sees the result
-      if (response.enrolled > 0) {
+      // Auto-close after a brief delay so user sees the result — but NOT when
+      // contacts were held for a company name, or the fix-it-here panel would
+      // vanish 1.5s after appearing and the rep would be back to forgetting.
+      const held = (response.errors || []).some((e) => e.reason === 'company_needs_confirmation');
+      if (response.enrolled > 0 && !held) {
         setTimeout(() => onClose?.(), 1500);
       }
     } catch (err) {
@@ -228,6 +278,73 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
                           <AlertCircle className="w-3 h-3" />
                           {result.errors.filter(e => e.reason === 'suppressed').length} on suppression list
                         </p>
+                      )}
+                      {result.errors?.some((e) => e.reason === 'company_needs_confirmation') && (
+                        <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
+                          <p className="text-xs font-medium text-amber-200 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5" />
+                            {result.errors.filter((e) => e.reason === 'company_needs_confirmation').length} held — company name needs checking
+                          </p>
+                          <p className="text-[11px] text-dark-400 mt-0.5">
+                            These came from LinkedIn with something other than a company in the company field. Fix once and they enrol.
+                          </p>
+                          <ul className="mt-2 space-y-2">
+                            {result.errors.filter((e) => e.reason === 'company_needs_confirmation').map((e) => {
+                              const done = fixedLeadIds.has(e.leadId);
+                              const busy = fixingLeadId === e.leadId;
+                              return (
+                                <li key={e.leadId} className="text-[11px]">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <span className="text-dark-200">{e.name || 'Contact'}</span>
+                                      <span className="text-dark-500"> — reads as </span>
+                                      <span className="text-amber-200/90 break-words">&ldquo;{e.company}&rdquo;</span>
+                                    </div>
+                                    {done && (
+                                      <span className="text-emerald-400 flex items-center gap-1 flex-shrink-0">
+                                        <Check className="w-3 h-3" /> ready
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!done && (
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                      {e.suggestion && (
+                                        <button
+                                          type="button"
+                                          disabled={busy}
+                                          onClick={() => resolveCompany(e.leadId, e.suggestion)}
+                                          className="px-2 py-1 rounded bg-rivvra-500/15 text-rivvra-300 border border-rivvra-500/30 hover:bg-rivvra-500/25 disabled:opacity-50"
+                                        >
+                                          {busy ? 'Saving…' : `Use “${e.suggestion}”`}
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => resolveCompany(e.leadId, undefined)}
+                                        className="px-2 py-1 rounded bg-dark-700 text-dark-200 border border-dark-600 hover:bg-dark-600 disabled:opacity-50"
+                                        title="The name is correct — stop asking about this contact"
+                                      >
+                                        It&rsquo;s correct
+                                      </button>
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                          {fixError && <p className="text-[11px] text-red-400 mt-1.5">{fixError}</p>}
+                          {fixedLeadIds.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={retryFixed}
+                              disabled={enrolling}
+                              className="mt-2 w-full px-2 py-1.5 rounded bg-rivvra-500 text-white text-[11px] font-medium hover:bg-rivvra-600 disabled:opacity-50"
+                            >
+                              {enrolling ? 'Enrolling…' : `Enrol ${fixedLeadIds.size} fixed contact${fixedLeadIds.size !== 1 ? 's' : ''}`}
+                            </button>
+                          )}
+                        </div>
                       )}
                       {result.errors?.some((e) => e.reason?.startsWith('criteria_')) && (
                         <p className="text-xs opacity-70 flex items-center gap-1 ml-2">

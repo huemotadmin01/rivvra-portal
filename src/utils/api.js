@@ -546,6 +546,16 @@ class ApiClient {
     });
   }
 
+  // Clears the enrolment gate on a lead whose scraped company name is not a
+  // company. Pass companyName to correct it, or omit it to accept as-is for a
+  // real company the detector cannot recognise.
+  async confirmLeadCompany(leadId, companyName) {
+    return this.request(`/api/portal/leads/${leadId}/confirm-company`, {
+      method: 'POST',
+      body: JSON.stringify(companyName === undefined ? {} : { companyName }),
+    });
+  }
+
   async enrollInSequence(sequenceId, leadIds) {
     return this.request(`/api/sequences/${sequenceId}/enroll`, {
       method: 'POST',
