@@ -6,8 +6,10 @@ import api from './api';
 
 const crmApi = {
   // ---------- STAGES ----------
-  listStages(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/crm/stages`);
+  // includeArchived: the stage settings screen needs retired stages so an
+  // admin can restore one; every other caller wants the live pipeline only.
+  listStages(orgSlug, { includeArchived = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/crm/stages${includeArchived ? '?includeArchived=1' : ''}`);
   },
   createStage(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/crm/stages`, { method: 'POST', body: JSON.stringify(data) });

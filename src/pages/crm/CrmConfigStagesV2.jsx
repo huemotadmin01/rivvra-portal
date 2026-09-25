@@ -21,7 +21,7 @@ export default function CrmConfigStagesV2() {
 
   const fetchStages = useCallback(async () => {
     try {
-      const res = await crmApi.listStages(orgSlug);
+      const res = await crmApi.listStages(orgSlug, { includeArchived: true });
       if (res.success) setStages(res.stages || []);
     } catch {
       addToast('Failed to load stages', 'error');
@@ -61,10 +61,21 @@ export default function CrmConfigStagesV2() {
           { key: 'sequence', header: '#', width: 50, muted: true, render: (s, i) => s.sequence ?? (i + 1) },
           { key: 'name', header: 'Stage Name', render: (s) => <span style={{ color: 'var(--fg)' }}>{s.name}</span> },
           { key: 'isWonStage', header: 'Won Stage', width: 110, render: (s) => s.isWonStage ? <Chip tone="warn">Won</Chip> : null },
+          {
+            // Retired stages are listed here and nowhere else — hidden from
+            // the pickers, the board and the funnel, but still resolving the
+            // name on every historical deal that sits in one.
+            key: 'archived', header: 'Status', width: 120,
+            render: (s) => (s.archived
+              ? <Chip tone="neutral" title="Hidden from the pipeline. Historical deals keep this name.">Retired</Chip>
+              : <Chip tone="brand">Active</Chip>),
+          },
         ]}
         fields={[
           { key: 'name', label: 'Stage Name', required: true, placeholder: 'e.g. Proposal Sent', autoFocus: true },
           { key: 'isWonStage', label: 'Is Won Stage', type: 'toggle', hint: 'Deals reaching this stage count as won.' },
+          { key: 'isProposalStage', label: 'Proposal Stage', type: 'toggle', hint: 'Sending a document for signature moves a deal here.' },
+          { key: 'archived', label: 'Retired', type: 'toggle', hint: 'Hidden from the pipeline. Existing deals keep the name; nothing new can move in.' },
         ]}
         onCreate={async (values) => {
           await crmApi.createStage(orgSlug, values);
