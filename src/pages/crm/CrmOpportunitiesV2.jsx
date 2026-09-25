@@ -182,7 +182,10 @@ export default function CrmOpportunitiesV2() {
   const [page, setPage] = usePageParam();
   const [searchValue, setSearchValue] = useSearchParamValue('search');
   const limit = 25;
-  const sortBy = searchParams.get('sortBy') || 'updatedAt';
+  // Newest-created first (2026-09-25). 'updatedAt' read as an arbitrary
+  // shuffle: any bulk write restamps every row at once, so the order
+  // reflected the last script that ran rather than the sales activity.
+  const sortBy = searchParams.get('sortBy') || 'createdAt';
   const sortDir = searchParams.get('sortDir') || 'desc';
   const groupBy = searchParams.get('groupBy') || '';
 
@@ -387,7 +390,8 @@ export default function CrmOpportunitiesV2() {
         </Link>
       ) : (opp.salespersonName || null),
     },
-    { key: 'updatedAt', header: 'Updated', sortable: true, muted: true, width: 100, render: (opp) => new Date(opp.updatedAt).toLocaleDateString() },
+    { key: 'createdAt', header: 'Created', sortable: true, muted: true, width: 100, render: (opp) => opp.createdAt ? new Date(opp.createdAt).toLocaleDateString() : null },
+    { key: 'updatedAt', header: 'Updated', sortable: true, muted: true, width: 100, render: (opp) => opp.updatedAt ? new Date(opp.updatedAt).toLocaleDateString() : null },
   ];
 
   const renderGroupedRows = () => (grouped || []).flatMap(([key, group]) => {
