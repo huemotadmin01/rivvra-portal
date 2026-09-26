@@ -238,10 +238,25 @@ function trimCanvasToDataUrl(sourceCanvas, padding = 8) {
   minY = Math.max(0, minY - padding);
   maxX = Math.min(w - 1, maxX + padding);
   maxY = Math.min(h - 1, maxY + padding);
+  const cropW = maxX - minX + 1;
+  const cropH = maxY - minY + 1;
+  // 2026-09-26: cap the exported bitmap. SignatureCanvas sizes itself 1:1
+  // with devicePixelRatio (deliberately — see the canvasProps note, it is
+  // what keeps strokes under the pointer), so on a 3x phone or a 4K screen
+  // the cropped ink was exported at 2000-3000px and became a multi-megabyte
+  // PNG. 32 signatures over 200KB held 24.9MB of the 63.6MB total against a
+  // 15KB median. Same 1200x600 ceiling the upload path already uses; a
+  // signature renders in the PDF at a few hundred px, so nothing is lost.
+  const MAX_W = 1200;
+  const MAX_H = 600;
+  const scale = Math.min(1, MAX_W / cropW, MAX_H / cropH);
   const out = document.createElement('canvas');
-  out.width = maxX - minX + 1;
-  out.height = maxY - minY + 1;
-  out.getContext('2d').drawImage(sourceCanvas, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+  out.width = Math.max(1, Math.round(cropW * scale));
+  out.height = Math.max(1, Math.round(cropH * scale));
+  const outCtx = out.getContext('2d');
+  outCtx.imageSmoothingEnabled = true;
+  outCtx.imageSmoothingQuality = 'high';
+  outCtx.drawImage(sourceCanvas, minX, minY, cropW, cropH, 0, 0, out.width, out.height);
   return out.toDataURL('image/png');
 }
 
