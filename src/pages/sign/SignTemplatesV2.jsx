@@ -145,6 +145,11 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
 
   const [name, setName] = useState('');
   const [file, setFile] = useState(null);
+  // Same defect and same fix as QuickSendModal in SignRequestsV2: true while
+  // Template Name still holds a value derived from the filename, so removing
+  // or swapping the file cannot leave the previous document's name behind.
+  // Cleared the moment the user types a name of their own.
+  const [autoNamed, setAutoNamed] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
   const [loadingTags, setLoadingTags] = useState(false);
@@ -177,6 +182,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
     if (show && orgSlug) {
       setName('');
       setFile(null);
+      setAutoNamed(false);
       setSelectedTags([]);
       setLoadingTags(true);
       signApi.listTags(orgSlug)
@@ -211,7 +217,9 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
     }
 
     setFile(selectedFile);
-    if (!name.trim()) {
+    // Derive when there is no name, or when the one on screen is still the
+    // PREVIOUS file's derived name.
+    if (!name.trim() || autoNamed) {
       // Tidy the filename into a presentable template name: drop the
       // extension, strip trailing "(N)" duplicate suffix, replace
       // underscores with spaces, and collapse runs of whitespace.
@@ -222,6 +230,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
         .replace(/\s+/g, ' ')
         .trim();
       setName(fileName);
+      setAutoNamed(true);
     }
   };
 
@@ -301,6 +310,9 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
                   onClick={(e) => {
                     e.stopPropagation();   // don't reopen the browse dialog
                     setFile(null);
+                    // Drop the name with the file it came from; a name the
+                    // user typed survives.
+                    if (autoNamed) { setName(''); setAutoNamed(false); }
                   }}
                 >
                   Remove file
@@ -327,7 +339,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
             required
             autoFocus
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); setAutoNamed(false); }}
             placeholder="e.g. NDA Agreement"
           />
         </Field>

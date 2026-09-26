@@ -853,8 +853,16 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
   const [signers, setSigners] = useState([{ name: '', email: '' }]);
   const [preparing, setPreparing] = useState(false);
   const [qsParallel, setQsParallel] = useState(false);
+  // True while Document Name still holds a value derived from the filename.
+  // Without it, removing the file left the auto-filled name in place and the
+  // `!reference` guard in handleFile then defended a name belonging to a file
+  // that was gone: attach the wrong PDF, swap it for the right one, and the
+  // request still went out under the wrong document's name — which is what
+  // the signer sees in their email and what labels the request in the list.
+  // A name the user types clears this flag and is never overwritten.
+  const [autoNamed, setAutoNamed] = useState(false);
 
-  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '' }]); setQsParallel(false); };
+  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '' }]); setQsParallel(false); setAutoNamed(false); };
 
   // Soft close — preserve the draft (file, reference, signers) so re-opening
   // the modal lands the user back where they were. Reset only happens after
@@ -888,7 +896,10 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
       return;
     }
     setFile(f);
-    if (!reference) {
+    // Derive the name when there is none, or when the one on screen is still
+    // the PREVIOUS file's derived name — otherwise swapping the file leaves a
+    // stale title behind.
+    if (!reference || autoNamed) {
       const cleaned = f.name
         .replace(/\.(pdf|png|jpe?g)$/i, '')
         .replace(/\s*\(\d+\)\s*$/, '')
@@ -896,6 +907,7 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
         .replace(/\s+/g, ' ')
         .trim();
       setReference(cleaned);
+      setAutoNamed(true);
     }
   };
 
@@ -1029,7 +1041,13 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
                   variant="ghost"
                   size="sm"
                   aria-label="Remove file"
-                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFile(null);
+                    // Drop the name with the file it came from; a name the
+                    // user typed survives.
+                    if (autoNamed) { setReference(''); setAutoNamed(false); }
+                  }}
                   style={{ padding: '0 6px', color: 'var(--danger)' }}
                 >
                   <X size={14} />
@@ -1052,7 +1070,7 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
             <Input
               id="qs-reference"
               value={reference}
-              onChange={(e) => setReference(e.target.value)}
+              onChange={(e) => { setReference(e.target.value); setAutoNamed(false); }}
               placeholder="e.g. NDA Agreement"
             />
           </Field>
