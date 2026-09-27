@@ -437,7 +437,7 @@ export default function CrmDashboardV2() {
             icon={<AlertTriangle size={14} />}
             color="var(--danger)"
             title="Open deals you haven't logged contact on recently. Oldest first, below."
-            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)}
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active&staleDays=${data.goingCold?.days ?? 14}`)}
           />
           <Stat
             label="Needs a next step"
@@ -446,10 +446,13 @@ export default function CrmDashboardV2() {
             icon={<ListTodo size={14} />}
             color="var(--warn)"
             title="Open deals where nobody has decided what happens next — they still carry the placeholder set by the one-time backfill."
-            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)}
+            /* Not clickable: the list has no filter for "still on the
+               placeholder", so a link could only land on the unfiltered
+               active list and show a different number to the one on the
+               card. A card that navigates somewhere it does not describe is
+               worse than one that does not navigate. */
           />
-          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)"
-            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=won`)} />
+          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)" />
         </div>
       ) : isLead ? (
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
@@ -461,7 +464,7 @@ export default function CrmDashboardV2() {
             note="across the team"
             icon={<AlertTriangle size={14} />}
             color="var(--danger)"
-            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)}
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active&staleDays=${data.goingCold?.days ?? 14}`)}
           />
           <Stat
             label="Coverage"
@@ -471,13 +474,18 @@ export default function CrmDashboardV2() {
             color={coverage !== null && Number(coverage) < 50 ? 'var(--danger)' : 'var(--info)'}
             title="Share of the team's open deals with contact logged inside the going-cold window."
           />
-          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)"
-            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=won`)} />
+          {/* No date filter on wonAt in the list, so ?status=won would show
+              every win ever — 99 against this card's 2. Left unclickable
+              rather than lying. */}
+          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)" />
         </div>
       ) : (
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
-        <Stat label="Total Opportunities" value={data.total} icon={<Briefcase size={14} />} color="var(--a-crm)"
-          onClick={() => navigate(`/org/${slug}/crm/opportunities`)} />
+        {/* The list's lifecycle toggle has no "all" segment — open, won, lost
+            and archived only — so a bare link lands on Open and shows 84
+            against a card reading 586. Unclickable until such a segment
+            exists. */}
+        <Stat label="Total Opportunities" value={data.total} icon={<Briefcase size={14} />} color="var(--a-crm)" />
         <Stat label="Active" value={data.active} icon={<Clock size={14} />} color="var(--info)"
           onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)} />
         <Stat label="Won" value={data.won} icon={<Trophy size={14} />} color="var(--warn)"
