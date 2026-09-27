@@ -38,6 +38,7 @@ import {
   Briefcase, Trophy, XCircle, FileInput, ArrowRight,
   Clock, Calendar, BarChart3, RefreshCw,
   Sparkles, CheckCircle2, Settings2,
+  AlertTriangle, ListTodo,
 } from 'lucide-react';
 import MyTeamWidget from '../../components/shared/MyTeamWidget';
 import contactsApi from '../../utils/contactsApi';
@@ -221,6 +222,17 @@ function rangeToDates(key) {
   return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
 }
 
+// "14 Jun" for anything older than a week, "3d ago" for recent — a rep
+// scanning a cold list cares about the gap, not the calendar date.
+function sinceLabel(value) {
+  if (!value) return 'never contacted';
+  const days = Math.floor((Date.now() - new Date(value).getTime()) / 86400000);
+  if (Number.isNaN(days)) return '—';
+  if (days < 1) return 'today';
+  if (days < 14) return `${days}d ago`;
+  return `${days} days ago`;
+}
+
 const SCOPE_COPY = {
   all:  { tone: 'brand', text: 'Showing everything (admin view)' },
   team: { tone: 'info' },
@@ -320,6 +332,10 @@ export default function CrmDashboardV2() {
   })();
 
   const scope = data?.scope;
+  // A rep is anyone the server did not give the full picture to and whose
+  // scope is exactly themselves. 'team' with one member is still a lead with a
+  // team of one, so lean on mode rather than counting.
+  const isRep = scope?.mode === 'self';
   const scopeCopy = scope && (
     scope.mode === 'team'
       ? `Showing your team (${scope.employeeCount} salesperson${scope.employeeCount === 1 ? '' : 's'})`
@@ -380,7 +396,40 @@ export default function CrmDashboardV2() {
         </div>
       </div>
 
-      {/* KPI Cards — deep-link into the matching filtered Opportunities list. */}
+      {/* KPI Cards — deep-link into the matching filtered Opportunities list.
+
+          A REP gets a different row. "Total / Won / Lost" all-time is a
+          history lesson — 84% of it is the Odoo import, and 393 of the 404
+          losses closed before Rivvra existed. None of it tells a salesperson
+          what to do today. Their four are: what is open, what is rotting,
+          what has no decided next step, and what they have closed this
+          quarter. Admin and team-lead rows are unchanged for now. */}
+      {isRep ? (
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+          <Stat label="My active deals" value={data.activeNowCount ?? data.active} icon={<Clock size={14} />} color="var(--info)"
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)} />
+          <Stat
+            label={`Going cold (${data.goingCold?.days ?? 14}d+)`}
+            value={data.goingCold?.count ?? 0}
+            note="no contact logged"
+            icon={<AlertTriangle size={14} />}
+            color="var(--danger)"
+            title="Open deals you haven't logged contact on recently. Oldest first, below."
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)}
+          />
+          <Stat
+            label="Needs a next step"
+            value={data.needsNextStep?.count ?? 0}
+            note="still on the default"
+            icon={<ListTodo size={14} />}
+            color="var(--warn)"
+            title="Open deals where nobody has decided what happens next — they still carry the placeholder set by the one-time backfill."
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)}
+          />
+          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)"
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=won`)} />
+        </div>
+      ) : (
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
         <Stat label="Total Opportunities" value={data.total} icon={<Briefcase size={14} />} color="var(--a-crm)"
           onClick={() => navigate(`/org/${slug}/crm/opportunities`)} />
@@ -409,6 +458,7 @@ export default function CrmDashboardV2() {
           />
         )}
       </div>
+      )}
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', alignItems: 'start' }}>
         {/* Pipeline Funnel */}
@@ -426,7 +476,52 @@ export default function CrmDashboardV2() {
           </Panel>
         </div>
 
-        {/* By Salesperson */}
+        {/* For a REP, "By Salesperson" is a list of one — their own name and a
+            number they already have above. Replace it with the thing the KPI
+            actually points at: which deals are going cold, oldest first, one
+            click from the record. */}
+        {isRep ? (
+          <Panel title={`Going cold — oldest first`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(data.goingCold?.items || []).map((opp) => (
+                <button
+                  key={opp._id}
+                  type="button"
+                  onClick={() => navigate(`/org/${slug}/crm/opportunities/${opp._id}`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none',
+                    borderRadius: 'var(--r-2)', background: 'var(--surface-2)', cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{
+                      display: 'block', font: `550 12px/1.4 ${FONT}`, color: 'var(--fg)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {opp.name}
+                    </span>
+                    <span style={{
+                      display: 'block', font: `450 11px/1.4 ${FONT}`, color: 'var(--fg-3)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {opp.companyName || opp.contactName || '—'}
+                    </span>
+                  </span>
+                  <Chip tone="danger">{sinceLabel(opp.lastContactAt)}</Chip>
+                </button>
+              ))}
+              {(data.goingCold?.count || 0) > (data.goingCold?.items || []).length && (
+                <span style={{ font: `450 11px/1.4 ${FONT}`, color: 'var(--fg-3)', padding: '2px 4px' }}>
+                  and {data.goingCold.count - data.goingCold.items.length} more
+                </span>
+              )}
+              {(data.goingCold?.count || 0) === 0 && (
+                <EmptyState compact title="Nothing going cold">Every open deal has been contacted recently.</EmptyState>
+              )}
+            </div>
+          </Panel>
+        ) : (
         <Panel title="By Salesperson">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {(data.bySalesperson || []).map((s, i) => (
@@ -453,6 +548,7 @@ export default function CrmDashboardV2() {
             )}
           </div>
         </Panel>
+        )}
       </div>
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', alignItems: 'start' }}>
