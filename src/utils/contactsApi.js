@@ -81,8 +81,11 @@ const contactsApi = {
   // can inspect the `references`/`samples` payload produced by the server's FK
   // safety check and offer the user a force-delete confirmation. Non-JSON or
   // other error statuses still throw.
-  async delete(orgSlug, id, { force = false } = {}) {
-    const qs = force ? '?force=true' : '';
+  async delete(orgSlug, id, { force = false, reassignTo = null } = {}) {
+    // reassignTo wins: it moves the FKs onto another contact and then deletes,
+    // so the server's safety check passes honestly instead of being bypassed.
+    const qs = reassignTo ? `?reassignTo=${encodeURIComponent(reassignTo)}`
+      : force ? '?force=true' : '';
     const url = `${api.baseUrl}/api/org/${orgSlug}/contacts/${id}${qs}`;
     const headers = { 'Content-Type': 'application/json' };
     const token = localStorage.getItem('rivvra_token');

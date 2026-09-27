@@ -130,6 +130,9 @@ export default function ContactDetailV2() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConflict, setDeleteConflict] = useState(null);
+  // The contact the blocked records will be moved onto, when the user picks
+  // that route instead of orphaning them.
+  const [reassignTarget, setReassignTarget] = useState(null);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archivePreview, setArchivePreview] = useState(null);
   const [archiving, setArchiving] = useState(false);
@@ -308,10 +311,10 @@ export default function ContactDetailV2() {
   }, [orgSlug, contactId, contact?.address, showToast]);
 
   // -- Destructive actions ----------------------------------------------------
-  const handleDelete = async ({ force = false } = {}) => {
+  const handleDelete = async ({ force = false, reassignTo = null } = {}) => {
     setDeleting(true);
     try {
-      const res = await contactsApi.delete(orgSlug, contactId, { force });
+      const res = await contactsApi.delete(orgSlug, contactId, { force, reassignTo });
       if (res.status === 409) {
         setDeleteConflict(res);
         setShowDeleteModal(false);
@@ -320,9 +323,14 @@ export default function ContactDetailV2() {
       }
       if (res.success) {
         const count = res.childrenDeleted || 0;
-        showToast(contact.type === 'company' && count > 0
-          ? `Company and ${count} related contact(s) deleted`
-          : 'Contact deleted successfully');
+        const moved = res.reassigned
+          ? Object.values(res.reassigned).reduce((sum, n) => sum + n, 0)
+          : 0;
+        showToast(moved
+          ? `${moved} record(s) moved to ${reassignTarget?.label || 'the other contact'}, then contact deleted`
+          : contact.type === 'company' && count > 0
+            ? `Company and ${count} related contact(s) deleted`
+            : 'Contact deleted successfully');
         navigate(orgPath('/contacts/list'), { replace: true });
         return;
       }
@@ -394,6 +402,22 @@ export default function ContactDetailV2() {
       .filter((c) => !linkedIds.includes(c._id))
       .map((c) => ({ value: c._id, label: c.name, sub: c.jobTitle || c.email || '' }));
   }, [orgSlug, linkedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Candidates for "reassign then delete": same TYPE only. A company's
+  // records include contactCompanyId, which must point at a company; moving
+  // them onto a person would put a person in the client column. The server
+  // enforces this too — this just avoids offering an invalid choice.
+  // EntityLookup calls onSelect(field, value) — the option object is not passed
+  // back — so keep the last result set to recover the chosen label from.
+  const reassignOptionsRef = useRef([]);
+  const searchReassignTargets = useCallback(async (query) => {
+    const res = await contactsApi.list(orgSlug, { type: contact?.type, search: query, limit: 25 });
+    const options = (res?.contacts || [])
+      .filter((c) => c._id !== contactId && !c.archived)
+      .map((c) => ({ value: c._id, label: c.name, sub: c.email || c.jobTitle || '' }));
+    reassignOptionsRef.current = options;
+    return options;
+  }, [orgSlug, contactId, contact?.type]);
 
   const createIndividual = useCallback(async (name) => {
     const res = await contactsApi.create(orgSlug, { type: 'individual', name, parentCompanyId: contactId });
@@ -1238,18 +1262,27 @@ export default function ContactDetailV2() {
       {/* ── Delete blocked by FK references (409) ── */}
       <Modal
         open={!!deleteConflict}
-        onClose={deleting ? undefined : () => { setDeleteConflict(null); setDeleting(false); }}
+        onClose={deleting ? undefined : () => { setDeleteConflict(null); setReassignTarget(null); setDeleting(false); }}
         tone="danger"
         size="md"
         icon={<Trash2 size={16} />}
         title={`Can't delete ${contact.name}`}
-        sub={`Referenced by ${deleteConflict?.totalRefs || 0} other record${(deleteConflict?.totalRefs || 0) === 1 ? '' : 's'}. Reassign them first, or force the delete and leave those records orphaned.`}
+        sub={`Referenced by ${deleteConflict?.totalRefs || 0} other record${(deleteConflict?.totalRefs || 0) === 1 ? '' : 's'}. Move them to another ${contact?.type === 'company' ? 'company' : 'contact'} and delete, or force the delete and leave them orphaned.`}
         footer={(
           <>
             <span style={{ flex: 1 }} />
-            <Button variant="ghost" size="sm" disabled={deleting} onClick={() => { setDeleteConflict(null); setDeleting(false); }}>Cancel</Button>
-            <Button variant="primary" size="sm" disabled={deleting} onClick={() => handleDelete({ force: true })}>
-              {deleting ? 'Deleting…' : 'Force delete'}
+            <Button variant="ghost" size="sm" disabled={deleting} onClick={() => { setDeleteConflict(null); setReassignTarget(null); setDeleting(false); }}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={deleting || !reassignTarget}
+              title={reassignTarget ? '' : 'Pick where these records should go first'}
+              onClick={() => handleDelete({ reassignTo: reassignTarget.value })}
+            >
+              {deleting ? 'Moving…' : 'Reassign & delete'}
+            </Button>
+            <Button variant="ghost" size="sm" disabled={deleting} onClick={() => handleDelete({ force: true })}>
+              {deleting ? 'Deleting…' : 'Force delete anyway'}
             </Button>
           </>
         )}
@@ -1267,6 +1300,40 @@ export default function ContactDetailV2() {
                   <span style={{ color: 'var(--danger, #ef4444)', fontWeight: 550 }}>{count}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Move the records somewhere instead of stranding them. Picking a
+                target enables "Reassign & delete"; leaving it empty leaves only
+                the force option, which is what used to be the ONLY way out. */}
+            <div style={{
+              borderRadius: 'var(--r-2, 10px)', padding: 12,
+              boxShadow: 'inset 0 0 0 1px var(--line, rgba(255,255,255,.07))',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <p style={{ font: "550 10.5px/1.4 'Inter', system-ui, sans-serif", textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-4, #828e9f)' }}>
+                Move these records to
+              </p>
+              <EntityLookup
+                variant="inline"
+                editable
+                value={reassignTarget?.value || ''}
+                displayValue={reassignTarget?.label || ''}
+                placeholder={`Search ${contact?.type === 'company' ? 'companies' : 'people'}…`}
+                search={searchReassignTargets}
+                /* Picking only fills this draft — nothing is written until
+                   "Reassign & delete" — so no green "saved" tick. */
+                confirmsSave={false}
+                onSelect={(_f, value) => {
+                  if (!value) { setReassignTarget(null); return; }
+                  const opt = reassignOptionsRef.current.find((o) => o.value === value);
+                  setReassignTarget(opt || { value, label: '' });
+                }}
+              />
+              {reassignTarget && (
+                <p style={{ font: "450 11.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3, #9aa6b4)' }}>
+                  All {deleteConflict.totalRefs} record(s) will point at <strong>{reassignTarget.label}</strong>, then {contact?.name} is deleted. Nothing is orphaned.
+                </p>
+              )}
             </div>
             {deleteConflict.samples?.invoices?.length > 0 && (
               <div>
