@@ -161,7 +161,7 @@ function RevenueByCurrency({ rows, width }) {
   );
 }
 
-function PipelineBar({ data }) {
+function PipelineBar({ data, showRevenue = true }) {
   const maxCount = Math.max(...data.map(d => d.count), 1);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -181,7 +181,7 @@ function PipelineBar({ data }) {
             readout={d.count > 0 ? d.count : ''}
             style={{ flex: 1, minWidth: 0 }}
           />
-          <RevenueByCurrency rows={d.revenueByCurrency} width={96} />
+          {showRevenue && <RevenueByCurrency rows={d.revenueByCurrency} width={96} />}
         </div>
       ))}
     </div>
@@ -314,9 +314,24 @@ export default function CrmDashboardV2() {
   // Derived analytics — only rendered inside the admin/lead gate, but
   // computed unconditionally because they're cheap and the gate is on
   // the JSX, not the data.
-  const winRate = data.total > 0 ? ((data.won / data.total) * 100).toFixed(1) : 0;
-  const lossRate = data.total > 0 ? ((data.lost / data.total) * 100).toFixed(1) : 0;
-  const conversionRate = data.total > 0 ? ((data.converted / data.total) * 100).toFixed(1) : 0;
+  // ⚠️ These divided by data.total, which INCLUDES still-open deals. Every
+  // live opportunity counted as a non-win, so the rate could only ever fall
+  // as the pipeline grew: 99/586 = 16.9% instead of 99/503 = 19.7%. A rate
+  // only means anything over the CLOSED population.
+  const closed = (data.won || 0) + (data.lost || 0);
+  const winRate = closed > 0 ? ((data.won / closed) * 100).toFixed(1) : 0;
+  const conversionRate = closed > 0 ? ((data.converted / closed) * 100).toFixed(1) : 0;
+  // Share of open deals contacted inside the going-cold window. The one
+  // number on this page that describes what the team is doing now rather
+  // than what it did historically.
+  const openNow = data.activeNowCount ?? data.active ?? 0;
+  const coldNow = data.goingCold?.count ?? 0;
+  const coverage = openNow > 0 ? (((openNow - coldNow) / openNow) * 100).toFixed(0) : null;
+  // Revenue is an average over whatever carries a value. Below a fifth of the
+  // window it describes a handful of records, not a pipeline — say so instead
+  // of printing a confident number.
+  const revCov = data.revenueCoverage;
+  const revenueIsRepresentative = revCov ? (revCov.of > 0 && revCov.withValue / revCov.of >= 0.2) : true;
   // 2026-05-17 CRM-B: per-currency aggregation. The legacy totalRevenue
   // collapsed every currency into one scalar. Build a single
   // currency → total map from every stage's revenueByCurrency rows.
@@ -472,7 +487,7 @@ export default function CrmDashboardV2() {
               </Button>
             }
           >
-            <PipelineBar data={data.byStage || []} />
+            <PipelineBar data={data.byStage || []} showRevenue={revenueIsRepresentative} />
           </Panel>
         </div>
 
@@ -661,9 +676,19 @@ export default function CrmDashboardV2() {
 
           {/* Analytical KPIs — rates + pipeline value */}
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
-            <Stat label="Win Rate" value={`${winRate}%`} note={`${data.won} won`} color="var(--warn)" />
-            <Stat label="Loss Rate" value={`${lossRate}%`} note={`${data.lost} lost`} color="var(--danger)" />
-            <Stat label="Conversion" value={`${conversionRate}%`} note={`${data.converted} converted`} color="var(--brand)" />
+            <Stat label="Win Rate" value={`${winRate}%`} note={`${data.won} of ${closed} closed`} color="var(--warn)"
+              title="Of the deals that reached a decision. Open deals are excluded — they have not been lost, they are simply still running." />
+            {/* Loss Rate is dropped: it was always 100 − win rate, so it
+                carried no information of its own. Coverage replaces it with
+                something only this page can tell you. */}
+            <Stat
+              label="Coverage"
+              value={coverage === null ? '—' : `${coverage}%`}
+              note={coldNow > 0 ? `${coldNow} of ${openNow} going cold` : 'all open deals touched'}
+              color={coverage !== null && Number(coverage) < 50 ? 'var(--danger)' : 'var(--info)'}
+              title="Share of open deals with contact logged inside the going-cold window." />
+            <Stat label="Conversion" value={`${conversionRate}%`} note={`${data.converted} filed as jobs`} color="var(--brand)"
+              title="Closed deals that produced an ATS job. Not the same as Won — some deals become jobs without ever being marked won." />
             <Panel style={{ padding: 16 }}>
               <p style={{
                 font: `500 12px/1 ${FONT}`, color: 'var(--fg-3)', marginBottom: 10,
@@ -673,7 +698,18 @@ export default function CrmDashboardV2() {
               {/* 2026-05-17 CRM-B: per-currency. Mixed pipelines used
                   to be summed with a single currency symbol that picked
                   the company default — INR even for opps in USD. */}
-              {totalRevenueByCurrency.length === 0 ? (
+              {!revenueIsRepresentative ? (
+                /* Printing "₹24,60,000" when 8 of 587 deals carry a value — and
+                   none of the open ones — invites a decision on eight records.
+                   Say what is actually known instead. */
+                <>
+                  <p style={{ font: `700 22px/1 ${FONT}`, color: 'var(--fg-4)' }}>—</p>
+                  <p style={{ font: `450 11px/1.5 ${FONT}`, color: 'var(--fg-4)', marginTop: 6 }}>
+                    Only {revCov.withValue} of {revCov.of} deals in this range carry a value,
+                    so a pipeline total would describe those {revCov.withValue}, not the pipeline.
+                  </p>
+                </>
+              ) : totalRevenueByCurrency.length === 0 ? (
                 <p style={{ font: `700 22px/1 ${FONT}`, color: 'var(--fg-4)' }}>—</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
