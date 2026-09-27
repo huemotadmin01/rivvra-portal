@@ -330,6 +330,10 @@ export default function CrmDashboardV2() {
   // Revenue is an average over whatever carries a value. Below a fifth of the
   // window it describes a handful of records, not a pipeline — say so instead
   // of printing a confident number.
+  // Denominators for the two "share of" lists — the sum of what each list
+  // actually shows.
+  const stageTotal = (data.byStage || []).reduce((n, s) => n + (s.count || 0), 0);
+  const repTotal = (data.bySalesperson || []).reduce((n, s) => n + (s.count || 0), 0);
   const revCov = data.revenueCoverage;
   const revenueIsRepresentative = revCov ? (revCov.of > 0 && revCov.withValue / revCov.of >= 0.2) : true;
   // 2026-05-17 CRM-B: per-currency aggregation. The legacy totalRevenue
@@ -683,6 +687,7 @@ export default function CrmDashboardV2() {
                 something only this page can tell you. */}
             <Stat
               label="Coverage"
+              icon={<AlertTriangle size={14} />}
               value={coverage === null ? '—' : `${coverage}%`}
               note={coldNow > 0 ? `${coldNow} of ${openNow} going cold` : 'all open deals touched'}
               color={coverage !== null && Number(coverage) < 50 ? 'var(--danger)' : 'var(--info)'}
@@ -734,9 +739,9 @@ export default function CrmDashboardV2() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                    {['Stage', 'Opportunities', 'Revenue', 'Distribution'].map((h, i) => (
+                    {['Stage', 'Opportunities', ...(revenueIsRepresentative ? ['Revenue'] : []), 'Distribution'].map((h) => (
                       <th key={h} style={{
-                        textAlign: i === 1 || i === 2 ? 'right' : 'left', padding: '6px 12px',
+                        textAlign: h === 'Opportunities' || h === 'Revenue' ? 'right' : 'left', padding: '6px 12px',
                         font: `600 10px/1 ${FONT}`, textTransform: 'uppercase', letterSpacing: '.07em',
                         color: 'var(--fg-4)', whiteSpace: 'nowrap',
                       }}>
@@ -747,12 +752,17 @@ export default function CrmDashboardV2() {
                 </thead>
                 <tbody>
                   {(data.byStage || []).map(s => {
-                    const pct = data.active > 0 ? ((s.count / data.active) * 100).toFixed(0) : 0;
+                    // ⚠️ was s.count / data.active. byStage includes WON deals,
+                    // so "Converted to Job" read 99/84 = 118%. A distribution
+                    // is a share of the rows shown, not of the open subset.
+                    const pct = stageTotal > 0 ? ((s.count / stageTotal) * 100).toFixed(0) : 0;
                     return (
                       <tr key={s.stageId} style={{ borderBottom: '1px solid var(--line)' }}>
                         <td style={{ padding: '9px 12px', font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>{s.stageName}</td>
                         <td style={{ padding: '9px 12px', font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-3)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{s.count}</td>
-                        <td style={{ padding: '9px 12px', font: `500 12px/1.4 ${FONT}`, color: 'var(--brand-ink)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(s.revenue || 0, currency)}</td>
+                        {revenueIsRepresentative && (
+                          <td style={{ padding: '9px 12px', font: `500 12px/1.4 ${FONT}`, color: 'var(--brand-ink)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(s.revenue || 0, currency)}</td>
+                        )}
                         <td style={{ padding: '9px 12px', minWidth: 160 }}>
                           <Meter value={Number(pct)} readout={`${pct}%`} />
                         </td>
@@ -771,7 +781,9 @@ export default function CrmDashboardV2() {
             {(data.bySalesperson || []).length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {data.bySalesperson.map((s, i) => {
-                  const pct = data.active > 0 ? ((s.count / data.active) * 100).toFixed(0) : 0;
+                  // Same overshoot: bySalesperson counts active AND won, so
+                  // dividing by active alone exceeded 100% across the list.
+                  const pct = repTotal > 0 ? ((s.count / repTotal) * 100).toFixed(0) : 0;
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{
