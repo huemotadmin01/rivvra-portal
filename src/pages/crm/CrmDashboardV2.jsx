@@ -332,6 +332,21 @@ export default function CrmDashboardV2() {
   // of printing a confident number.
   // Denominators for the two "share of" lists — the sum of what each list
   // actually shows.
+  // "Won this quarter" is the one tile that IGNORES the range picker — the
+  // server pins it to the calendar quarter so it means the same thing to
+  // everyone. Next to an "All time" picker and a 99-win funnel, a bare "2"
+  // reads like a contradiction, so the card states its own window. Mirrors
+  // the server's qStart: calendar quarter, UTC.
+  const quarterLabel = (() => {
+    const now = new Date();
+    const first = Math.floor(now.getUTCMonth() / 3) * 3;
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${m[first]}–${m[first + 2]} ${now.getUTCFullYear()}`;
+  })();
+  const QUARTER_TITLE = 'Deals won since the start of the calendar quarter. '
+    + 'This tile always shows the current quarter — it is not affected by the date range above. '
+    + 'Filed job requisitions are excluded, so this counts sales wins only.';
+
   const stageTotal = (data.byStage || []).reduce((n, s) => n + (s.count || 0), 0);
   const repTotal = (data.bySalesperson || []).reduce((n, s) => n + (s.count || 0), 0);
   const revCov = data.revenueCoverage;
@@ -452,7 +467,14 @@ export default function CrmDashboardV2() {
                card. A card that navigates somewhere it does not describe is
                worse than one that does not navigate. */
           />
-          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)" />
+          <Stat
+            label="Won this quarter"
+            value={data.wonThisQuarter ?? 0}
+            note={quarterLabel}
+            icon={<Trophy size={14} />}
+            color="var(--warn)"
+            title={QUARTER_TITLE}
+          />
         </div>
       ) : isLead ? (
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
@@ -477,7 +499,14 @@ export default function CrmDashboardV2() {
           {/* No date filter on wonAt in the list, so ?status=won would show
               every win ever — 99 against this card's 2. Left unclickable
               rather than lying. */}
-          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)" />
+          <Stat
+            label="Won this quarter"
+            value={data.wonThisQuarter ?? 0}
+            note={quarterLabel}
+            icon={<Trophy size={14} />}
+            color="var(--warn)"
+            title={QUARTER_TITLE}
+          />
         </div>
       ) : (
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
