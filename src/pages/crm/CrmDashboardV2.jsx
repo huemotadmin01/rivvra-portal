@@ -355,6 +355,9 @@ export default function CrmDashboardV2() {
   // scope is exactly themselves. 'team' with one member is still a lead with a
   // team of one, so lean on mode rather than counting.
   const isRep = scope?.mode === 'self';
+  // A lead sees their team and nobody else's. Same tiles as a rep, but the
+  // question is "whose pipeline is rotting" rather than "what do I do next".
+  const isLead = scope?.mode === 'team';
   const scopeCopy = scope && (
     scope.mode === 'team'
       ? `Showing your team (${scope.employeeCount} salesperson${scope.employeeCount === 1 ? '' : 's'})`
@@ -448,6 +451,29 @@ export default function CrmDashboardV2() {
           <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)"
             onClick={() => navigate(`/org/${slug}/crm/opportunities?status=won`)} />
         </div>
+      ) : isLead ? (
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+          <Stat label="Team active deals" value={data.activeNowCount ?? data.active} icon={<Clock size={14} />} color="var(--info)"
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)} />
+          <Stat
+            label={`Going cold (${data.goingCold?.days ?? 14}d+)`}
+            value={data.goingCold?.count ?? 0}
+            note="across the team"
+            icon={<AlertTriangle size={14} />}
+            color="var(--danger)"
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=active`)}
+          />
+          <Stat
+            label="Coverage"
+            icon={<AlertTriangle size={14} />}
+            value={coverage === null ? '—' : `${coverage}%`}
+            note={coldNow > 0 ? `${coldNow} of ${openNow} going cold` : 'all open deals touched'}
+            color={coverage !== null && Number(coverage) < 50 ? 'var(--danger)' : 'var(--info)'}
+            title="Share of the team's open deals with contact logged inside the going-cold window."
+          />
+          <Stat label="Won this quarter" value={data.wonThisQuarter ?? 0} icon={<Trophy size={14} />} color="var(--warn)"
+            onClick={() => navigate(`/org/${slug}/crm/opportunities?status=won`)} />
+        </div>
       ) : (
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
         <Stat label="Total Opportunities" value={data.total} icon={<Briefcase size={14} />} color="var(--a-crm)"
@@ -499,7 +525,40 @@ export default function CrmDashboardV2() {
             number they already have above. Replace it with the thing the KPI
             actually points at: which deals are going cold, oldest first, one
             click from the record. */}
-        {isRep ? (
+        {isLead ? (
+          <Panel title="Pipeline health by rep">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(data.byRepHealth || []).filter((r) => r.active > 0).map((r) => {
+                const pct = r.active > 0 ? Math.round((r.cold / r.active) * 100) : 0;
+                return (
+                  <div key={r._id || r.name} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{
+                        font: `500 12px/1.4 ${FONT}`, color: 'var(--fg-2)', minWidth: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {r.name}
+                      </span>
+                      <span style={{ font: `450 11px/1.4 ${FONT}`, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>
+                        {r.cold} of {r.active} cold{r.wonThisQuarter > 0 ? ` · ${r.wonThisQuarter} won` : ''}
+                      </span>
+                    </div>
+                    {/* The bar is the ROTTING share, so a long bar is bad.
+                        Reading "who needs a nudge" should take one glance. */}
+                    <Meter
+                      value={pct}
+                      readout={`${pct}%`}
+                      color={pct >= 70 ? 'var(--danger)' : pct >= 40 ? 'var(--warn)' : undefined}
+                    />
+                  </div>
+                );
+              })}
+              {(data.byRepHealth || []).filter((r) => r.active > 0).length === 0 && (
+                <EmptyState compact title="No open deals in your team">Nothing to chase right now.</EmptyState>
+              )}
+            </div>
+          </Panel>
+        ) : isRep ? (
           <Panel title={`Going cold — oldest first`}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {(data.goingCold?.items || []).map((opp) => (
