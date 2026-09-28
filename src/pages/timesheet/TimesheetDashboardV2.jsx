@@ -226,6 +226,11 @@ function ContractorDashboard() {
   };
   const myId = timesheetUser?._id;
 
+  // Hooks must run on every render. This one sat BELOW the loading early-return
+  // (2026-08-17 → 2026-09-28), so the first render after loading flipped false
+  // called one more hook than the render before it -- React throws on that.
+  const { month: currentMonth, year: currentYear } = usePeriod();
+
   if (loading) return (
     <PageSkeleton>
       <HeaderSkeleton titleW="w-52" subtitleW="w-48" />
@@ -235,8 +240,6 @@ function ContractorDashboard() {
     </PageSkeleton>
   );
 
-  // Current period timesheet status (from period picker)
-  const { month: currentMonth, year: currentYear } = usePeriod();
   const currentTs = timesheets.find(ts => ts.month === currentMonth && ts.year === currentYear);
   const tsStatus = currentTs?.status || 'not-created';
   const tsStatusLabel = {

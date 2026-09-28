@@ -136,7 +136,7 @@ export default function FnFSettlement({ employeeId, employee }) {
     if (!printWindow) return;
     const s = settlement || buildPreviewData();
     if (!s) return;
-    printWindow.document.write(generatePrintHTML(s, employee));
+    printWindow.document.write(generatePrintHTML(s, employee, currentCompany));
     printWindow.document.close();
     setTimeout(() => printWindow.print(), 500);
   }
@@ -564,7 +564,10 @@ export default function FnFSettlement({ employeeId, employee }) {
 }
 
 // ── Print HTML Generator ──
-function generatePrintHTML(s, emp) {
+// `company` is passed in: this is a module-level function, so the component's
+// `currentCompany` was out of scope here and the Print action threw
+// ReferenceError on every click from 2026-08-26 until 2026-09-28.
+function generatePrintHTML(s, emp, company) {
   const fmtINR = (n) => Number(n || 0).toLocaleString('en-IN');
   const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 
@@ -610,7 +613,7 @@ function generatePrintHTML(s, emp) {
 </style></head><body>
 <div class="header">
   <h1>Full & Final Settlement Statement</h1>
-  <p>${currentCompany?.name || ''}</p>
+  <p>${company?.name || ''}</p>
   <span class="status ${s.status || 'draft'}">${(s.status || 'draft').toUpperCase()}</span>
 </div>
 
