@@ -105,7 +105,7 @@ function ContractorDashboard() {
   const [commentInputs, setCommentInputs] = useState({});
 
   // Billable internal consultants use the same ESS view as external consultants
-  const isBillableIC = timesheetUser?.employmentType === 'internal_consultant' && timesheetUser?.billable;
+  const isBillableIC = timesheetUser?.employmentType === 'internal_consultant' && (timesheetUser?.billableForTimesheet ?? timesheetUser?.billable);
   // Hide earnings for confirmed/non-billable internal/intern employees (they use payroll system)
   const ATTENDANCE_TYPES = ['confirmed', 'internal_consultant', 'intern'];
   const hideEarnings = !isBillableIC && ATTENDANCE_TYPES.includes(timesheetUser?.employmentType);
@@ -114,7 +114,7 @@ function ContractorDashboard() {
   // Leave eligibility
   const empType = timesheetUser?.employmentType;
   const isLeaveEligible = empType && empType !== 'external_consultant'
-    && !(empType === 'internal_consultant' && timesheetUser?.billable);
+    && !(empType === 'internal_consultant' && (timesheetUser?.billableForTimesheet ?? timesheetUser?.billable));
 
   // Celebrations (birthdays / anniversaries) are internal-team content —
   // hidden for consultants: external consultants (billable or not) and

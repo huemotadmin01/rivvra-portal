@@ -38,7 +38,7 @@ function isHolidayEligible(emp) {
   if (!emp) return false;
   const t = (emp.employmentType || '').toLowerCase();
   if (t === 'external_consultant') return false;
-  if (t === 'internal_consultant' && emp.billable === true) return false;
+  if (t === 'internal_consultant' && (emp.billableForTimesheet ?? emp.billable) === true) return false;
   return ['confirmed', 'intern', 'internal_consultant'].includes(t);
 }
 
@@ -46,7 +46,7 @@ function isHolidayEligible(emp) {
 function canMarkClientHoliday(emp, selectedProject) {
   if (!emp) return false;
   const t = (emp.employmentType || '').toLowerCase();
-  const isConsultant = t === 'external_consultant' || (t === 'internal_consultant' && emp.billable === true);
+  const isConsultant = t === 'external_consultant' || (t === 'internal_consultant' && (emp.billableForTimesheet ?? emp.billable) === true);
   if (!isConsultant) return false;
   const asgn = (emp.assignments || []).find(a => (a.projectId?._id || a.projectId)?.toString() === selectedProject);
   if (!asgn) return false;
@@ -84,7 +84,12 @@ export default function TimesheetEntryV2() {
   const [saving, setSaving] = useState(false);
   const [periodLocked, setPeriodLocked] = useState(false);
 
-  const isNonBillable = timesheetUser?.billable === false;
+  // billableForTimesheet is the API's per-month answer (a consultant benched after
+  // month-end is still billable for the month they can file). Raw `billable` is the
+  // fallback for older API responses. 2026-09-30: with the raw flag, a benched
+  // consultant was routed to the projectless branch and his approved July/August
+  // sheets never rendered.
+  const isNonBillable = (timesheetUser?.billableForTimesheet ?? timesheetUser?.billable) === false;
   const hasProjects = projects.length > 0;
 
   // Only offer projects whose assignment window overlaps the viewed month —
