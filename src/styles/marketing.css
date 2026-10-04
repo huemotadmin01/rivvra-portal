@@ -16,7 +16,9 @@
   --mk-ink: #101418;
   --mk-ink-2: #3A4550;
   --mk-muted: #5B6672;
-  --mk-faint: #8A94A0;
+  /* AA: >= 4.5:1 on every light ground (bg, surface, surface-2, brand-soft).
+     Was #8A94A0 (2.78–3.08:1), which failed captions and table headers. */
+  --mk-faint: #646E7A;
   --mk-line: #E6E8E3;
   --mk-line-2: #D6D9D2;
   --mk-brand: #16A34A;
@@ -24,6 +26,10 @@
   --mk-brand-soft: #EAF7EE;
   --mk-brand-line: #BFE6CB;
   --mk-brand-fg: #FFFFFF;
+  /* Primary button fill. White text needs 4.5:1, which #16A34A (3.3:1) does
+     not give, so buttons use the deeper green (5.0:1; hover 7.1:1). */
+  --mk-btn-bg: #15803D;
+  --mk-btn-bg-hover: #166534;
   --mk-warn-soft: #FDF3E3;
   --mk-warn: #B45309;
   --mk-display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
@@ -70,8 +76,12 @@
 /* Buttons */
 .mk-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 10px; font-family: var(--mk-body); font-weight: 600; font-size: 15px; line-height: 1; border: 1px solid transparent; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; white-space: nowrap; }
 .mk-btn:active { transform: translateY(1px); }
-.mk-btn--primary { background: var(--mk-brand); color: var(--mk-brand-fg); }
-.mk-btn--primary:hover { background: var(--mk-brand-hi); }
+.mk-btn--primary { background: var(--mk-btn-bg); color: var(--mk-brand-fg); }
+.mk-btn--primary:hover { background: var(--mk-btn-bg-hover); }
+/* `.mk a { color: inherit }` (0,1,1) outranks `.mk-btn--primary` (0,1,0), so a
+   primary button rendered as a link took the surrounding text colour — light
+   grey on green in the footer (1.48:1). Pin the label colour above it. */
+.mk .mk-btn--primary { color: var(--mk-brand-fg); }
 .mk-btn--secondary { background: var(--mk-surface); color: var(--mk-ink); border-color: var(--mk-line-2); }
 .mk-btn--secondary:hover { border-color: var(--mk-ink-2); }
 .mk-btn--ghost { background: transparent; color: var(--mk-ink-2); }
@@ -132,7 +142,7 @@
 
 /* Footer — the one dark block on the site. Tokens re-declared locally so
    every child reads the dark set; nothing outside .mk-footer changes. */
-.mk-footer { --mk-bg: #101418; --mk-surface: #171C22; --mk-surface-2: #1E242B; --mk-ink: #EEF2F6; --mk-ink-2: #C9D1D8; --mk-muted: #8F9AA6; --mk-faint: #6B7682; --mk-line: #242B33; --mk-line-2: #303841; --mk-brand: #22C55E; --mk-brand-hi: #4ADE80; --mk-brand-soft: #14291C; --mk-brand-line: #1F5A32; --mk-brand-fg: #06130A;
+.mk-footer { --mk-bg: #101418; --mk-surface: #171C22; --mk-surface-2: #1E242B; --mk-ink: #EEF2F6; --mk-ink-2: #C9D1D8; --mk-muted: #8F9AA6; --mk-faint: #848F9B; --mk-line: #242B33; --mk-line-2: #303841; --mk-brand: #22C55E; --mk-brand-hi: #4ADE80; --mk-brand-soft: #14291C; --mk-brand-line: #1F5A32; --mk-brand-fg: #06130A; --mk-btn-bg: #22C55E; --mk-btn-bg-hover: #4ADE80;
   background: var(--mk-bg); color: var(--mk-ink-2); border-top: 1px solid #E6E8E3; }
 .mk-footer .mk-wordmark { color: var(--mk-ink); }
 .mk-footer-flow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-family: var(--mk-display); font-weight: 700; font-size: clamp(30px, 4.6vw, 56px); letter-spacing: -0.025em; line-height: 1.05; color: var(--mk-ink); }
