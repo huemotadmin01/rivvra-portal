@@ -215,6 +215,91 @@ function SlabEditor({ slabs, onChange, rateMode = false }) {
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────
+// ── Platform PF wage ceiling schedule ───────────────────────────────────────
+// The EPFO wage ceiling changes by notification with effect from a DATE (e.g.
+// ₹15,000 → ₹25,000 w.e.f. 17-Sep-2026), so it is a dated list rather than a
+// per-FY number. Every India company follows this list unless its workspace
+// pins its own; payroll splits a month that straddles a revision.
+const CODE_DEFAULT_PF_SCHEDULE = [
+  { effectiveFrom: '2014-09-01', wageCeiling: 15000, reference: 'G.S.R. 609(E) dated 22-Aug-2014' },
+  { effectiveFrom: '2026-09-17', wageCeiling: 25000, reference: 'S.O. 5109(E) dated 17-Sep-2026' },
+];
+
+function PfCeilingScheduleSection({ onError, onSuccess }) {
+  const [rows, setRows] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getPlatformSetting('pf_wage_ceiling_schedule')
+      .then(res => {
+        const items = res?.setting?.items;
+        setIsSaved(!!items?.length);
+        setRows((items?.length ? items : CODE_DEFAULT_PF_SCHEDULE).map(r => ({ ...r, wageCeiling: String(r.wageCeiling) })));
+      })
+      .catch(() => setRows(CODE_DEFAULT_PF_SCHEDULE.map(r => ({ ...r, wageCeiling: String(r.wageCeiling) }))));
+  }, []);
+
+  const update = (i, k, v) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+
+  const save = async () => {
+    for (const [i, r] of rows.entries()) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.effectiveFrom || '')) return onError(`Row ${i + 1}: effective date is required`);
+      if (!(Number(r.wageCeiling) > 0)) return onError(`Row ${i + 1}: ceiling must be greater than 0`);
+    }
+    try {
+      setSaving(true);
+      await updatePlatformSetting('pf_wage_ceiling_schedule', {
+        items: rows.map(r => ({ effectiveFrom: r.effectiveFrom, wageCeiling: Number(r.wageCeiling), ...(r.reference ? { reference: r.reference } : {}) })),
+      });
+      setIsSaved(true);
+      onSuccess('PF wage ceiling schedule saved — applies to every workspace without its own');
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Section title="PF Wage Ceiling Schedule" icon={<Shield size={18} />} badge={isSaved ? null : 'Built-in default'}>
+      {!rows ? <Loader2 size={18} className="animate-spin" /> : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p style={metaStyle}>
+            Effective-dated EPFO wage ceiling (caps EPF wages for capped members, the EPS pensionable wage and the EDLI wage).
+            Every India company follows this list unless its workspace pins its own under Settings → Payroll → PF &amp; CTC.
+            Add a row when a new notification is issued — runs split any month that straddles the date.
+          </p>
+          {rows.map((r, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div>
+                <label style={labelStyle}>Effective from</label>
+                <Input type="date" value={r.effectiveFrom} onChange={e => update(i, 'effectiveFrom', e.target.value)}
+                  aria-label={`Row ${i + 1} effective date`} style={{ height: 32, width: 160 }} />
+              </div>
+              <NumField label="Ceiling (₹ / month)" min="1" step="1" width={150} value={r.wageCeiling}
+                onChange={e => update(i, 'wageCeiling', e.target.value)} />
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <label style={labelStyle}>Notification / reference</label>
+                <Input value={r.reference || ''} onChange={e => update(i, 'reference', e.target.value)}
+                  aria-label={`Row ${i + 1} reference`} style={{ height: 32 }} />
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}
+                disabled={rows.length <= 1} aria-label={`Remove row ${i + 1}`} iconLeft={<Trash2 size={14} />} />
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" size="sm" onClick={() => setRows(rs => [...rs, { effectiveFrom: '', wageCeiling: '', reference: '' }])}
+              iconLeft={<Plus size={14} />}>Add revision</Button>
+            <Button size="sm" onClick={save} disabled={saving}
+              iconLeft={saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}>Save schedule</Button>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function AdminPayrollSettingsPageV2() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -333,9 +418,27 @@ function AdminPayrollSettingsPageV2() {
     try {
       setSaving(true);
       setError('');
-      const { _id, financialYear, createdAt, updatedAt, updatedBy, copiedFrom, ...data } = fyConfig;
+      const { _id, financialYear, createdAt, updatedAt, updatedBy, copiedFrom, needsReview: _needsReview, autoRolledOver: _autoRolledOver, ...data } = fyConfig;
       await updateFYConfig(selectedFy, data);
+      // Saving is the review of an auto-rolled FY (the API clears the flag).
+      setFyConfig(c => (c ? { ...c, needsReview: false } : c));
+      setFyList(list => list.map(c => (c.financialYear === selectedFy ? { ...c, needsReview: false } : c)));
       showSuccess('FY config saved successfully');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const markFyReviewed = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      await updateFYConfig(selectedFy, { markReviewed: true });
+      setFyConfig(c => (c ? { ...c, needsReview: false } : c));
+      setFyList(list => list.map(c => (c.financialYear === selectedFy ? { ...c, needsReview: false } : c)));
+      showSuccess(`FY ${selectedFy} marked as reviewed`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -498,7 +601,9 @@ function AdminPayrollSettingsPageV2() {
               >
                 {fyList.length === 0 && <option value="2025-26">2025-26 (not seeded)</option>}
                 {fyList.map(c => (
-                  <option key={c.financialYear} value={c.financialYear}>{c.financialYear}</option>
+                  <option key={c.financialYear} value={c.financialYear}>
+                    {c.financialYear}{c.needsReview ? ' — needs review' : ''}
+                  </option>
                 ))}
               </Select>
 
@@ -519,6 +624,20 @@ function AdminPayrollSettingsPageV2() {
                 </Button>
               </div>
             </div>
+
+            {fyConfig?.needsReview && (
+              <Callout tone="warn" icon={<AlertCircle size={16} />}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{ flex: 1, minWidth: 240 }}>
+                    FY {selectedFy} was created automatically by copying FY {fyConfig.copiedFrom}. Check the tax slabs,
+                    rebates and rates against the Budget, then save — or confirm it as-is.
+                  </span>
+                  <Button size="sm" variant="secondary" onClick={markFyReviewed} disabled={saving} iconLeft={<ClipboardCheck size={14} />}>
+                    Confirm as reviewed
+                  </Button>
+                </span>
+              </Callout>
+            )}
 
             {fyConfig ? (
               <>
@@ -631,6 +750,9 @@ function AdminPayrollSettingsPageV2() {
             )}
           </div>
         </Section>
+
+        {/* ── PF Wage Ceiling Schedule (platform-wide, effective-dated) ─── */}
+        <PfCeilingScheduleSection onError={setError} onSuccess={showSuccess} />
 
         {/* ── PT Master ──────────────────────────────────────────────────── */}
         <Section title="Professional Tax (PT) Master" icon={<MapPin size={18} />} badge={`${ptStates.length} states`}>
