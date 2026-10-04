@@ -13,6 +13,7 @@ const SalaryStructuresPageV2 = lazy(() => import('../../pages/payroll/SalaryStru
 const StatutoryConfigPageV2 = lazy(() => import('../../pages/payroll/StatutoryConfigPageV2'));
 const PTMasterPageV2 = lazy(() => import('../../pages/payroll/PTMasterPageV2'));
 const PayrollSettingsPageV2 = lazy(() => import('../../pages/payroll/PayrollSettingsPageV2'));
+const PfWageCeilingTab = lazy(() => import('./PfWageCeilingTab'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The payroll settings hub. Four of its seven tabs were migrated in earlier
@@ -48,6 +49,7 @@ const TABS = [
   { id: 'structures', label: 'Salary Structures' },
   { id: 'structure-mapping', label: 'Structure Mapping' },
   { id: 'statutory', label: 'Statutory Config' },
+  { id: 'pf-ceiling', label: 'PF Wage Ceiling' },
   { id: 'pt', label: 'PT Master' },
   { id: 'fy', label: 'FY Rates', superAdminOnly: true },
 ];
@@ -843,6 +845,7 @@ export default function SettingsPayrollV2() {
         {activeTab === 'structures' && <SalaryStructuresPageV2 embedded />}
         {activeTab === 'structure-mapping' && <StructureMappingTab />}
         {activeTab === 'statutory' && <StatutoryConfigPageV2 embedded />}
+        {activeTab === 'pf-ceiling' && <PfWageCeilingTab />}
         {activeTab === 'pt' && <PTMasterPageV2 embedded />}
         {activeTab === 'fy' && isSuperAdmin && <PayrollSettingsPageV2 embedded />}
       </Suspense>

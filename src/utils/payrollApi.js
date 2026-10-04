@@ -442,6 +442,17 @@ export function updateOrgFYOverrides(orgSlug, fy, data) {
   return request('PUT', `${orgUrl(orgSlug)}/settings/fy-overrides/${fy}`, { body: data });
 }
 
+// Org-Level PF Wage Ceiling Schedule (effective-dated EPFO wage ceiling)
+export function getPfWageCeiling(orgSlug) {
+  return request('GET', `${orgUrl(orgSlug)}/settings/pf-wage-ceiling`);
+}
+export function updatePfWageCeiling(orgSlug, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/settings/pf-wage-ceiling`, { body: data });
+}
+export function getPfWageCeilingImpact(orgSlug, effectiveFrom) {
+  return request('GET', `${orgUrl(orgSlug)}/settings/pf-wage-ceiling/impact`, { params: effectiveFrom ? { effectiveFrom } : undefined });
+}
+
 // Org-Level TDS Config
 export function getOrgTdsConfig(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/settings/tds-config`);
