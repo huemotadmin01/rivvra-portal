@@ -5,7 +5,7 @@ import { usePlatform } from '../../../context/PlatformContext';
 import { useTimesheetContext } from '../../../context/TimesheetContext';
 import { useOrg } from '../../../context/OrgContext';
 import { useCompany } from '../../../context/CompanyContext';
-import { stripOrgPrefix, getActiveApps, resolveDefaultRoute } from '../../../config/apps';
+import { stripOrgPrefix, getActiveApps, resolveDefaultRoute, isAppAvailableForCompany } from '../../../config/apps';
 import { BrandMark, BRAND_MARK_IDS } from '../../ds';
 import { ChevronDown, PanelLeftClose, LayoutGrid, LogOut } from 'lucide-react';
 import DocumentsFolderNav from '../DocumentsFolderNav';
@@ -33,9 +33,10 @@ function AppSwitcher({ appId, onClose }) {
   const { user } = useAuth();
   const { orgPath } = usePlatform();
   const { membership, hasAppAccess } = useOrg();
+  const { currentCompany } = useCompany();
 
   const apps = getActiveApps(user, membership).filter(
-    (a) => a.id === 'settings' || hasAppAccess(a.id)
+    (a) => a.id === 'settings' || (hasAppAccess(a.id) && isAppAvailableForCompany(a, currentCompany))
   );
 
   const pick = (app) => {

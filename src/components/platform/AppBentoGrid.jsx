@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { getAllApps } from '../../config/apps';
+import { getAllApps, isAppAvailableForCompany } from '../../config/apps';
+import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
 import { useExtensionDetector } from '../../hooks/useExtensionDetector';
@@ -19,14 +20,17 @@ function AppBentoGrid({ query = '' }) {
   const { user } = useAuth();
   const { hasAppAccess, currentOrg, loading, membership } = useOrg();
   const { installed: extInstalled } = useExtensionDetector();
+  const { currentCompany } = useCompany();
   const apps = getAllApps(user, membership);
 
   const visibleApps = useMemo(() => apps.filter((app) => {
     if (app.status === 'coming_soon') return false;
     if (app.id === 'settings') return true;
+    // Country-specific apps (Payroll: India) only for a company they support.
+    if (!isAppAvailableForCompany(app, currentCompany)) return false;
     if (!currentOrg) return true;
     return hasAppAccess(app.id);
-  }), [apps, hasAppAccess, currentOrg]);
+  }), [apps, hasAppAccess, currentOrg, currentCompany]);
 
   const filteredApps = useMemo(() => {
     const q = query.trim().toLowerCase();
