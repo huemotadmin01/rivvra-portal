@@ -267,6 +267,14 @@ export default function PfWageCeilingTab() {
                 ['PF applies from', r => fmtDate(r.pfEffectiveFrom)],
               ]}
             />
+            <ImpactTable
+              title={`Must join EPS — EPF-only members with PF wage within ${inr(impact.revision.toCeiling)} (${(impact.epsJoiners || []).length})`}
+              hint={`In Statutory Config, tick "Member of the Employees' Pension Scheme" and set "EPS member from" to ${fmtDate(impact.revision.effectiveFrom)}.`}
+              rows={impact.epsJoiners || []}
+              cols={[
+                ['PF wage', r => inr(r.pfWage)],
+              ]}
+            />
           </div>
         )}
       </Panel>

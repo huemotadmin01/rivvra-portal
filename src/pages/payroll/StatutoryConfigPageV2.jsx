@@ -147,6 +147,9 @@ export default function StatutoryConfigPageV2({ embedded = false }) {
       pfCappedAt15K: s.pfCappedAt15K ?? sal.pfCappedAt15K ?? true,
       // PF coverage start (YYYY-MM-DD). '' = covered for the whole month.
       pfEffectiveFrom: s.pfEffectiveFrom || '',
+      // EPS (pension) membership: absent means member, as payroll assumes.
+      epsMember: s.epsMember !== false,
+      epsEffectiveFrom: s.epsEffectiveFrom || '',
       // `?? true` mirrors the calculator's `esiEnabled !== false`: an absent
       // flag means enabled, and the ₹21,000 wage ceiling decides eligibility at
       // run time. `|| false` showed unticked for an employee the run would
@@ -412,6 +415,26 @@ export default function StatutoryConfigPageV2({ embedded = false }) {
                   For an employee newly brought under PF mid-month — e.g. excluded until now and covered by the ₹25,000 ceiling from 17-Sep-2026. Days before this date carry no PF in that month. Leave blank if PF applies for the whole month.
                 </span>
               </label>
+              <CheckRow
+                checked={form.epsMember}
+                onChange={e => setForm(f => ({ ...f, epsMember: e.target.checked }))}
+                title="Member of the Employees' Pension Scheme (EPS)"
+                help="Most PF members are. Untick for someone whose PF wages were above the statutory ceiling when they first joined PF (EPF-only member): the employer's whole 12% then goes to EPF instead of 8.33% to EPS. Employee PF and the employer total are unchanged."
+              />
+              {form.epsMember && (
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span style={{ font: "500 12.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>EPS member from (optional)</span>
+                  <Input
+                    type="date"
+                    value={form.epsEffectiveFrom}
+                    onChange={e => setForm(f => ({ ...f, epsEffectiveFrom: e.target.value }))}
+                    style={{ width: 180 }}
+                  />
+                  <span style={{ font: "400 11px/1.45 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+                    For an EPF-only member who joins EPS mid-month — e.g. wages within ₹25,000 from 17-Sep-2026 (EPFO FAQ Q9). Before this date the employer's 12% goes wholly to EPF. Leave blank if they have always been in EPS.
+                  </span>
+                </label>
+              )}
             </div>
 
             {/* ESI */}
