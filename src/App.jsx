@@ -535,7 +535,10 @@ function App() {
                 <Route path="/org/:slug/settings/users" element={<SettingsPageWrapper><SettingsTeamV2 /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><SettingsOutreachV2 /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheetV2 /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/payroll" element={<SettingsPageWrapper><SettingsPayrollV2 /></SettingsPageWrapper>} />
+                {/* India-only statutory config — same country gate as the payroll app */}
+                <Route element={<CountryGate allowed={['IN']} appName="Payroll" />}>
+                  <Route path="/org/:slug/settings/payroll" element={<SettingsPageWrapper><SettingsPayrollV2 /></SettingsPageWrapper>} />
+                </Route>
                 <Route path="/org/:slug/settings/employee" element={<SettingsPageWrapper><SettingsEmployeeV2 /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/policies" element={<SettingsPageWrapper><SettingsPoliciesV2 /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/email-logs" element={<SettingsPageWrapper><SettingsEmailLogsV2 /></SettingsPageWrapper>} />

@@ -45,6 +45,22 @@ function isIndiaCompanyForNav(currentCompany) {
   return norm(currentCompany.currency) === 'inr';
 }
 
+/**
+ * Whether an app should be offered while `company` is the active company.
+ * Apps declare `countries: [...]` when their logic only exists for some
+ * countries (Payroll: India). Navigation hides them for other companies; the
+ * routes stay behind CountryGate and the API refuses non-India writes, so this
+ * only removes a dead end from the launcher, switcher and settings menu.
+ *
+ * No company → available, matching isIndiaCompanyForNav (single-company orgs
+ * and callers without company context keep seeing everything).
+ */
+export function isAppAvailableForCompany(app, company) {
+  if (!app?.countries?.length || !company) return true;
+  // India is the only per-country implementation today.
+  return app.countries.includes('IN') && isIndiaCompanyForNav(company);
+}
+
 export const APP_REGISTRY = {
   outreach: {
     id: 'outreach',
@@ -248,6 +264,8 @@ export const APP_REGISTRY = {
     basePath: '/payroll',
     status: 'active',
     adminOnly: true,
+    // India-only (PF/ESI/PT/TDS). Hidden from navigation for other companies.
+    countries: ['IN'],
     defaultRoute: '/payroll/pay-overview',
     derivedRoles: true,
     getSidebarItems: (user, _timesheetUser, _orgAppRole, currentCompany) => {
@@ -709,9 +727,11 @@ export const APP_REGISTRY = {
     status: 'active',
     adminOnly: true,
     defaultRoute: '/settings/general',
-    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+    getSidebarItems: (user, timesheetUser, orgAppRole, currentCompany) => {
       // Settings admin items: only org-level admin role (no legacy user.role fallback)
       const isAdmin = orgAppRole === 'admin';
+      // Payroll settings are India statutory config — hide for other companies.
+      const showPayroll = isAdmin && isAppAvailableForCompany(APP_REGISTRY.payroll, currentCompany);
       return [
         { type: 'item', path: '/settings/general', label: 'General Settings', icon: Settings },
         ...(isAdmin ? [{ type: 'item', path: '/upgrade', label: 'Billing & Plan', icon: CreditCard }] : []),
@@ -720,7 +740,7 @@ export const APP_REGISTRY = {
         ...(isAdmin ? [{ type: 'item', path: '/settings/email-logs', label: 'Email Logs', icon: Inbox }] : []),
         { type: 'item', path: '/settings/outreach', label: 'Outreach', icon: Mail },
         { type: 'item', path: '/settings/timesheet', label: 'ESS', icon: Clock },
-        ...(isAdmin ? [{ type: 'item', path: '/settings/payroll', label: 'Payroll', icon: Wallet }] : []),
+        ...(showPayroll ? [{ type: 'item', path: '/settings/payroll', label: 'Payroll', icon: Wallet }] : []),
         { type: 'item', path: '/settings/employee', label: 'Employee', icon: UsersRound },
         ...(isAdmin ? [{ type: 'item', path: '/settings/policies', label: 'Company Policies', icon: Shield }] : []),
         { type: 'item', path: '/settings/contacts', label: 'Contacts', icon: Contact },
