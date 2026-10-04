@@ -1326,6 +1326,8 @@ export default function PayrollRunPageV2() {
                                     {item.employerEsi > 0 && (item.employerContribInCtc
                                       ? <KV small label="Employer ESI (in CTC, not deducted)" value={formatMoney(item.employerEsi)} />
                                       : <KV label="Employer ESI" value={formatMoney(item.employerEsi)} valueColor={INK.deduct} />)}
+                                    {item.pfArrears?.employeePf > 0 && <KV label={`PF Arrears (${['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][item.pfArrears.forMonth]} ${item.pfArrears.forYear})`} value={formatMoney(item.pfArrears.employeePf)} valueColor={INK.deduct} />}
+                                    {item.pfArrears?.employerPf > 0 && <KV small label="Employer PF arrears (company cost)" value={formatMoney(item.pfArrears.employerPf)} />}
                                     {item.professionalTax > 0 && <KV label="Professional Tax" value={formatMoney(item.professionalTax)} valueColor={INK.deduct} />}
                                     {item.tds > 0 && <KV label="TDS (Income Tax)" value={formatMoney(item.tds)} valueColor={INK.deduct} />}
 

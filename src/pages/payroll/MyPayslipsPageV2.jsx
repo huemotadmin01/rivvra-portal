@@ -19,6 +19,8 @@ import { useToast } from '../../context/ToastContext';
 import { FileText, ChevronDown, ChevronUp, Download, CheckSquare, Square, Package } from 'lucide-react';
 import { PageHeader } from '../../components/ds';
 
+const MONTH_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_FULL = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -268,6 +270,14 @@ export default function MyPayslipsPageV2() {
                               <tr className="border-b border-dark-700/30">
                                 <td className="py-1.5 text-dark-300">ESI</td>
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.employeeEsi)}</td>
+                              </tr>
+                            )}
+                            {p.pfArrears?.employeePf > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300" title="Extra PF for the previous month under the revised EPFO wage ceiling">
+                                  PF Arrears ({MONTH_SHORT[p.pfArrears.forMonth]} {p.pfArrears.forYear})
+                                </td>
+                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.pfArrears.employeePf)}</td>
                               </tr>
                             )}
                             {p.professionalTax > 0 && (
