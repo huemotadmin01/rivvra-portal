@@ -285,8 +285,12 @@ export default function PfWageCeilingTab() {
 function EmployerContribPanel() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [from, setFrom] = useState('');
   const [saved, setSaved] = useState('');
+  // This is per-company policy: saved on the active company, otherwise
+  // inherited from the workspace default.
+  const [ownValue, setOwnValue] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -296,7 +300,8 @@ function EmployerContribPanel() {
       try {
         const res = await getPayrollSettings(orgSlug);
         const v = res?.settings?.employerContribInCtcFrom || '';
-        if (alive) { setFrom(v); setSaved(v); }
+        const own = (res?.settings?.companyOverrides || []).includes('employerContribInCtcFrom');
+        if (alive) { setFrom(v); setSaved(v); setOwnValue(own); }
       } catch {
         if (alive) showToast('Failed to load payroll settings', 'error');
       } finally {
@@ -305,13 +310,13 @@ function EmployerContribPanel() {
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   const save = async (value) => {
     setSaving(true);
     try {
       await updatePayrollSettings(orgSlug, { employerContribInCtcFrom: value || null });
-      setFrom(value); setSaved(value);
+      setFrom(value); setSaved(value); setOwnValue(true);
       showToast(value ? `Employer PF/ESI shown inside CTC from ${monthLabel(value)}` : 'Switched back to the current payslip format', 'success');
     } catch (e) {
       showToast(e?.response?.data?.message || 'Failed to save', 'error');
@@ -331,6 +336,11 @@ function EmployerContribPanel() {
           <Chip tone={enabled ? 'brand' : 'neutral'}>
             {enabled ? `Included in CTC from ${monthLabel(saved)}` : 'Deducted from gross'}
           </Chip>
+          <span style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+            {ownValue
+              ? `Set for ${currentCompany?.name || 'this company'}`
+              : 'Inherited from the workspace default'}
+          </span>
         </div>
         <ExampleTable />
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>

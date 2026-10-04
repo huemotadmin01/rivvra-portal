@@ -698,6 +698,8 @@ function StructureMappingTab() {
         Map each employment type to a default salary structure. When an employee has a CTC but no salary record,
         the system will auto-create one using the mapped structure (or the org default structure as fallback).
         TDS% is the flat TDS rate applied during payroll processing for consultant/intern types.
+        The structure mapping is saved for <strong>{currentCompany?.name || 'the active company'}</strong>; TDS rates
+        apply to the whole workspace.
       </Callout>
 
       <Panel flush title="Employment Type → Salary Structure & TDS Rate">
