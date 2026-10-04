@@ -276,13 +276,16 @@ export default function MyPayslipsPageV2() {
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.professionalTax)}</td>
                               </tr>
                             )}
-                            {p.employerPf > 0 && (
+                            {/* Employer PF/ESI are deductions only on legacy
+                                payslips; CTC-inclusive ones list them under
+                                Employer Contributions below. */}
+                            {p.employerPf > 0 && !p.employerContribInCtc && (
                               <tr className="border-b border-dark-700/30">
                                 <td className="py-1.5 text-dark-300">Employer PF</td>
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerPf)}</td>
                               </tr>
                             )}
-                            {p.employerEsi > 0 && (
+                            {p.employerEsi > 0 && !p.employerContribInCtc && (
                               <tr className="border-b border-dark-700/30">
                                 <td className="py-1.5 text-dark-300">Employer ESI</td>
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerEsi)}</td>
@@ -320,7 +323,9 @@ export default function MyPayslipsPageV2() {
                           </div>
                           {(p.employerPf > 0 || p.employerEsi > 0) && (
                             <div className="border-t border-dark-700 pt-3 space-y-1">
-                              <div className="text-xs text-dark-500 mb-1">Employer Contributions</div>
+                              <div className="text-xs text-dark-500 mb-1">
+                                {p.employerContribInCtc ? 'Employer Contributions (part of CTC, not deducted)' : 'Employer Contributions'}
+                              </div>
                               {p.employerPf > 0 && <div className="flex justify-between text-xs"><span className="text-dark-400">EPF</span><span className="text-dark-300">₹{fmt(p.employerPf)}</span></div>}
                               {p.employerEsi > 0 && <div className="flex justify-between text-xs"><span className="text-dark-400">ESI</span><span className="text-dark-300">₹{fmt(p.employerEsi)}</span></div>}
                             </div>

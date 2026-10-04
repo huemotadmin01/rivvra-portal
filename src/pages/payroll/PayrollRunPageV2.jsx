@@ -1319,9 +1319,13 @@ export default function PayrollRunPageV2() {
                                     {/* Deductions */}
                                     <Legend style={{ borderTop: '1px solid var(--line-2)', paddingTop: 8, marginTop: 4 }}>Deductions</Legend>
                                     {item.employeePf > 0 && <KV label="Employee PF" value={formatMoney(item.employeePf)} valueColor={INK.deduct} />}
-                                    {item.employerPf > 0 && <KV label="Employer PF" value={formatMoney(item.employerPf)} valueColor={INK.deduct} />}
+                                    {item.employerPf > 0 && (item.employerContribInCtc
+                                      ? <KV small label="Employer PF (in CTC, not deducted)" value={formatMoney(item.employerPf)} />
+                                      : <KV label="Employer PF" value={formatMoney(item.employerPf)} valueColor={INK.deduct} />)}
                                     {item.employeeEsi > 0 && <KV label="Employee ESI" value={formatMoney(item.employeeEsi)} valueColor={INK.deduct} />}
-                                    {item.employerEsi > 0 && <KV label="Employer ESI" value={formatMoney(item.employerEsi)} valueColor={INK.deduct} />}
+                                    {item.employerEsi > 0 && (item.employerContribInCtc
+                                      ? <KV small label="Employer ESI (in CTC, not deducted)" value={formatMoney(item.employerEsi)} />
+                                      : <KV label="Employer ESI" value={formatMoney(item.employerEsi)} valueColor={INK.deduct} />)}
                                     {item.professionalTax > 0 && <KV label="Professional Tax" value={formatMoney(item.professionalTax)} valueColor={INK.deduct} />}
                                     {item.tds > 0 && <KV label="TDS (Income Tax)" value={formatMoney(item.tds)} valueColor={INK.deduct} />}
 

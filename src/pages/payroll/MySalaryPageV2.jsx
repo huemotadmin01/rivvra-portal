@@ -94,7 +94,11 @@ export default function MySalaryPageV2() {
   // For consultants: simple calculation (no PF/ESI)
   // For statutory: full PF/ESI calculation
   const basic = salary.components?.find(c => c.name === 'Basic');
-  const pfBase = salary.pfCappedAt15K ? Math.min(basic?.amount || 0, 15000) : (basic?.amount || 0);
+  // Ceiling in force this month (₹25,000 from 17-Sep-2026), sent by the API.
+  const pfCeiling = salary.pfWageCeiling || 15000;
+  const pfBase = salary.pfCappedAt15K ? Math.min(basic?.amount || 0, pfCeiling) : (basic?.amount || 0);
+  // CTC-inclusive orgs show employer PF/ESI as employer cost, not deductions.
+  const employerInCtc = salary.employerContribInCtc === true;
   const employeePf = !isConsultant && salary.pfApplicable ? Math.round(pfBase * 0.12) : 0;
   const employerPf = !isConsultant && salary.pfApplicable ? Math.round(pfBase * 0.12) : 0;
   const employeeEsi = !isConsultant && salary.esiApplicable ? Math.round(salary.grossMonthly * 0.0075) : 0;
@@ -107,8 +111,10 @@ export default function MySalaryPageV2() {
   const ptEnabled = statutory?.ptEnabled !== false;
   const estimatedPt = (!isConsultant && ptEnabled) ? (salary.grossMonthly > 25000 ? 208 : salary.grossMonthly > 18750 ? 150 : salary.grossMonthly > 12500 ? 125 : 0) : 0;
 
-  // Total deductions = employee PF + employer PF + employee ESI + employer ESI + PT (excl. TDS)
-  const totalDeductions = employeePf + employerPf + employeeEsi + employerEsi + estimatedPt + estimatedTds;
+  // Total deductions = employee PF + employee ESI + PT (excl. TDS), plus the
+  // employer's PF + ESI unless they are shown inside CTC instead.
+  const totalDeductions = employeePf + employeeEsi + estimatedPt + estimatedTds
+    + (employerInCtc ? 0 : employerPf + employerEsi);
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   if (isConsultant) {
@@ -186,10 +192,12 @@ export default function MySalaryPageV2() {
                         <td className="py-2.5 text-dark-300">EPF — Employee (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
                         <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
                       </tr>
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
-                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerPf)}</td>
-                      </tr>
+                      {!employerInCtc && (
+                        <tr className="border-b border-dark-700/50">
+                          <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                          <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerPf)}</td>
+                        </tr>
+                      )}
                     </>
                   )}
                   {salary.esiApplicable && (
@@ -198,10 +206,12 @@ export default function MySalaryPageV2() {
                         <td className="py-2.5 text-dark-300">ESI — Employee (0.75%)</td>
                         <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
                       </tr>
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
-                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerEsi)}</td>
-                      </tr>
+                      {!employerInCtc && (
+                        <tr className="border-b border-dark-700/50">
+                          <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
+                          <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerEsi)}</td>
+                        </tr>
+                      )}
                     </>
                   )}
                   {estimatedPt > 0 && (
@@ -221,6 +231,35 @@ export default function MySalaryPageV2() {
               </table>
             </div>
           </div>
+
+          {employerInCtc && (employerPf > 0 || employerEsi > 0) && (
+            <div className="bg-dark-800 rounded-xl border border-dark-700">
+              <div className="px-5 py-4 border-b border-dark-700">
+                <h2 className="text-sm font-semibold text-white">Employer Contributions (part of CTC)</h2>
+              </div>
+              <div className="p-5">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {employerPf > 0 && (
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-right text-white font-medium">₹{fmt(employerPf)}</td>
+                      </tr>
+                    )}
+                    {employerEsi > 0 && (
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
+                        <td className="py-2.5 text-right text-white font-medium">₹{fmt(employerEsi)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="py-2.5 text-dark-400 text-xs" colSpan={2}>Paid by the company on top of your gross salary — not deducted from it.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

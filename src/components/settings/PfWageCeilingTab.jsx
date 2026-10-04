@@ -3,8 +3,8 @@ import { Loader2, Save, Plus, Trash2, AlertCircle, RotateCcw, Users } from 'luci
 import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
-import { getPfWageCeiling, updatePfWageCeiling, getPfWageCeilingImpact } from '../../utils/payrollApi';
-import { Panel, Chip, Button, Input, Callout, EmptyState } from '../ds';
+import { getPfWageCeiling, updatePfWageCeiling, getPfWageCeilingImpact, getPayrollSettings, updatePayrollSettings } from '../../utils/payrollApi';
+import { Panel, Chip, Button, Input, Select, Callout, EmptyState } from '../ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PF Wage Ceiling — the effective-dated EPFO statutory wage ceiling.
@@ -270,8 +270,138 @@ export default function PfWageCeilingTab() {
           </div>
         )}
       </Panel>
+
+      <EmployerContribPanel />
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Employer PF & ESI inside CTC. Off: Gross = CTC/12 and the employer's PF/ESI
+// are listed as deductions (legacy). On from a month: they are shown as
+// employer cost within CTC, Gross = CTC/12 − employer PF − employer ESI, and
+// only the employee's own share is deducted. Take-home is unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+function EmployerContribPanel() {
+  const { orgSlug } = usePlatform();
+  const { showToast } = useToast();
+  const [from, setFrom] = useState('');
+  const [saved, setSaved] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getPayrollSettings(orgSlug);
+        const v = res?.settings?.employerContribInCtcFrom || '';
+        if (alive) { setFrom(v); setSaved(v); }
+      } catch {
+        if (alive) showToast('Failed to load payroll settings', 'error');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug]);
+
+  const save = async (value) => {
+    setSaving(true);
+    try {
+      await updatePayrollSettings(orgSlug, { employerContribInCtcFrom: value || null });
+      setFrom(value); setSaved(value);
+      showToast(value ? `Employer PF/ESI shown inside CTC from ${monthLabel(value)}` : 'Switched back to the current payslip format', 'success');
+    } catch (e) {
+      showToast(e?.response?.data?.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+  const enabled = !!saved;
+
+  return (
+    <Panel title="Employer PF & ESI on payslips">
+      <div style={{ display: 'grid', gap: 12, padding: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ font: "500 12.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>Current format</span>
+          <Chip tone={enabled ? 'brand' : 'neutral'}>
+            {enabled ? `Included in CTC from ${monthLabel(saved)}` : 'Deducted from gross'}
+          </Chip>
+        </div>
+        <ExampleTable />
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={{ font: "500 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>Use “included in CTC” from wage month</span>
+            <Select value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Effective wage month" style={{ width: 200 }}>
+              <option value="">— Not enabled —</option>
+              {monthOptions(saved).map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </Select>
+          </label>
+          <Button onClick={() => save(from)} disabled={saving || from === saved}
+            iconLeft={saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}>
+            Save
+          </Button>
+        </div>
+        <Callout tone="warn" icon={<AlertCircle size={16} />}>
+          Pick the first month that has <strong>not</strong> been processed and paid yet. Earlier months keep their
+          payslips as issued. Gross on the payslip becomes CTC minus the employer’s PF and ESI, so it will look lower,
+          but take-home and company cost stay the same. A lower gross can bring a few employees under the ₹21,000
+          ESI limit.
+        </Callout>
+      </div>
+    </Panel>
+  );
+}
+
+function ExampleTable() {
+  const row = (label, a, b, opts = {}) => (
+    <tr style={{ borderTop: '1px solid var(--line-2)' }}>
+      <td style={{ ...td, fontWeight: opts.bold ? 600 : 400 }}>{label}</td>
+      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{a}</td>
+      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{b}</td>
+    </tr>
+  );
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ ...th, textAlign: 'left' }}>Example: CTC ₹2,50,000 / month</th>
+            <th style={{ ...th, textAlign: 'right' }}>Deducted from gross</th>
+            <th style={{ ...th, textAlign: 'right' }}>Included in CTC</th>
+          </tr>
+        </thead>
+        <tbody>
+          {row('Gross on payslip', '₹2,50,000', '₹2,47,000')}
+          {row('Employee PF (deduction)', '₹3,000', '₹3,000')}
+          {row('Employer PF', '₹3,000 deduction', '₹3,000 company cost')}
+          {row('Take-home before PT/TDS', '₹2,44,000', '₹2,44,000', { bold: true })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function monthLabel(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-').map(Number);
+  return `${MONTHS_SHORT[m - 1]} ${y}`;
+}
+// Previous month through the next 12, plus the saved value if it is older.
+function monthOptions(saved) {
+  const now = new Date(Date.now() + 330 * 60000);
+  const out = [];
+  for (let i = -1; i <= 12; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
+    out.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+  }
+  if (saved && !out.includes(saved)) out.unshift(saved);
+  return out;
 }
 
 function ImpactTable({ title, hint, rows, cols }) {

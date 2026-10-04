@@ -49,7 +49,7 @@ const TABS = [
   { id: 'structures', label: 'Salary Structures' },
   { id: 'structure-mapping', label: 'Structure Mapping' },
   { id: 'statutory', label: 'Statutory Config' },
-  { id: 'pf-ceiling', label: 'PF Wage Ceiling' },
+  { id: 'pf-ceiling', label: 'PF & CTC' },
   { id: 'pt', label: 'PT Master' },
   { id: 'fy', label: 'FY Rates', superAdminOnly: true },
 ];
