@@ -456,9 +456,9 @@ export default function PayrollSettingsPageV2({ embedded = false }) {
               <GroupLabel>Employer side (adds to cost to company)</GroupLabel>
               <ConfigField label="Employer share to EPF" hint="Employer's provident-fund portion" value={config.pfEmployerEpfRate} onChange={(v) => update('pfEmployerEpfRate', v)} percent step="0.01" suffix="% of PF wages" />
               <ConfigField label="Employer share to EPS (pension)" hint="Employees' Pension Scheme portion of the employer contribution" value={config.pfEmployerEpsRate} onChange={(v) => update('pfEmployerEpsRate', v)} percent step="0.01" suffix="% of PF wages" />
-              <ConfigField label="EPS wage ceiling" hint="Pension contribution is capped at this monthly wage" value={config.pfEpsWageCeiling} onChange={(v) => update('pfEpsWageCeiling', v)} suffix="₹ / month" />
+              <ConfigField label="EPS wage ceiling" hint="Legacy fallback — payroll runs now use the dated schedule in Payroll Settings → PF Wage Ceiling" value={config.pfEpsWageCeiling} onChange={(v) => update('pfEpsWageCeiling', v)} suffix="₹ / month" />
               <ConfigField label="EDLI rate (life insurance)" hint="Employees' Deposit Linked Insurance, paid by the employer" value={config.pfEdliRate} onChange={(v) => update('pfEdliRate', v)} percent step="0.01" suffix="% of PF wages" />
-              <ConfigField label="EDLI wage ceiling" hint="EDLI contribution is capped at this monthly wage" value={config.pfEdliCeiling} onChange={(v) => update('pfEdliCeiling', v)} suffix="₹ / month" />
+              <ConfigField label="EDLI wage ceiling" hint="Legacy fallback — payroll runs now use the dated schedule in Payroll Settings → PF Wage Ceiling" value={config.pfEdliCeiling} onChange={(v) => update('pfEdliCeiling', v)} suffix="₹ / month" />
               <ConfigField label="EPFO admin charges" hint="Administration fee the employer pays to EPFO" value={config.pfAdminRate} onChange={(v) => update('pfAdminRate', v)} percent step="0.01" suffix="% of PF wages" />
             </div>
           </Accordion>
