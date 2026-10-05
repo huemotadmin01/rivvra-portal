@@ -26,7 +26,7 @@ import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   X, FileText, IndianRupee, EyeOff, Banknote, FileSpreadsheet,
   AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp, PauseCircle, Send, Loader2, CalendarX,
-  Search, ArrowUp, ArrowDown, Info,
+  Search, ArrowUp, ArrowDown, Info, UserMinus,
 } from 'lucide-react';
 import {
   PageHeader, Panel, Chip, Button, Input, Select, Modal, EmptyState, PageSpinner, Callout,
@@ -797,6 +797,33 @@ export default function PayrollRunPageV2() {
             </p>
           </Callout>
         ))}
+
+        {/* PF exits (server-computed from LWD). The ECR file has no exit
+            field — EPFO learns of an exit only when the PF admin files Date
+            of Exit on the employer portal — so the run page says who left
+            this month and with which UAN, instead of relying on word of mouth. */}
+        {(run?.pfExits || []).length > 0 && (
+          <Callout
+            tone="info"
+            icon={<UserMinus size={15} />}
+            title={`${run.pfExits.length} PF member${run.pfExits.length === 1 ? '' : 's'} exited in ${MONTHS[run.month]} — file Date of Exit on the EPFO portal`}
+            style={{ marginBottom: 14 }}
+          >
+            <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '0 0 6px' }}>
+              The ECR carries this month's final contribution but has no exit field. After this ECR is paid, mark each member's
+              exit on the EPFO employer portal (Member → Member Exit) with the date below; until then they cannot withdraw or
+              transfer, and EPFO keeps expecting them next month. The same list is appended to the PF Summary .csv.
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18, font: "400 12px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+              {run.pfExits.map((x) => (
+                <li key={x.employeeId}>
+                  <strong>{x.employeeName}</strong> — UAN {x.uan || <span style={{ color: 'var(--danger)' }}>missing</span>}
+                  {x.pfNumber ? ` · PF ${x.pfNumber}` : ''} · exit {x.dateOfExit} · {x.reason}
+                </li>
+              ))}
+            </ul>
+          </Callout>
+        )}
 
         {/* Frozen-row drift — a released employee's inputs changed after they
             were paid, so the last re-process kept the paid figure and recorded
