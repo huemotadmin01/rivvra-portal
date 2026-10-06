@@ -256,10 +256,11 @@ export default function SalaryStructuresPageV2({ embedded = false }) {
                     <div style={{ font: "500 13px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg)', fontVariantNumeric: 'tabular-nums', marginTop: 3 }}>
                       {pctDisplay(c.percentOfGross)}% of gross
                     </div>
-                    <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
-                      {c.isTaxable && <span title="Included in taxable income"><Chip tone="warn">Taxable</Chip></span>}
-                      {c.isPfApplicable && <span title="Counts towards Provident Fund wages"><Chip tone="info">Counts for PF</Chip></span>}
-                    </div>
+                    {c.name === 'Basic' && (
+                      <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
+                        <span title="Provident Fund is calculated on this component"><Chip tone="info">PF base</Chip></span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -342,7 +343,7 @@ export default function SalaryStructuresPageV2({ embedded = false }) {
               </span>
             </div>
             <p style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '0 0 8px' }}>
-              Tick “PF” for components that count towards Provident Fund wages.
+              Provident Fund is calculated on the component named “Basic”. All components count as taxable income.
             </p>
 
             <div style={{ display: 'grid', gap: 8 }}>
@@ -370,15 +371,6 @@ export default function SalaryStructuresPageV2({ embedded = false }) {
                     />
                     <span style={{ font: "400 13px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>%</span>
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, cursor: 'pointer', font: "400 11.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
-                    <input
-                      type="checkbox"
-                      checked={c.isPfApplicable}
-                      onChange={e => updateComponent(i, 'isPfApplicable', e.target.checked)}
-                      style={{ accentColor: 'var(--brand)' }}
-                    />
-                    PF
-                  </label>
                   {form.components.length > 1 && (
                     <Button
                       type="button"

@@ -72,7 +72,10 @@ export default function EmployeeQuickCreateV2() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const isFirstHire = companyEmployeeCount === 0;
+  // Server flag ignores the owner's own seeded record; count===0 kept as the
+  // fallback for an older API (2026-10-06).
+  const [serverFirstHire, setServerFirstHire] = useState(null);
+  const isFirstHire = serverFirstHire === true || companyEmployeeCount === 0;
 
   useEffect(() => {
     getPublicPlatformSetting('employment_types')
@@ -91,6 +94,7 @@ export default function EmployeeQuickCreateV2() {
           if (typeof res.companyEmployeeCount === 'number') {
             setCompanyEmployeeCount(res.companyEmployeeCount);
           }
+          if (typeof res.isFirstHire === 'boolean') setServerFirstHire(res.isFirstHire);
         }
       })
       .catch(() => {});

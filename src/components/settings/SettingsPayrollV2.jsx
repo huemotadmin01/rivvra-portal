@@ -135,9 +135,7 @@ function DisbursementTab() {
     try {
       await timesheetApi.put('/payroll-settings', {
         salaryDisbursementDay: settings.salaryDisbursementDay,
-        salaryDisbursementMode: settings.salaryDisbursementMode,
         customDisbursementDates: settings.customDisbursementDates,
-        payslipVisibilityDay: settings.payslipVisibilityDay,
         disbursementRules: settings.disbursementRules,
       });
       showToast('Payroll settings saved', 'success');
@@ -327,6 +325,8 @@ function DisbursementTab() {
           </div>
         </Panel>
 
+        <LopBasisPanel />
+
         <div>
           <Button onClick={handleSavePayroll} disabled={saving} iconLeft={<Save size={15} />}>
             {saving ? 'Saving...' : 'Save Disbursement Settings'}
@@ -389,6 +389,92 @@ function DisbursementTab() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TDS Configuration Tab
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ── Loss-of-pay day rate ─────────────────────────────────────────────────
+// `lopBasis` has been honoured by the payroll engine since July 2026 and
+// seeded as fixed30 for new workspaces, but had no screen — a pay-affecting
+// knob only a script could turn. Per-company policy, like the PF options.
+const LOP_BASIS_OPTIONS = [
+  { value: 'fixed30', label: 'Fixed 30 days', detail: 'gross ÷ 30 for every month' },
+  { value: 'workingDays', label: 'Actual working days', detail: 'gross ÷ Mon–Fri days in the month (20–23)' },
+];
+function LopBasisPanel() {
+  const { showToast } = useToast();
+  const { currentCompany } = useCompany();
+  const { orgSlug } = usePlatform();
+  const [value, setValue] = useState('fixed30');
+  const [saved, setSaved] = useState('fixed30');
+  const [ownValue, setOwnValue] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getPayrollSettings(orgSlug);
+        const v = res?.settings?.lopBasis === 'workingDays' ? 'workingDays' : 'fixed30';
+        const own = (res?.settings?.companyOverrides || []).includes('lopBasis');
+        if (alive) { setValue(v); setSaved(v); setOwnValue(own); }
+      } catch {
+        if (alive) showToast('Failed to load payroll settings', 'error');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await updatePayrollSettings(orgSlug, { lopBasis: value });
+      setSaved(value); setOwnValue(true);
+      showToast('Loss-of-pay day rate saved — applies to runs processed from now on', 'success');
+    } catch (e) {
+      showToast(e?.response?.data?.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+  const dirty = value !== saved;
+  return (
+    <Panel title="Loss-of-pay day rate">
+      <div style={{ padding: 6, display: 'grid', gap: 10 }}>
+        <p style={{ font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+          How one unpaid day is priced for salaried employees. Joiners and leavers are pro-rated separately by the days they were employed.
+        </p>
+        <div style={{ display: 'grid', gap: 6 }}>
+          {LOP_BASIS_OPTIONS.map(o => (
+            <label key={o.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+              <input type="radio" name="lopBasis" value={o.value} checked={value === o.value}
+                onChange={() => setValue(o.value)} style={{ marginTop: 3, accentColor: 'var(--brand)' }} />
+              <span>
+                <span style={{ font: "500 12.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>{o.label}</span>
+                <span style={{ font: "400 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', marginLeft: 6 }}>{o.detail}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Button size="sm" onClick={save} disabled={!dirty || saving}
+            iconLeft={saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+          <Chip tone={ownValue ? 'brand' : 'neutral'}>{ownValue ? 'Set for this company' : 'Workspace default'}</Chip>
+          {dirty && (
+            <span style={{ font: "400 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--warn-ink)' }}>
+              Changes pay. Already-processed runs keep their figures until re-processed.
+            </span>
+          )}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function TdsConfigTab() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();

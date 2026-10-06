@@ -823,7 +823,7 @@ function AdminPayrollSettingsPageV2() {
               <>
                 <div style={{ display: 'grid', gap: 8, overflowX: 'auto' }}>
                   {salaryStructure.components.map((comp, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 1fr 1fr 40px', gap: 12, alignItems: 'center', minWidth: 560 }}>
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 1fr 40px', gap: 12, alignItems: 'center', minWidth: 480 }}>
                       <Input value={comp.name} aria-label={`Component ${idx + 1} name`} onChange={e => {
                         const updated = [...salaryStructure.components];
                         updated[idx] = { ...updated[idx], name: e.target.value };
@@ -837,22 +837,10 @@ function AdminPayrollSettingsPageV2() {
                         }} style={{ height: 32, fontSize: 13, width: 72 }} />
                         <span style={metaStyle}>%</span>
                       </div>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', ...metaStyle, color: 'var(--fg-3)' }}>
-                        <input type="checkbox" checked={comp.isTaxable} onChange={e => {
-                          const updated = [...salaryStructure.components];
-                          updated[idx] = { ...updated[idx], isTaxable: e.target.checked };
-                          setSalaryStructure({ ...salaryStructure, components: updated });
-                        }} style={{ width: 15, height: 15, accentColor: 'var(--warn-ink)' }} />
-                        Taxable
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', ...metaStyle, color: 'var(--fg-3)' }}>
-                        <input type="checkbox" checked={comp.isPfApplicable} onChange={e => {
-                          const updated = [...salaryStructure.components];
-                          updated[idx] = { ...updated[idx], isPfApplicable: e.target.checked };
-                          setSalaryStructure({ ...salaryStructure, components: updated });
-                        }} style={{ width: 15, height: 15, accentColor: 'var(--warn-ink)' }} />
-                        PF Applicable
-                      </label>
+                      {/* isTaxable / isPfApplicable toggles removed 2026-10-06: the
+                          engine reads neither — PF is on the component named
+                          "Basic", everything is taxable. Fields stay in the data. */}
+                      <span style={{ ...metaStyle, color: 'var(--fg-4)' }}>{comp.name === 'Basic' ? 'PF base' : ''}</span>
                       <Button
                         variant="ghost" size="sm"
                         aria-label={`Remove component ${idx + 1}`}

@@ -685,8 +685,10 @@ export default function PayrollRunPageV2() {
               {processing ? 'Processing...' : 'Re-process'}
             </Button>
             <Button size="sm" variant={isNext('finalize') ? 'primary' : 'secondary'}
-              onClick={() => setShowFinalizeConfirm(true)} disabled={finalizing}
-              title={finalizeCaution || 'Locks the run so it can be marked paid.'}
+              onClick={() => setShowFinalizeConfirm(true)} disabled={finalizing || !(run.items || []).length}
+              title={!(run.items || []).length
+                ? 'Nothing to finalize — no employee has a salary in this run. Set a CTC on each employee and re-process.'
+                : (finalizeCaution || 'Locks the run so it can be marked paid.')}
               iconLeft={finalizing ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}>
               {finalizing ? 'Finalizing...' : 'Finalize'}
             </Button>
@@ -788,7 +790,13 @@ export default function PayrollRunPageV2() {
             icon={<AlertTriangle size={15} />}
             title={w.code === 'NO_SALARY_STRUCTURE'
               ? `${w.employees?.length || 0} employee${(w.employees?.length || 0) === 1 ? ' was' : 's were'} skipped — no salary structure`
-              : 'Run warning'}
+              : w.code === 'NO_CTC'
+                ? `${w.employees?.length || 0} employee${(w.employees?.length || 0) === 1 ? ' was' : 's were'} skipped — no CTC`
+                : w.code === 'FY_CONFIG_FALLBACK'
+                  ? 'Built-in statutory rates were used'
+                  : w.code === 'FY_CONFIG_UNREVIEWED'
+                    ? 'This year\'s statutory rate table is unreviewed'
+                    : 'Run warning'}
             style={{ marginBottom: 14 }}
           >
             <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>

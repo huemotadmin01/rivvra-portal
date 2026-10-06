@@ -149,6 +149,9 @@ export default function EmployeeFormV2() {
   usePageTitle(isEdit ? (form?.fullName || 'Edit Employee') : 'Add Employee');
   const [departments, setDepartments] = useState([]);
   const [managerOptions, setManagerOptions] = useState([]);
+  // Server-side answer to "is this the company's first real hire?" — the
+  // owner's own seeded record does not count. Waives Sourced By (2026-10-06).
+  const [isFirstHire, setIsFirstHire] = useState(false);
   const [tsClients, setTsClients] = useState([]);
   const [tsProjects, setTsProjects] = useState([]);
   const [loading, setLoading] = useState(isEdit);
@@ -202,7 +205,12 @@ export default function EmployeeFormV2() {
       })
       .catch(() => {});
     employeeApi.getManagerOptions(orgSlug)
-      .then((res) => { if (!cancelled && res.success) setManagerOptions(res.managers || []); })
+      .then((res) => {
+        if (!cancelled && res.success) {
+          setManagerOptions(res.managers || []);
+          setIsFirstHire(res.isFirstHire === true || res.companyEmployeeCount === 0);
+        }
+      })
       .catch(() => {});
     // Fetch org members for Related User dropdown (edit mode)
     if (isEdit) {
@@ -566,8 +574,8 @@ export default function EmployeeFormV2() {
     // Sourced By is mandatory at creation time so we always know who referred
     // a hire (drives the incentive flow). Existing records can still be saved
     // without it on edit.
-    if (!isEdit && !form.sourcedByEmployeeId) {
-      setError('Sourced By is required — pick the employee who referred this hire.');
+    if (!isEdit && !isFirstHire && !form.sourcedByEmployeeId) {
+      setError('Sourced By is required — pick the employee who referred this hire. If that was you, pick yourself.');
       return false;
     }
     if ((form.status === 'resigned' || form.status === 'terminated') && !form.lastWorkingDate) {
@@ -1015,7 +1023,7 @@ export default function EmployeeFormV2() {
                 <option value="widowed">Widowed</option>
               </Select>
             </Field>
-            <Field label={`Sourced By${!isEdit ? ' *' : ''}`}>
+            <Field label={`Sourced By${!isEdit && !isFirstHire ? ' *' : ''}`}>
               <EmployeePicker
                 value={form.sourcedByEmployeeId}
                 employees={managerOptions}
@@ -1023,7 +1031,11 @@ export default function EmployeeFormV2() {
                 excludeIds={employeeId ? [employeeId] : []}
                 placeholder="Search by name or ID…"
               />
-              <p style={hint}>Employee who referred or sourced this hire.</p>
+              <p style={hint}>
+                {!isEdit && isFirstHire
+                  ? 'Your first hire — optional. Pick yourself if you referred them; the referrer drives recruiter incentives later.'
+                  : 'Employee who referred or sourced this hire. Pick yourself if that was you.'}
+              </p>
             </Field>
           </div>
         </Panel>
