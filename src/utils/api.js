@@ -43,6 +43,29 @@ export function getActiveCompanyId() {
  * Exported so the utility clients that build their own headers (timesheetApi,
  * employeeApi, the settings company pages) use identical logic.
  */
+/**
+ * Headers for a hand-rolled fetch() (blob downloads, previews, uploads) —
+ * the SAME trio api.request() sends: Bearer token, active company, workspace.
+ *
+ * 2026-10-06: sixteen download/preview sites sent only the token. The API
+ * then scoped the lookup to membership.currentCompanyId (the server-side
+ * preference), not the company on screen, so an attachment in any OTHER
+ * company came back 404 — a .docx résumé in Inc could not be downloaded
+ * while the membership still pointed at Pvt Ltd.
+ */
+export function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  try {
+    const token = localStorage.getItem('rivvra_token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch { /* storage blocked */ }
+  const companyId = getActiveCompanyId();
+  if (companyId) headers['X-Company-Id'] = companyId;
+  const orgSlug = getActiveOrgSlug();
+  if (orgSlug) headers['X-Org-Slug'] = orgSlug;
+  return headers;
+}
+
 export function getActiveOrgSlug() {
   if (typeof window === 'undefined') return null;
   const m = window.location.pathname.match(/^\/org\/([^/]+)/);

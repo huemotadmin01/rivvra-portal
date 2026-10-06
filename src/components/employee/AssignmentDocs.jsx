@@ -3,6 +3,7 @@ import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import DocumentPreviewModal from '../shared/DocumentPreviewModal';
 import { Loader2, Upload, FileText, Eye, X } from 'lucide-react';
+import { authHeaders } from '../../utils/api';
 
 function isPreviewable(mimeType) {
   return mimeType?.startsWith('image/') || mimeType === 'application/pdf';
@@ -75,8 +76,7 @@ export default function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
   const handleDownload = async (doc) => {
     try {
       const url = employeeApi.getAssignmentDocUrl(orgSlug, employeeId, doc._id);
-      const token = localStorage.getItem('rivvra_token');
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error('Download failed');
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);

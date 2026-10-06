@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Eye, Download, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { authHeaders } from '../../utils/api';
 
 /**
  * Shared document preview modal — displays PDFs and images in a large centered popup.
@@ -88,8 +89,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
       setBlobUrl(directUrl);
       setLoading(false);
     } else if (fetchUrl) {
-      const token = localStorage.getItem('rivvra_token');
-      cleanup = fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
+      cleanup = fetchAsBlob(fetchUrl, authHeaders());
     } else if (directUrl) {
       setBlobUrl(directUrl);
       setLoading(false);
@@ -104,8 +104,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
 
   const handleIframeError = useCallback(() => {
     if (triedDirect && fetchUrl) {
-      const token = localStorage.getItem('rivvra_token');
-      fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
+      fetchAsBlob(fetchUrl, authHeaders());
       setTriedDirect(false);
     } else {
       setError(true);
@@ -116,8 +115,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
     if (useCanvas) {
       // Canvas mode: open via fetchUrl with auth, or directUrl as a last resort.
       if (fetchUrl) {
-        const token = localStorage.getItem('rivvra_token');
-        fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        fetch(fetchUrl, { headers: authHeaders() })
           .then((r) => r.blob())
           .then((b) => {
             const u = URL.createObjectURL(b);
@@ -137,8 +135,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
     // of silently no-op'ing.
     if (!blobUrl) {
       if (fetchUrl) {
-        const token = localStorage.getItem('rivvra_token');
-        fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        fetch(fetchUrl, { headers: authHeaders() })
           .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
           .then((b) => {
             const u = URL.createObjectURL(b);
@@ -299,8 +296,7 @@ function PdfCanvasViewer({ fetchUrl, directUrl, onError }) {
 
         let data;
         if (fetchUrl) {
-          const token = localStorage.getItem('rivvra_token');
-          const resp = await fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          const resp = await fetch(fetchUrl, { headers: authHeaders() });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           data = await resp.arrayBuffer();
         } else if (directUrl) {

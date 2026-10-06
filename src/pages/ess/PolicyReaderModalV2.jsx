@@ -27,6 +27,7 @@ import {
 import { API_BASE_URL } from '../../utils/config';
 import { downloadFile } from '../../utils/download';
 import { Button, Chip, Spinner } from '../../components/ds';
+import { authHeaders } from '../../utils/api';
 
 const FONT = "'Inter', system-ui, sans-serif";
 
@@ -66,8 +67,7 @@ export default function PolicyReaderModalV2({ policy, orgSlug, onAcknowledge, on
         pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
         let data = pdfDataRef.current;
         if (!data) {
-          const token = localStorage.getItem('rivvra_token');
-          const resp = await fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          const resp = await fetch(fetchUrl, { headers: authHeaders() });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           data = await resp.arrayBuffer();
           pdfDataRef.current = data;

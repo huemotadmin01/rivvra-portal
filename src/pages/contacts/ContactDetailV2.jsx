@@ -1,3 +1,4 @@
+import { authHeaders } from '../../utils/api';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
@@ -1117,8 +1118,7 @@ export default function ContactDetailV2() {
                 const openDoc = () => {
                   if (previewable) { setPreviewDoc(doc); return; }
                   const url = contactsApi.getAttachmentUrl(orgSlug, contactId, doc._id);
-                  const token = localStorage.getItem('rivvra_token');
-                  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+                  fetch(url, { headers: authHeaders() })
                     .then((r) => r.blob())
                     .then((blob) => {
                       const a = document.createElement('a');

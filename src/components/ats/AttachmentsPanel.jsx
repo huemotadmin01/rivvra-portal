@@ -1,3 +1,4 @@
+import { authHeaders } from '../../utils/api';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -147,9 +148,8 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
   // as markup/HTML because the OS couldn't tell they were .docx.
   const handleDownload = async (att) => {
     try {
-      const token = localStorage.getItem('rivvra_token');
       const res = await fetch(atsApi.getAttachmentDownloadUrl(orgSlug, att._id), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: authHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();

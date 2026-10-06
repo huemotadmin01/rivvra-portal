@@ -5,7 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
-import api from '../../utils/api';
+import api, { authHeaders } from '../../utils/api';
 import assetApi from '../../utils/assetApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
@@ -1614,8 +1614,7 @@ export default function EmployeeDetail() {
         const handleDocDownload = async (docId, filename) => {
           try {
             const url = employeeApi.getEmployeeDocUrl(currentOrg.slug, employeeId, docId);
-            const token = localStorage.getItem('rivvra_token');
-            const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+            const res = await fetch(url, { headers: authHeaders() });
             if (!res.ok) throw new Error();
             const blob = await res.blob();
             const blobUrl = URL.createObjectURL(blob);

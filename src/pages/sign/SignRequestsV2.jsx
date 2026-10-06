@@ -20,6 +20,7 @@
 // delete, and every row action handler including cancel and remind.
 // ============================================================================
 
+import { authHeaders } from '../../utils/api';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
@@ -1883,10 +1884,9 @@ export default function SignRequestsV2() {
     e.stopPropagation();
     const newTab = window.open('about:blank', '_blank');
     try {
-      const token = localStorage.getItem('rivvra_token');
       const resp = await fetch(
         `${API_BASE_URL}/api/org/${orgSlug}/sign/requests/${requestId}/signed-pdf`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        { headers: authHeaders() },
       );
       if (!resp.ok) throw new Error('Failed to fetch');
       const blob = await resp.blob();

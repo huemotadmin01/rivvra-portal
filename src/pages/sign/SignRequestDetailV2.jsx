@@ -1,3 +1,4 @@
+import { authHeaders } from '../../utils/api';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
@@ -194,7 +195,7 @@ function InlinePdfViewer({ fetchUrl, token }) {
       let timeoutId;
       try {
         const resp = await fetch(fetchUrl, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: authHeaders(),
         });
         if (!resp.ok) throw new Error('Failed to fetch PDF');
         const arrayBuffer = await resp.arrayBuffer();
@@ -473,9 +474,8 @@ export default function SignRequestDetail() {
     const newTab = window.open('about:blank', '_blank');
     try {
       const endpoint = type === 'certificate' ? 'certificate' : 'signed-pdf';
-      const token = localStorage.getItem('rivvra_token');
       const resp = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/sign/requests/${requestId}/${endpoint}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: authHeaders(),
       });
       if (!resp.ok) throw new Error('Failed to fetch');
       const blob = await resp.blob();

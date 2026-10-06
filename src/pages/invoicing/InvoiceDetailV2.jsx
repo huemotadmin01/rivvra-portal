@@ -59,7 +59,7 @@ import { useBreadcrumbContext } from '../../context/BreadcrumbContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { tdsRateFor, TDS_KIND_NOTE } from '../../utils/tdsRate';
 import contactsApi from '../../utils/contactsApi';
-import api from '../../utils/api';
+import api, { authHeaders } from '../../utils/api';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { SUPPORTED_CURRENCIES } from '../../utils/currency';
 import { validateGstin } from '../../utils/gstin';
@@ -1888,9 +1888,8 @@ export default function InvoiceDetailV2() {
   // browser doesn't send headers from a plain link click.
   const handleDownloadAttachment = async (docId, filename) => {
     try {
-      const token = localStorage.getItem('rivvra_token');
       const url = invoicingApi.getAttachmentUrl(orgSlug, invoiceId, docId);
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`Download failed (${res.status})`);
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
