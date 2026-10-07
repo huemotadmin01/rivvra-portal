@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import DocumentPreviewModal from '../shared/DocumentPreviewModal';
 import ConfirmDialog from '../shared/ConfirmDialog';
+import { paperworkReason } from '../../utils/resumeHeuristics';
 import {
   Upload, File, FileText, Image, Trash2, Loader2, Download,
   Star, Eye, Paperclip,
@@ -57,6 +58,9 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
   const [previewDoc, setPreviewDoc] = useState(null);
   // 2026-05-17 health-check D.2: styled confirm for attachment delete.
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // Marking a file that looks like paperwork as the résumé asks first — see
+  // utils/resumeHeuristics. { att, reason } | null.
+  const [confirmResume, setConfirmResume] = useState(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const fetchAttachments = useCallback(async () => {
@@ -105,7 +109,9 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     setUploading(false);
   };
 
-  const handleToggleResume = async (att) => {
+  const handleToggleResume = async (att, { force = false } = {}) => {
+    const reason = !att.isResume && !force ? paperworkReason(att.fileName) : null;
+    if (reason) { setConfirmResume({ att, reason }); return; }
     try {
       await atsApi.toggleResume(orgSlug, att._id);
       showToast(att.isResume ? 'Unmarked as resume' : 'Marked as resume');
@@ -319,6 +325,18 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
         />
       )}
 
+      <ConfirmDialog
+        open={!!confirmResume}
+        title="This doesn't look like a résumé"
+        message={confirmResume ? `"${confirmResume.att.fileName}" looks like ${confirmResume.reason}. Marking it as the résumé means the AI score, the resume gate and every new application for this candidate will read it as their CV. Mark it anyway?` : ''}
+        confirmLabel="Mark as resume anyway"
+        onCancel={() => setConfirmResume(null)}
+        onConfirm={async () => {
+          const { att } = confirmResume;
+          setConfirmResume(null);
+          await handleToggleResume(att, { force: true });
+        }}
+      />
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete attachment?"

@@ -5,6 +5,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { paperworkReason } from '../../utils/resumeHeuristics';
 import employeeApi from '../../utils/employeeApi';
 import PersonLookup from '../../components/shared/PersonLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -497,6 +498,10 @@ export default function AtsApplicationNewV2() {
   const handleResumePick = (file) => {
     const err = validateResumeFile(file);
     if (err) { showToast(err, 'error'); return; }
+    // Warn, don't block: a Rate & Terms sheet or a JD printout picked here
+    // becomes the candidate's canonical CV (see utils/resumeHeuristics).
+    const looksLike = paperworkReason(file.name);
+    if (looksLike) showToast(`"${file.name}" looks like ${looksLike}, not a résumé — double-check before creating the application.`, 'warning');
     setResumeFile(file);
     if (existingResume) setResumeOverride(true);
     // Kick off AI preview — async, ~3s round-trip. Race-safe via seq counter.
