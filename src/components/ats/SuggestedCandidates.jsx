@@ -106,6 +106,22 @@ export default function SuggestedCandidates({
     candidates: prev.candidates.filter((c) => String(c._id) !== String(id)),
   });
 
+  // The suggestion was computed from the candidate's resume on file, so the
+  // new application carries that same file. Without this step (pre-2026-10-07)
+  // the application showed "No files uploaded yet" while its AI score had
+  // silently read the resume from a SIBLING application. Best-effort: the
+  // application exists either way; a failed clone only costs the panel row.
+  const attachResumeOnFile = async (candidateId, newAppId) => {
+    if (!candidateId || !newAppId) return;
+    try {
+      const r = await atsApi.getCandidateResume(orgSlug, candidateId);
+      const resume = r?.resume;
+      if (resume?._id) await atsApi.cloneAttachment(orgSlug, newAppId, resume._id);
+    } catch {
+      showToast('Added, but the resume on file could not be attached — upload it from the application page.', 'warning');
+    }
+  };
+
   // --- Recruiter: create application (availability-confirmed) ---
   const handleCreate = async (cand) => {
     try {
@@ -117,7 +133,7 @@ export default function SuggestedCandidates({
       // accountOwner is still snapshotted from the job on the server side.
       const recruiterId = cand.managerId || job?.recruiterId || myEmployee?.id || null;
       const recruiterName = cand.managerName || job?.recruiterName || myEmployee?.name || '';
-      await atsApi.createApplication(orgSlug, {
+      const created = await atsApi.createApplication(orgSlug, {
         candidateId: String(cand._id),
         candidateName: cand.name,
         email: cand.email || null,
@@ -133,6 +149,7 @@ export default function SuggestedCandidates({
         // sending it here is belt-and-braces + self-documenting.
         employmentType: job?.employmentType || null,
       });
+      await attachResumeOnFile(String(cand._id), created?.application?._id);
       showToast(`${cand.name} added to this job`);
       setConfirmId(null);
       setAvailChecked(false);
@@ -150,7 +167,7 @@ export default function SuggestedCandidates({
     try {
       setBusyId(cand._id);
       const copy = await atsApi.copyCrossCompanyCandidate(orgSlug, jobId, String(cand._id));
-      await atsApi.createApplication(orgSlug, {
+      const created = await atsApi.createApplication(orgSlug, {
         candidateId: copy.candidateId,
         candidateName: copy.candidateName || cand.name,
         email: copy.email || null,
@@ -164,6 +181,7 @@ export default function SuggestedCandidates({
         // server-side derivation from the job.
         employmentType: job?.employmentType || null,
       });
+      await attachResumeOnFile(copy.candidateId, created?.application?._id);
       showToast(`${cand.name} copied to this company and added to the job`);
       setConfirmId(null);
       setAvailChecked(false);
