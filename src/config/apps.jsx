@@ -769,9 +769,21 @@ export function getAppById(id) {
   return APP_REGISTRY[id] || null;
 }
 
+// A separated employee (membership alumni, phase A/B) keeps exactly two apps:
+// Employee Self Service (payslips, Form 16, F&F receipt, documents) plus
+// Expenses (claim status, reimbursements that land in F&F). The API
+// is read-only for them and now also strips the other grants at separation,
+// but the launcher must not advertise tiles that 403 on open (2026-10-08).
+function isAlumniMembership(orgMembership) {
+  const phase = orgMembership?.alumniPhase;
+  return orgMembership?.status === 'alumni' || phase === 'a' || phase === 'b';
+}
+const ALUMNI_APP_IDS = ['timesheet', 'expenses'];
+
 export function getAllApps(user, orgMembership) {
   // When no user given (e.g. from PlatformContext), return all apps
   if (!user) return Object.values(APP_REGISTRY);
+  if (isAlumniMembership(orgMembership)) return Object.values(APP_REGISTRY).filter(app => ALUMNI_APP_IDS.includes(app.id));
   const orgRole = orgMembership?.orgRole;
   // adminOnly apps visible if: org admin/owner OR user has explicit app access
   return Object.values(APP_REGISTRY).filter(app =>
@@ -783,6 +795,7 @@ export function getAllApps(user, orgMembership) {
 export function getActiveApps(user, orgMembership) {
   // When no user given, return all active apps
   if (!user) return Object.values(APP_REGISTRY).filter(app => app.status === 'active');
+  if (isAlumniMembership(orgMembership)) return Object.values(APP_REGISTRY).filter(app => ALUMNI_APP_IDS.includes(app.id) && app.status === 'active');
   const orgRole = orgMembership?.orgRole;
   // adminOnly / requiresAccess apps are visible only to org admins/owners OR a
   // member with explicit app access. All other active apps are visible to all.

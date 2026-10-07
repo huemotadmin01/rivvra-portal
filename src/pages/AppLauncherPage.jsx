@@ -15,7 +15,7 @@ import api from '../utils/api';
 function AppLauncherPage() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
-  const { currentOrg } = useOrg();
+  const { currentOrg, isAlumni, alumniCutoffAt } = useOrg();
   const { orgPath } = usePlatform();
   const { pendingCount: policyPending } = usePolicyAck();
   const { slug } = useParams();
@@ -88,9 +88,21 @@ function AppLauncherPage() {
         <div className="mb-8" style={{ animation: 'fadeSlideUp 0.5s ease-out 0.05s both' }}>
           <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight">
             Hey {firstName},{' '}
-            <span className="bg-gradient-to-r from-rivvra-400 to-rivvra-500 bg-clip-text text-transparent">where to today?</span>
+            <span className="bg-gradient-to-r from-rivvra-400 to-rivvra-500 bg-clip-text text-transparent">
+              {isAlumni ? 'your records are here.' : 'where to today?'}
+            </span>
           </h1>
-          <p className="text-dark-400 mt-2 text-base">{currentCompany?.name || 'Your staffing agency command center'}</p>
+          {isAlumni ? (
+            // Separated employee: say plainly what this login is for now, instead
+            // of "where to today?" above a grid that used to be full of 403s.
+            <p className="text-dark-400 mt-2 text-base">
+              Read-only access to {currentCompany?.name || 'your employer'}
+              {alumniCutoffAt ? ` until ${alumniCutoffAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
+              {' '}— payslips, salary history, tax report &amp; Form 16, F&amp;F receipt, expense claims and your documents. Download what you need before then.
+            </p>
+          ) : (
+            <p className="text-dark-400 mt-2 text-base">{currentCompany?.name || 'Your staffing agency command center'}</p>
+          )}
         </div>
         {policyPending > 0 && (
           <Link
