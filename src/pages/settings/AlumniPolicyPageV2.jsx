@@ -133,7 +133,7 @@ export default function AlumniPolicyPageV2() {
         />
         <SettingRow
           label="Extend to 30 Jun of next FY"
-          description="When on, confirmed employees retain read-only access until they can file their ITR (tax filing window)."
+          description="When on, employees and consultants who receive a Form 16 / Form 16A keep read-only access until the tax filing window closes (30 June). Interns keep the grace window only."
           control={
             <Switch
               checked={!!form.taxWindowExtension}

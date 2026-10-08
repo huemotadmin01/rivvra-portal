@@ -11,7 +11,7 @@ import { Clock, AlertTriangle, XCircle } from 'lucide-react';
  *
  * Phases (see src/helpers/alumniHelper.js on the backend):
  *   'a'        — within 90 days of LWD (amber)
- *   'b'        — tax-filing window for confirmed employees (orange)
+ *   'b'        — tax-filing window for anyone issued a Form 16 / 16A: confirmed + consultants (orange)
  *   'archived' — access ended (red — rarely rendered, auth blocks earlier)
  */
 function AlumniBanner() {
