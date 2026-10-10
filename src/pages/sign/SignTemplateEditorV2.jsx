@@ -1979,6 +1979,22 @@ export default function SignTemplateEditor() {
                 />
               </div>
 
+              {/* Field key — lets a sender prefill this field by name (e.g. the
+                  ATS offer flow fills `ctc_annual`, `basic_monthly`). Lower-case,
+                  digits and underscores; optional. Signature/initials can't be
+                  prefilled, so no key for those. (2026-10-10) */}
+              {selectedItem.type !== 'signature' && selectedItem.type !== 'initials' && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Field key <span className="text-gray-600">(optional — for prefill)</span></label>
+                  <input
+                    type="text"
+                    value={selectedItem.key || ''}
+                    onChange={(e) => updateItemProp(selectedItem.id, 'key', e.target.value.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+/, ''))}
+                    placeholder="e.g. ctc_annual"
+                    className="w-full px-3 py-2 text-sm font-mono text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 placeholder:text-gray-600"
+                  />
+                </div>
+              )}
               {/* Required toggle */}
               <div className="flex items-center justify-between">
                 <label className="text-xs text-gray-500">Required</label>
