@@ -407,6 +407,20 @@ const atsApi = {
   // the Sign completion handler write back to application.offer
   // .signedOfferDocId once all signers complete.
   // payload: { templateId, signers: [{ name, email, roleName? }], reference?, subject?, message? }
+  // Offer compensation breakup (Annexure A) + Sign prefill — internal
+  // Full-Time hires only; the API answers NOT_INTERNAL_FULLTIME otherwise.
+  listOfferBreakupStructures(orgSlug, applicationId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/offer/breakup/structures`);
+  },
+  computeOfferBreakup(orgSlug, applicationId, payload) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/offer/breakup`, { method: 'POST', body: JSON.stringify(payload) });
+  },
+  getOfferPrefill(orgSlug, applicationId, { signatoryName, signatoryDesignation } = {}) {
+    const q = new URLSearchParams();
+    if (signatoryName) q.set('signatoryName', signatoryName);
+    if (signatoryDesignation) q.set('signatoryDesignation', signatoryDesignation);
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/offer/prefill${q.toString() ? `?${q}` : ''}`);
+  },
   createOfferSignRequest(orgSlug, applicationId, payload) {
     return api.request(`/api/org/${orgSlug}/sign/requests`, {
       method: 'POST',

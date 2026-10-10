@@ -322,6 +322,52 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   const [noticePeriodDays, setNoticePeriodDays] = useState(initialOffer?.noticePeriodDays != null ? String(initialOffer.noticePeriodDays) : '30');
   const [probationMonths, setProbationMonths] = useState(initialOffer?.probationMonths != null ? String(initialOffer.probationMonths) : '6');
   const [signedOfferDocId, setSignedOfferDocId] = useState(initialOffer?.signedOfferDocId || '');
+  // ── Compensation breakup (Annexure A), 2026-10-10 ──────────────────────
+  // Internal Full-Time hires only: a client role's "Full-time Hire" is a
+  // placement — the client pays, there is no Huemot breakup. Computed by the
+  // API with Payroll's salary structures; saved on offer.breakup; sent to
+  // Sign as prefill so HR no longer re-types 30 values on its signing page.
+  const isInternalFullTime = String(effectiveEmploymentType || '').toLowerCase().replace(/[\s_-]/g, '') === 'fulltime' && application?.isClientRole !== true;
+  const [structures, setStructures] = useState([]);
+  const [structureId, setStructureId] = useState(initialOffer?.breakup?.structureId || '');
+  const [variablePay, setVariablePay] = useState(initialOffer?.breakup?.variablePayAnnual != null ? String(initialOffer.breakup.variablePayAnnual) : '0');
+  const [pfApplicable, setPfApplicable] = useState(initialOffer?.breakup?.pfApplicable !== false);
+  const [breakup, setBreakup] = useState(initialOffer?.breakup || null);
+  const [breakupBusy, setBreakupBusy] = useState(false);
+  const [breakupError, setBreakupError] = useState('');
+  const [acceptanceDeadline, setAcceptanceDeadline] = useState(initialOffer?.acceptanceDeadline ? new Date(initialOffer.acceptanceDeadline).toISOString().slice(0, 10) : '');
+  useEffect(() => {
+    if (!show || !isInternalFullTime || !orgSlug || !application?._id) return;
+    let cancelled = false;
+    atsApi.listOfferBreakupStructures(orgSlug, application._id)
+      .then((r) => {
+        if (cancelled || !r?.success) return;
+        setStructures(r.structures || []);
+        if (!structureId) setStructureId((r.structures || []).find((x) => x.isDefault)?._id || r.structures?.[0]?._id || '');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, isInternalFullTime, orgSlug, application?._id]);
+  // Annual CTC from the offer input: 'lpa' is lakhs, 'per_year' is rupees.
+  const ctcAnnualFromInput = () => {
+    const n = Number(String(amount).replace(/,/g, ''));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return salaryUnit === 'lpa' ? Math.round(n * 100000) : salaryUnit === 'per_month' ? Math.round(n * 12) : Math.round(n);
+  };
+  const handleComputeBreakup = async () => {
+    setBreakupError('');
+    const ctcAnnual = ctcAnnualFromInput();
+    if (!ctcAnnual) { setBreakupError('Enter the offered CTC first'); return; }
+    if (!structureId) { setBreakupError('Pick a salary structure'); return; }
+    setBreakupBusy(true);
+    try {
+      const r = await atsApi.computeOfferBreakup(orgSlug, application._id, { ctcAnnual, structureId, variablePayAnnual: Number(variablePay) || 0, pfApplicable });
+      if (!r?.success) throw new Error(r?.error || 'Could not compute');
+      setBreakup(r.breakup);
+    } catch (e) { setBreakupError(e.message || 'Could not compute'); }
+    finally { setBreakupBusy(false); }
+  };
   const [errors, setErrors] = useState({});
 
   // Re-prefill ONLY when the modal opens. `initialOffer` gets a fresh object
@@ -470,8 +516,20 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       const subjectForSend = (signSubject || defaultSubject()).trim();
       const messageTextForSend = (signMessage || defaultMessage()).trim();
       const messageHtmlForSend = messageToHtml(messageTextForSend);
+      // Prefill (2026-10-10): the API builds the key→value map from the saved
+      // offer (name, designation, dates, CTC in words, Annexure A table…).
+      // Keys the template doesn't carry are ignored by Sign, so this is safe
+      // on the old template too — those fields simply stay HR-fillable.
+      let prefill;
+      if (isInternalFullTime) {
+        try {
+          const pr = await atsApi.getOfferPrefill(orgSlug, application._id, { signatoryName: directorName.trim() });
+          if (pr?.success && pr.prefill && Object.keys(pr.prefill).length) prefill = pr.prefill;
+        } catch { /* send without prefill */ }
+      }
       const res = await atsApi.createOfferSignRequest(orgSlug, application._id, {
         templateId: signTemplateId,
+        ...(prefill ? { prefill } : {}),
         reference: `Offer — ${application.candidateName || 'Candidate'} · ${jobTitle}`.replace(/\s+·\s+$/, '').trim(),
         subject: subjectForSend || undefined,
         message: messageHtmlForSend || undefined,
@@ -616,6 +674,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
         noticePeriodDays: Number(noticePeriodDays),
         probationMonths: Number(probationMonths),
         signedOfferDocId: signedOfferDocId.trim() || null,
+        ...(isInternalFullTime ? { breakup: breakup || null, acceptanceDeadline: acceptanceDeadline || null } : {}),
       },
     });
   };
@@ -770,6 +829,58 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
               </div>
             </>
 
+          {isInternalFullTime && (
+            <div className="col-span-2 pt-3 mt-1 border-t border-dark-700/60">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Compensation breakup (Annexure A)</div>
+                <div className="text-[11px] text-dark-500">Computed with Payroll's salary structure · saved with the offer · prefilled on the offer letter</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Salary structure</label>
+                  <select value={structureId} onChange={(e) => { setStructureId(e.target.value); setBreakup(null); }}
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50">
+                    {structures.length === 0 && <option value="">No salary structure in Payroll settings</option>}
+                    {structures.map((st) => <option key={st._id} value={st._id}>{st.name}{st.isDefault ? ' (default)' : ''} — {st.components.map((c) => `${c.name} ${c.percentOfGross}%`).join(', ')}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Variable pay / bonus (₹ per year)</label>
+                  <input type="number" min="0" value={variablePay} onChange={(e) => { setVariablePay(e.target.value); setBreakup(null); }}
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Acceptance deadline</label>
+                  <input type="date" value={acceptanceDeadline} onChange={(e) => setAcceptanceDeadline(e.target.value)}
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50" />
+                </div>
+                <div className="flex items-end gap-3">
+                  <label className="flex items-center gap-2 text-sm text-dark-300 pb-2">
+                    <input type="checkbox" checked={pfApplicable} onChange={(e) => { setPfApplicable(e.target.checked); setBreakup(null); }} />
+                    Employer PF inside CTC
+                  </label>
+                  <button type="button" onClick={handleComputeBreakup} disabled={breakupBusy || !structures.length}
+                    className="ml-auto px-3 py-2 text-sm rounded-lg bg-rivvra-600 hover:bg-rivvra-500 text-white disabled:opacity-50">
+                    {breakupBusy ? 'Computing…' : breakup ? 'Recompute' : 'Compute breakup'}
+                  </button>
+                </div>
+              </div>
+              {breakupError && <p className="mt-2 text-xs text-red-400">{breakupError}</p>}
+              {breakup && (
+                <table className="mt-3 w-full text-sm">
+                  <thead><tr className="text-[11px] uppercase tracking-wider text-dark-500"><th className="text-left py-1">Component</th><th className="text-right py-1">Monthly (₹)</th><th className="text-right py-1">Annual (₹)</th></tr></thead>
+                  <tbody>
+                    {breakup.rows.map((r) => (
+                      <tr key={r.name} className="border-t border-dark-800"><td className="py-1 text-dark-200">{r.name}</td><td className="py-1 text-right text-dark-200 tabular-nums">{Number(r.monthly).toLocaleString('en-IN')}</td><td className="py-1 text-right text-dark-200 tabular-nums">{Number(r.annual).toLocaleString('en-IN')}</td></tr>
+                    ))}
+                    <tr className="border-t border-dark-700 font-semibold"><td className="py-1 text-white">Total Cost to Company (CTC)</td><td className="py-1 text-right text-white tabular-nums">{Number(breakup.ctcMonthly).toLocaleString('en-IN')}</td><td className="py-1 text-right text-white tabular-nums">{Number(breakup.ctcAnnual).toLocaleString('en-IN')}</td></tr>
+                  </tbody>
+                </table>
+              )}
+              {breakup && <p className="mt-1 text-[11px] text-dark-500">{breakup.ctcInWords} · {breakup.structureName}{breakup.pfApplicable ? ' · employer PF inside CTC' : ' · no PF'}</p>}
+              {!breakup && <p className="mt-2 text-[11px] text-dark-500">Without a computed breakup the offer letter's Annexure A fields stay for HR to fill on its signing page.</p>}
+            </div>
+          )}
           <div className="col-span-2 pt-3 mt-1 border-t border-dark-700/60">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer signature</div>
