@@ -2362,7 +2362,9 @@ export default function PublicSigningPageV2() {
     // Prefer the server's signedAt — it matches the sealed PDF stamp.
     // formatDisplayDate expects a YYYY-MM-DD string; coerce.
     const signedDate = serverSignedAt
-      ? formatDisplayDate(new Date(serverSignedAt).toISOString().slice(0, 10))
+      // Local calendar day, not the UTC one: toISOString() after 18:30 IST
+      // printed "yesterday" on the confirmation card (2026-10-11).
+      ? formatDisplayDate((() => { const d = new Date(serverSignedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })())
       : formatDisplayDate(todayStr());
 
     return (
