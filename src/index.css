@@ -6,15 +6,6 @@
 
 @import "tailwindcss";
 
-/* Carlito (Calibri metric twin, OFL) — the face HR's letters are set in. Used
-   by the public signing page so on-screen values match the sealed PDF. */
-@font-face {
-  font-family: 'Carlito';
-  src: url('/fonts/Carlito-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
 /* ── Design system (redesign) semantic tokens — variables only, no
       visual effect on the legacy UI. See src/styles/ds-tokens.css.
@@ -24,6 +15,19 @@
 
 /* Import our config */
 @config "../tailwind.config.js";
+
+/* Carlito (Calibri metric twin, OFL) — the face HR's letters are set in. Used
+   by the public signing page so on-screen values match the sealed PDF.
+   Placed AFTER every @import on purpose: an at-rule before an @import makes
+   the browser drop that @import (this block above ds-tokens.css broke the
+   whole V2 UI for ~40 minutes on 2026-10-11). */
+@font-face {
+  font-family: 'Carlito';
+  src: url('/fonts/Carlito-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Tailwind bridge for the semantic layer: `inline` keeps the var()
    reference live so [data-theme] swaps flow through utilities like
