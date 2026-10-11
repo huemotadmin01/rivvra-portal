@@ -781,7 +781,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
 
 // ── Inline Field Input ──────────────────────────────────────────────────────
 // Renders INSIDE a PDF field box — document surface, not chrome.
-function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compact = false }) {
+function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compact = false, docFontSize = 0 }) {
   const fieldType = item.type;
   // 2026-07-15: focus the input as soon as it mounts (the component only
   // mounts when its field becomes active) so a single tap opens the mobile
@@ -850,9 +850,13 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
   // slightly but the page stays at 1x. (maximum-scale=1 would also work
   // but breaks accessibility zoom.)
   const iosZoomSafeFloor = typeof window !== 'undefined' && window.innerWidth < 768 ? 16 : 12;
-  const dynamicFontSize = styleHeight > 0
-    ? Math.min(Math.max(styleHeight * 0.5, iosZoomSafeFloor), 16)
-    : Math.max(14, iosZoomSafeFloor);
+  // Document font size when the caller knows it (text fields), floored
+  // at 16px on phones so iOS does not zoom into the input.
+  const dynamicFontSize = docFontSize > 0
+    ? Math.max(docFontSize, iosZoomSafeFloor)
+    : styleHeight > 0
+      ? Math.min(Math.max(styleHeight * 0.5, iosZoomSafeFloor), 16)
+      : Math.max(14, iosZoomSafeFloor);
   // Padding-top pushes the input's text content down so it lands near the
   // bottom edge instead of being vertically centered (default browser
   // behaviour). Caps so a very tall box doesn't get an absurd top gap.
@@ -861,6 +865,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
   const sizedStyle = {
     ...style,
     fontSize: dynamicFontSize,
+    ...(docFontSize > 0 ? { fontFamily: DOC_FONT_FAMILY } : {}),
     paddingTop: `${padTop}px`,
     paddingBottom: '2px',
     lineHeight: 1.1,
@@ -935,6 +940,15 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 // the text fits or we hit the minFontSize floor. Below the floor we
 // fall back to the original truncate so the value doesn't render at
 // unreadable sizes.
+// 2026-10-11: on-screen values mirror the seal — Carlito (the letter's face,
+// served from /fonts) at the field's fontSize (default 11pt) scaled to the
+// rendered page, so what the signer sees is what the sealed PDF prints.
+const DOC_FONT_FAMILY = "'Carlito', Calibri, Arial, sans-serif";
+function docFontPx(item, scale) {
+  const pt = Number(item?.fontSize) > 0 ? Number(item.fontSize) : 11;
+  return Math.max(6, pt * (scale || 1));
+}
+
 function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '', style = {}, containerRef = null }) {
   const ref = useRef(null);
   const [fontSize, setFontSize] = useState(maxFontSize);
@@ -1023,20 +1037,19 @@ function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '
 // This combination fixes the "bg-white was erasing the line above"
 // regression — the white background now only covers the typed text,
 // not the entire field width.
-function PrevSignerValue({ isCompactScale, height, displayDate }) {
+function PrevSignerValue({ displayDate, item, scale }) {
   const containerRef = useRef(null);
-  const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
-  const maxFontSize = Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
+  const maxFontSize = docFontPx(item, scale);
   return (
     <div
-      className="w-full h-full flex items-end font-medium pb-0.5 overflow-hidden"
-      style={{ lineHeight: 1.1 }}
+      className="w-full h-full flex items-end pb-0.5 overflow-hidden"
+      style={{ lineHeight: 1.1, fontFamily: DOC_FONT_FAMILY }}
     >
       <div ref={containerRef} className="w-full overflow-hidden">
-        <span className="bg-white text-gray-800 px-1 inline-block max-w-full align-bottom">
+        <span className="text-gray-900 inline-block max-w-full align-bottom" style={{ paddingLeft: 2 * (scale || 1) }}>
           <FittedText
             maxFontSize={maxFontSize}
-            minFontSize={isCompactScale ? 6 : 10}
+            minFontSize={Math.max(6, maxFontSize * 0.7)}
             containerRef={containerRef}
           >
             {displayDate}
@@ -1267,6 +1280,8 @@ function PdfPageWithFields({
                 isCompactScale={isCompactScale}
                 height={height}
                 displayDate={displayDate}
+                item={item}
+                scale={scale}
               />
             )}
           </div>
@@ -1444,7 +1459,7 @@ function PdfPageWithFields({
         // Floor on the filled font size: 12 on compact (matches the 18px
         // visualHeight floor) and 14 on desktop (matches the 36px floor).
         // Keeps glyph cleanly inside the box on both paths.
-        const filledFontSize = Math.min(Math.max(visualHeight * 0.55, isCompactScale ? 12 : 14), 20);
+        const filledFontSize = docFontPx(item, scale); // mirrors the seal
         // 2026-05-23 mobile chrome v3: on compact scales a *filled*
         // text field used to render with a coloured box + border, which
         // at 12-18px tall reads as a horizontal highlight stripe across
@@ -1513,6 +1528,7 @@ function PdfPageWithFields({
                 }}
                 style={{ left: 0, top: 0, width: '100%', height: visualHeight, position: 'relative' }}
                 compact={isCompactScale}
+                docFontSize={docFontPx(item, scale)}
               />
             ) : (
               // items-end + small bottom padding bottom-aligns the typed
@@ -1520,7 +1536,7 @@ function PdfPageWithFields({
               // underline beneath, matching the final flattened PDF.
               <div
                 className="flex items-end h-full px-1.5 gap-1 pb-0.5 overflow-hidden"
-                style={{ fontSize: isFilled ? filledFontSize : undefined, lineHeight: 1.1 }}
+                style={{ fontSize: isFilled ? filledFontSize : undefined, lineHeight: 1.1, fontFamily: isFilled ? DOC_FONT_FAMILY : undefined }}
               >
                 {isFilled ? (
                   <>
@@ -1555,7 +1571,7 @@ function PdfPageWithFields({
                       >
                         <FittedText
                           maxFontSize={filledFontSize}
-                          minFontSize={isCompactScale ? 6 : 10}
+                          minFontSize={Math.max(6, filledFontSize * 0.7)}
                         >
                           {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
                         </FittedText>

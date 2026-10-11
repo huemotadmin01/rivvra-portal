@@ -6,6 +6,16 @@
 
 @import "tailwindcss";
 
+/* Carlito (Calibri metric twin, OFL) — the face HR's letters are set in. Used
+   by the public signing page so on-screen values match the sealed PDF. */
+@font-face {
+  font-family: 'Carlito';
+  src: url('/fonts/Carlito-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ── Design system (redesign) semantic tokens — variables only, no
       visual effect on the legacy UI. See src/styles/ds-tokens.css.
       NOTE: must stay in the top @import block — CSS drops @imports
