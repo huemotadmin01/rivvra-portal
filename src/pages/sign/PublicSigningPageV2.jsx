@@ -2408,7 +2408,11 @@ export default function PublicSigningPageV2() {
           </div>
           <div style={summaryRow}>
             <span style={{ color: 'var(--fg-4)' }}>Document</span>
-            <span style={{ fontWeight: 550, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 16 }}>
+            {/* minWidth 0: without it the nowrap reference set the flex row's
+                width to the full text, the summary grew past the card and the
+                "Signed by" / "Date" / "Signature ID" values sat off-screen to
+                the right (2026-10-11, seen on the first V2-default signing). */}
+            <span style={{ fontWeight: 550, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 16, minWidth: 0 }}>
               {request?.reference || 'Document'}
             </span>
           </div>
@@ -3004,6 +3008,6 @@ export default function PublicSigningPageV2() {
 }
 
 const summaryRow = {
-  display: 'flex', justifyContent: 'space-between', gap: 12,
+  display: 'flex', justifyContent: 'space-between', gap: 12, minWidth: 0,
   font: "450 13px/1.5 'Inter', system-ui, sans-serif",
 };
