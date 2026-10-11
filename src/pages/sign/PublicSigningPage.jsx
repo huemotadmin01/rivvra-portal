@@ -910,18 +910,30 @@ function PrevSignerValue({ isCompactScale, height, displayDate }) {
 // `compact` prop is still accepted for backwards compatibility but is
 // no longer used to gate the label/hash; the stamp scales to fit the
 // container it's given.
-function SignatureStamp({ src, hash, alt = 'Signature' }) {
+// "11 October, 2026 05:08:30 UTC" — same wording as the sealed PDF caption
+// (signPdfHelper.formatStampTime). UTC on purpose: the sealed copy is UTC.
+function formatStampTime(dateInput) {
+  const d = new Date(dateInput);
+  if (!dateInput || isNaN(d.getTime())) return '';
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCDate()} ${months[d.getUTCMonth()]}, ${d.getUTCFullYear()} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())} UTC`;
+}
+
+// 2026-10-11 SignatureStamp — mirrors the sealed PDF: the ink fills the box
+// and one small italic caption sits under its right edge, "Name (date UTC)".
+// No frame, no label, no hash (the hash lives on the request + certificate).
+// Ported from PublicSigningPageV2 — this legacy page is what real signers
+// get by default (PublicSigningRoute opts into V2 only via ?ui=v2).
+function SignatureStamp({ src, caption = '', alt = 'Signature' }) {
   return (
-    <div className="flex flex-col items-center w-full h-full">
-      <span className="text-[9px] text-green-700 font-medium mt-0.5 leading-none">
-        Signed with Rivvra Sign
-      </span>
-      <div className="flex-1 flex items-center justify-center w-full px-1 min-h-0">
+    <div className="flex flex-col w-full h-full">
+      <div className="flex-1 flex items-center justify-center w-full min-h-0">
         <img src={src} alt={alt} className="max-w-full max-h-full object-contain" />
       </div>
-      {hash && (
-        <span className="text-[8px] text-gray-500 mb-0.5 font-mono leading-none">
-          {String(hash).slice(0, 18)}...
+      {caption && (
+        <span className="self-end italic text-gray-500 leading-none whitespace-nowrap pr-0.5" style={{ fontSize: 7 }}>
+          {caption}
         </span>
       )}
     </div>
@@ -938,10 +950,11 @@ function PdfPageWithFields({
   activeFieldId,
   setActiveFieldId,
   scale,
-  signatureHashes,
   showValidation,
   previousValues = {},
-  previousSignatureHashes = {},
+  previousSignatureMeta = {},
+  signerName = '',
+  sigPlacedAt = {},
   allSignItems = [],
   highlightedFieldId = null,
 }) {
@@ -1055,7 +1068,7 @@ function PdfPageWithFields({
         // viewed them. Signature containers keep their own sizing;
         // multiline keeps the author's top edge (text flows down from top).
         const prevVisualHeight = isSignatureDataUrl
-          ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
+          ? Math.max(height + (isCompactScale ? 6 : 10), 28)
           : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36));
         const prevAnchoredTop = item.type === 'multiline'
           ? top
@@ -1082,8 +1095,6 @@ function PdfPageWithFields({
               // legally meaningful info. Tighter container heights
               // (above) keep the chrome from looking out of place
               // even at compact scale.
-              border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
-              backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
             }}
           >
             {isSignatureDataUrl ? (
@@ -1092,8 +1103,11 @@ function PdfPageWithFields({
               // shows: dashed rose frame, label, image, truncated hash.
               <SignatureStamp
                 src={val}
-                hash={previousSignatureHashes[fieldId]}
-                compact={isCompactScale}
+                caption={(() => {
+                  const meta = previousSignatureMeta[fieldId] || {};
+                  const when = formatStampTime(meta.signedAt);
+                  return [meta.name, when ? `(${when})` : ''].filter(Boolean).join(' ');
+                })()}
               />
             ) : (
               // Bottom-align the read-only previous value so it visually
@@ -1162,7 +1176,6 @@ function PdfPageWithFields({
         // For signature/initials: show image if filled, else clickable placeholder
         if (isSignatureType) {
           const fieldId = item._id || item.id;
-          const hash = isFilled ? (signatureHashes?.[fieldId] || '') : '';
           // Enforce a 44px minimum touch target on the unfilled placeholder —
           // iOS Safari drops taps on sub-44px boxes overlaying PDF content,
           // which left mobile signers tapping fields with no response. Filled
@@ -1180,7 +1193,7 @@ function PdfPageWithFields({
           // floor/stamp growth must extend UPWARD — growing downward draped
           // the stamp frame + hash over the line and the fields below it.
           const sigVisualHeight = isFilled
-            ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
+            ? Math.max(height + (isCompactScale ? 6 : 10), 28)
             : unfilledHeight;
           const sigAnchoredTop = top - Math.max(0, sigVisualHeight - height);
           return (
@@ -1200,8 +1213,6 @@ function PdfPageWithFields({
                 // compact so the image always has ≥20px to render in
                 // (label + hash combined are ~20px).
                 height: sigVisualHeight,
-                border: isFilled ? '2px dashed #d4a0a0' : undefined,
-                backgroundColor: isFilled ? '#ffffff' : undefined,
                 scrollMarginTop: 120,
                 scrollMarginBottom: 100,
               }}
@@ -1211,9 +1222,8 @@ function PdfPageWithFields({
               {isFilled ? (
                 <SignatureStamp
                   src={fieldValue}
-                  hash={hash}
                   alt={item.type}
-                  compact={isCompactScale}
+                  caption={[signerName, sigPlacedAt[fieldId] ? `(${formatStampTime(sigPlacedAt[fieldId])})` : ''].filter(Boolean).join(' ')}
                 />
               ) : (
                 <div className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded ${
@@ -1507,7 +1517,10 @@ export default function PublicSigningPage() {
 
   // Previous signers' values (read-only display)
   const [previousValues, setPreviousValues] = useState({});
-  const [previousSignatureHashes, setPreviousSignatureHashes] = useState({});
+  const [previousSignatureMeta, setPreviousSignatureMeta] = useState({});
+  // When the active signer placed each signature (ISO) — drives the on-screen
+  // "Name (date UTC)" caption until the sealed PDF carries the server time.
+  const [sigPlacedAt, setSigPlacedAt] = useState({});
   const [allSignItems, setAllSignItems] = useState([]);
 
   // Click to Start / Next field navigation
@@ -1576,7 +1589,7 @@ export default function PublicSigningPage() {
 
         // Store previous signers' values and all sign items for read-only display
         if (data.previousValues) setPreviousValues(data.previousValues);
-        if (data.previousSignatureHashes) setPreviousSignatureHashes(data.previousSignatureHashes);
+        if (data.previousSignatureMeta) setPreviousSignatureMeta(data.previousSignatureMeta);
         if (data.template?.allSignItems) setAllSignItems(data.template.allSignItems);
 
         // Pre-fill name and email if available
@@ -1729,6 +1742,11 @@ export default function PublicSigningPage() {
   // ── Field value change ───────────────────────────────────────────────
   const handleFieldChange = useCallback((fieldId, value) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
+    if (typeof value === 'string' && value.startsWith('data:image')) {
+      setSigPlacedAt((prev) => ({ ...prev, [fieldId]: new Date().toISOString() }));
+    } else if (!value) {
+      setSigPlacedAt((prev) => (prev[fieldId] ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== fieldId)) : prev));
+    }
     if (showValidation) setShowValidation(false); // clear validation on any field change
     // Treat any field interaction as "started" so the sticky CTA banner gets
     // out of the way even if the signer scrolled past it without clicking.
@@ -2246,7 +2264,8 @@ export default function PublicSigningPage() {
     // Prefer the server's signedAt — it matches the sealed PDF stamp.
     // formatDisplayDate expects a YYYY-MM-DD string; coerce.
     const signedDate = serverSignedAt
-      ? formatDisplayDate(new Date(serverSignedAt).toISOString().slice(0, 10))
+      // Local calendar day, not the UTC one (ported from V2, 2026-10-11).
+      ? formatDisplayDate((() => { const d = new Date(serverSignedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })())
       : formatDisplayDate(todayStr());
 
     return (
@@ -2481,10 +2500,11 @@ export default function PublicSigningPage() {
                 activeFieldId={activeFieldId}
                 setActiveFieldId={setActiveFieldId}
                 scale={scale * userZoom}
-                signatureHashes={signatureHashes}
                 showValidation={showValidation}
                 previousValues={previousValues}
-                previousSignatureHashes={previousSignatureHashes}
+                previousSignatureMeta={previousSignatureMeta}
+                signerName={signer?.name || ''}
+                sigPlacedAt={sigPlacedAt}
                 allSignItems={allSignItems}
                 highlightedFieldId={highlightedFieldId}
               />
