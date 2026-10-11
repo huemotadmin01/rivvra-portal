@@ -945,7 +945,7 @@ function SignatureStamp({ src, caption = '', alt = 'Signature' }) {
         <img src={src} alt={alt} className="max-w-full max-h-full object-contain" />
       </div>
       {caption && (
-        <span className="self-end italic text-gray-500 leading-none whitespace-nowrap pr-0.5" style={{ fontSize: 7 }}>
+        <span className="self-center italic text-gray-500 leading-none whitespace-nowrap" style={{ fontSize: 7 }}>
           {caption}
         </span>
       )}

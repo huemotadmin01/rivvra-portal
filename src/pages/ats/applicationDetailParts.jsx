@@ -339,6 +339,12 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   const isInternalFullTime = String(effectiveEmploymentType || '').toLowerCase().replace(/[\s_-]/g, '') === 'fulltime' && !isClientPlacement;
   const [structures, setStructures] = useState([]);
   const [structuresLoading, setStructuresLoading] = useState(false);
+  // 2026-10-12: posting/reporting details for the letter, captured by HR
+  // (blank = the Director fills them while signing). Never defaulted from a
+  // client job's location — that is the client's site.
+  const [workLocation, setWorkLocation] = useState(initialOffer?.location || '');
+  const [reportingLocation, setReportingLocation] = useState(initialOffer?.reportingLocation || '');
+  const [reportingManager, setReportingManager] = useState(initialOffer?.reportingManager || '');
   const [structureId, setStructureId] = useState(initialOffer?.breakup?.structureId || '');
   const [variablePay, setVariablePay] = useState(initialOffer?.breakup?.variablePayAnnual != null ? String(initialOffer.breakup.variablePayAnnual) : '0');
   const [pfApplicable, setPfApplicable] = useState(initialOffer?.breakup?.pfApplicable !== false);
@@ -711,7 +717,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
         noticePeriodDays: Number(noticePeriodDays),
         probationMonths: Number(probationMonths),
         signedOfferDocId: signedOfferDocId.trim() || null,
-        ...(isInternalFullTime ? { breakup: breakup || null, acceptanceDeadline: acceptanceDeadline || null } : {}),
+        ...(isInternalFullTime ? { breakup: breakup || null, acceptanceDeadline: acceptanceDeadline || null, location: workLocation.trim() || null, reportingLocation: reportingLocation.trim() || null, reportingManager: reportingManager.trim() || null } : {}),
         // 2026-10-11 audit #8: remember who signs for the company on this offer.
         ...(directorName.trim() ? { signatoryName: directorName.trim() } : {}),
         ...(directorDesignation.trim() ? { signatoryDesignation: directorDesignation.trim() } : {}),
@@ -882,6 +888,23 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Compensation breakup (Annexure A)</div>
                 <div className="text-[11px] text-dark-500">Computed with Payroll's salary structure · saved with the offer · prefilled on the offer letter</div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Work location</label>
+                  <input type="text" value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} disabled={envelopeLocked} placeholder="e.g. Bhopal (blank = Director fills)"
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 disabled:opacity-60 placeholder:text-dark-600" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Reporting location</label>
+                  <input type="text" value={reportingLocation} onChange={(e) => setReportingLocation(e.target.value)} disabled={envelopeLocked} placeholder="defaults to work location"
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 disabled:opacity-60 placeholder:text-dark-600" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Reporting manager</label>
+                  <input type="text" value={reportingManager} onChange={(e) => setReportingManager(e.target.value)} disabled={envelopeLocked} placeholder="Name, designation"
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 disabled:opacity-60 placeholder:text-dark-600" />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
