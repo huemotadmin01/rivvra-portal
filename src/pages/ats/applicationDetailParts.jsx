@@ -831,8 +831,8 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
             </div>
             <input
               type="number"
-              min="1"
-              step="1"
+              min="0.01"
+              step="any"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder={salaryInputCfg.placeholder}
