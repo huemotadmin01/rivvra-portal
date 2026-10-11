@@ -331,7 +331,12 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // placement — the client pays, there is no Huemot breakup. Computed by the
   // API with Payroll's salary structures; saved on offer.breakup; sent to
   // Sign as prefill so HR no longer re-types 30 values on its signing page.
-  const isInternalFullTime = String(effectiveEmploymentType || '').toLowerCase().replace(/[\s_-]/g, '') === 'fulltime' && application?.isClientRole !== true;
+  // 2026-10-11: a client role staffed C2C/C2H with a Full-Time employee is a
+  // Huemot payroll hire deployed at the client — it gets the breakup. Only a
+  // client PLACEMENT (job hiring mode "Full-time Hire") is excluded.
+  const isClientPlacement = (application?.isClientRole === true || application?.jobIsClientRole === true)
+    && String(application?.jobHiringMode || application?.hiringMode || '').trim().toLowerCase() === 'full-time hire';
+  const isInternalFullTime = String(effectiveEmploymentType || '').toLowerCase().replace(/[\s_-]/g, '') === 'fulltime' && !isClientPlacement;
   const [structures, setStructures] = useState([]);
   const [structuresLoading, setStructuresLoading] = useState(false);
   const [structureId, setStructureId] = useState(initialOffer?.breakup?.structureId || '');
@@ -835,6 +840,9 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
               disabled={envelopeLocked}
               required
             />
+            {salaryUnit === 'lpa' && Number(amount) > 500 && (
+              <p className="text-[11px] text-amber-300 mt-1">{Number(amount).toLocaleString('en-IN')} LPA looks like rupees typed into the lakhs field — enter lakhs (e.g. 29.5 for ₹29,50,000).</p>
+            )}
             <p className="text-[11px] text-dark-500 mt-1">{salaryInputCfg.helper}{application?.employmentType ? ` · matches ${application.employmentType} job type` : (effectiveEmploymentType ? ` · derived from ${effectiveEmploymentType} job` : '')}</p>
             {errors.amount && <p className="text-xs text-red-400 mt-1">{errors.amount}</p>}
           </div>
