@@ -1052,7 +1052,15 @@ export default function AtsApplicationDetail() {
       setCreatingEmployee(true);
       const res = await atsApi.createEmployeeFromApplication(orgSlug, applicationId, payload);
       if (res.success) {
-        showToast(res.existing ? 'Linked to existing employee' : `Employee "${res.employeeName}" created!`);
+        if (res.existing) showToast('Linked to existing employee');
+        else if (res.salarySeed?.status === 'set') {
+          showToast(`Employee "${res.employeeName}" created · initial CTC ₹${Number(res.salarySeed.ctcAnnual).toLocaleString('en-IN')} seeded from the offer letter`);
+        } else {
+          showToast(`Employee "${res.employeeName}" created!`);
+          if (res.salarySeed?.reason && res.salarySeed.reason !== 'Offer has no compensation breakup') {
+            showToast(`Salary not seeded: ${res.salarySeed.reason}`, 'warning');
+          }
+        }
         setShowCreateEmpDrawer(false);
         fetchApplication();
       }
