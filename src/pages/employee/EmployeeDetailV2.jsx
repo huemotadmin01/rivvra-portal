@@ -1998,7 +1998,10 @@ export default function EmployeeDetail() {
                   <tr key={s._id} className="hover:bg-dark-800/30 transition-colors">
                     <td className="px-3 py-2.5 text-sm text-dark-300">{formatDate(s.effectiveFrom)}</td>
                     <td className="px-3 py-2.5 text-sm text-white text-right font-medium">{formatCurrency(s.ctcAnnual)}</td>
-                    <td className="px-3 py-2.5 text-sm text-dark-300 text-right">{formatCurrency(s.grossMonthly)}</td>
+                    <td className="px-3 py-2.5 text-sm text-dark-300 text-right" title={s.ctcInclusive ? 'Employer PF/ESI sit inside CTC — gross is what the payslip shows, same as the offer letter' : undefined}>
+                      {formatCurrency(s.grossMonthly)}
+                      {s.ctcInclusive && <span className="block text-[10px] text-dark-500 leading-tight">excl. employer PF</span>}
+                    </td>
                     <td className="px-3 py-2.5 text-sm text-dark-300">{s.structureName || '—'}</td>
                     <td className="px-3 py-2.5 text-sm text-dark-300">{s.changedByName || s.createdBy || '—'}</td>
                     <td className="px-3 py-2.5 text-sm text-dark-400 max-w-[200px] truncate" title={s.reason}>{s.reason || '—'}</td>
