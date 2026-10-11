@@ -1995,6 +1995,27 @@ export default function SignTemplateEditor() {
                   />
                 </div>
               )}
+              {/* Cover text underneath — paints white behind the sealed value.
+                  Off by default since 2026-10-11: the fill erased printed words
+                  a field overlapped. Turn on only for templates whose blanks
+                  are drawn as underscores the value must hide. */}
+              {selectedItem.type !== 'signature' && selectedItem.type !== 'initials' && selectedItem.type !== 'checkbox' && (
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-gray-500" title="Paint a white box behind the value in the signed PDF (hides underscores or placeholder text under the field)">Cover text underneath</label>
+                  <button
+                    onClick={() => updateItemProp(selectedItem.id, 'coverBackground', !selectedItem.coverBackground)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      selectedItem.coverBackground ? 'bg-rivvra-600' : 'bg-dark-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                        selectedItem.coverBackground ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
               {/* Required toggle */}
               <div className="flex items-center justify-between">
                 <label className="text-xs text-gray-500">Required</label>
