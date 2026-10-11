@@ -200,6 +200,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   const [signTemplateId, setSignTemplateId] = useState('');
   const [directorName, setDirectorName] = useState('');
   const [directorEmail, setDirectorEmail] = useState('');
+  const [directorDesignation, setDirectorDesignation] = useState('');
   const [candSignName, setCandSignName] = useState('');
   const [candSignEmail, setCandSignEmail] = useState('');
   const [sendingEnv, setSendingEnv] = useState(false);
@@ -287,13 +288,16 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   useEffect(() => {
     if (!show) return;
     setSignTemplateId('');
-    setDirectorName(seededDirectorName);
-    setDirectorEmail(seededDirectorEmail);
+    // Keep what HR typed last time; fall back to what was saved on the offer,
+    // then to the company's configured signatory (2026-10-11 audit #8).
+    setDirectorName((cur) => cur || initialOffer?.signatoryName || seededDirectorName);
+    setDirectorEmail((cur) => cur || seededDirectorEmail);
+    setDirectorDesignation((cur) => cur || initialOffer?.signatoryDesignation || appCompany?.signatoryDesignation || '');
     setCandSignName(application?.candidateName || '');
     setCandSignEmail(application?.email || '');
     setSendingEnv(false);
     setSignError('');
-  }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email]);
+  }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email, initialOffer?.signatoryName, initialOffer?.signatoryDesignation, appCompany?.signatoryDesignation]);
 
   // Local-TZ YYYY-MM-DD used as the joining-date default and to detect a
   // stale (past) prefill for the passive amber note below. There is
@@ -329,23 +333,34 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // Sign as prefill so HR no longer re-types 30 values on its signing page.
   const isInternalFullTime = String(effectiveEmploymentType || '').toLowerCase().replace(/[\s_-]/g, '') === 'fulltime' && application?.isClientRole !== true;
   const [structures, setStructures] = useState([]);
+  const [structuresLoading, setStructuresLoading] = useState(false);
   const [structureId, setStructureId] = useState(initialOffer?.breakup?.structureId || '');
   const [variablePay, setVariablePay] = useState(initialOffer?.breakup?.variablePayAnnual != null ? String(initialOffer.breakup.variablePayAnnual) : '0');
   const [pfApplicable, setPfApplicable] = useState(initialOffer?.breakup?.pfApplicable !== false);
   const [breakup, setBreakup] = useState(initialOffer?.breakup || null);
   const [breakupBusy, setBreakupBusy] = useState(false);
   const [breakupError, setBreakupError] = useState('');
-  const [acceptanceDeadline, setAcceptanceDeadline] = useState(initialOffer?.acceptanceDeadline ? new Date(initialOffer.acceptanceDeadline).toISOString().slice(0, 10) : '');
+  // Default the acceptance deadline to a week from today: the letter prints
+  // it, and a blank deadline printed as an empty line (2026-10-11 audit #10).
+  const [acceptanceDeadline, setAcceptanceDeadline] = useState(initialOffer?.acceptanceDeadline
+    ? new Date(initialOffer.acceptanceDeadline).toISOString().slice(0, 10)
+    : ymdLocal(new Date(Date.now() + 7 * 86400000)));
+  // 2026-10-11 audit #3: once an envelope exists (sent or signed) the
+  // compensation and terms are what the candidate saw — read-only here.
+  // Revising means cancelling/disconnecting the envelope first.
+  const envelopeLocked = !!(application?.offer?.signEnvelopeId) || !!(initialOffer?.signedOfferDocId);
   useEffect(() => {
     if (!show || !isInternalFullTime || !orgSlug || !application?._id) return;
     let cancelled = false;
+    setStructuresLoading(true);
     atsApi.listOfferBreakupStructures(orgSlug, application._id)
       .then((r) => {
         if (cancelled || !r?.success) return;
+        setStructuresLoading(false);
         setStructures(r.structures || []);
         if (!structureId) setStructureId((r.structures || []).find((x) => x.isDefault)?._id || r.structures?.[0]?._id || '');
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setStructuresLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, isInternalFullTime, orgSlug, application?._id]);
@@ -355,6 +370,16 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
     if (!Number.isFinite(n) || n <= 0) return 0;
     return salaryUnit === 'lpa' ? Math.round(n * 100000) : salaryUnit === 'per_month' ? Math.round(n * 12) : Math.round(n);
   };
+  // 2026-10-11 audit #1/#2: the breakup is never discarded on an input
+  // change (Save used to store `null` and wipe the Annexure). Instead it is
+  // flagged STALE whenever CTC, structure, variable pay or PF differ from
+  // what it was computed with; Save/Confirm refuse until Recompute.
+  const breakupStale = !!breakup && !envelopeLocked && (
+    Number(breakup.ctcAnnual) !== ctcAnnualFromInput()
+    || String(breakup.structureId || '') !== String(structureId || '')
+    || (Number(breakup.variablePayAnnual) || 0) !== (Number(variablePay) || 0)
+    || (breakup.pfApplicable !== false) !== pfApplicable
+  );
   const handleComputeBreakup = async () => {
     setBreakupError('');
     const ctcAnnual = ctcAnnualFromInput();
@@ -523,7 +548,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       let prefill;
       if (isInternalFullTime) {
         try {
-          const pr = await atsApi.getOfferPrefill(orgSlug, application._id, { signatoryName: directorName.trim() });
+          const pr = await atsApi.getOfferPrefill(orgSlug, application._id, { signatoryName: directorName.trim(), signatoryDesignation: directorDesignation.trim() });
           if (pr?.success && pr.prefill && Object.keys(pr.prefill).length) prefill = pr.prefill;
         } catch { /* send without prefill */ }
       }
@@ -618,9 +643,11 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
 
   const isOfferMode = mode === 'offer';
   const headerTitle = isOfferMode ? 'Offer Details' : 'Confirm Hire';
-  const headerSub = isOfferMode
-    ? 'Capture offer details'
-    : 'Capture offer details before marking as hired';
+  const headerSub = envelopeLocked
+    ? (initialOffer?.signedOfferDocId ? 'Offer signed — terms are read-only' : 'Offer letter sent — terms locked until the envelope is cancelled')
+    : isOfferMode
+      ? 'Capture offer details'
+      : 'Capture offer details before marking as hired';
   const submitLabel = isOfferMode ? 'Save Offer Details' : 'Confirm Hire';
   const submitClass = isOfferMode
     ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30'
@@ -664,7 +691,12 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
     if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
     const pm = Number(probationMonths);
     if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
+    if (isInternalFullTime && !envelopeLocked) {
+      if (!breakup) errs.breakup = 'Compute the compensation breakup before saving';
+      else if (breakupStale) errs.breakup = 'The breakup is out of date — press Recompute first';
+    }
     setErrors(errs);
+    if (errs.breakup) setBreakupError(errs.breakup);
     if (Object.keys(errs).length > 0) return;
 
     onConfirm({
@@ -675,6 +707,9 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
         probationMonths: Number(probationMonths),
         signedOfferDocId: signedOfferDocId.trim() || null,
         ...(isInternalFullTime ? { breakup: breakup || null, acceptanceDeadline: acceptanceDeadline || null } : {}),
+        // 2026-10-11 audit #8: remember who signs for the company on this offer.
+        ...(directorName.trim() ? { signatoryName: directorName.trim() } : {}),
+        ...(directorDesignation.trim() ? { signatoryDesignation: directorDesignation.trim() } : {}),
       },
     });
   };
@@ -739,6 +774,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                 value={joiningDate}
                 onChange={(e) => setJoiningDate(e.target.value)}
                 className="input-field"
+                disabled={envelopeLocked}
                 required
               />
               {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
@@ -756,7 +792,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
 
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">Currency</label>
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input-field">
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input-field" disabled={envelopeLocked}>
               <option value="INR">INR</option>
               <option value="USD">USD</option>
               <option value="CAD">CAD</option>
@@ -778,6 +814,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                 <select
                   value={rateUnit}
                   onChange={(e) => setRateUnit(e.target.value)}
+                  disabled={envelopeLocked}
                   title="Unit the rate was agreed in"
                   aria-label="Rate unit"
                   className="bg-dark-900 border border-dark-700 rounded-md text-[11px] text-dark-300 px-1.5 py-0.5 focus:outline-none focus:border-dark-500"
@@ -795,6 +832,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
               onChange={(e) => setAmount(e.target.value)}
               placeholder={salaryInputCfg.placeholder}
               className="input-field"
+              disabled={envelopeLocked}
               required
             />
             <p className="text-[11px] text-dark-500 mt-1">{salaryInputCfg.helper}{application?.employmentType ? ` · matches ${application.employmentType} job type` : (effectiveEmploymentType ? ` · derived from ${effectiveEmploymentType} job` : '')}</p>
@@ -810,6 +848,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                   step="1"
                   value={noticePeriodDays}
                   onChange={(e) => setNoticePeriodDays(e.target.value)}
+                  disabled={envelopeLocked}
                   className="input-field"
                 />
                 {errors.noticePeriodDays && <p className="text-xs text-red-400 mt-1">{errors.noticePeriodDays}</p>}
@@ -823,6 +862,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                   step="1"
                   value={probationMonths}
                   onChange={(e) => setProbationMonths(e.target.value)}
+                  disabled={envelopeLocked}
                   className="input-field"
                 />
                 {errors.probationMonths && <p className="text-xs text-red-400 mt-1">{errors.probationMonths}</p>}
@@ -838,39 +878,42 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">Salary structure</label>
-                  <select value={structureId} onChange={(e) => { setStructureId(e.target.value); setBreakup(null); }}
-                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50">
-                    {structures.length === 0 && <option value="">No salary structure in Payroll settings</option>}
+                  <select value={structureId} onChange={(e) => setStructureId(e.target.value)} disabled={envelopeLocked || structuresLoading}
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 disabled:opacity-60">
+                    {structuresLoading && structures.length === 0 && <option value="">Loading salary structures…</option>}
+                    {!structuresLoading && structures.length === 0 && <option value="">No salary structure in Payroll settings</option>}
                     {structures.map((st) => <option key={st._id} value={st._id}>{st.name}{st.isDefault ? ' (default)' : ''} — {st.components.map((c) => `${c.name} ${c.percentOfGross}%`).join(', ')}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">Variable pay / bonus (₹ per year)</label>
-                  <input type="number" min="0" value={variablePay} onChange={(e) => { setVariablePay(e.target.value); setBreakup(null); }}
-                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50" />
+                  <input type="number" min="0" value={variablePay} onChange={(e) => setVariablePay(e.target.value)} disabled={envelopeLocked}
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 disabled:opacity-60" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">Acceptance deadline</label>
-                  <input type="date" value={acceptanceDeadline} onChange={(e) => setAcceptanceDeadline(e.target.value)}
-                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50" />
+                  <input type="date" value={acceptanceDeadline} onChange={(e) => setAcceptanceDeadline(e.target.value)} disabled={envelopeLocked}
+                    className="w-full px-3 py-2 text-sm text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 disabled:opacity-60" />
                 </div>
                 <div className="flex items-end gap-3">
                   <label className="flex items-center gap-2 text-sm text-dark-300 pb-2">
-                    <input type="checkbox" checked={pfApplicable} onChange={(e) => { setPfApplicable(e.target.checked); setBreakup(null); }} />
-                    Employer PF inside CTC
+                    <input type="checkbox" checked={pfApplicable} onChange={(e) => setPfApplicable(e.target.checked)} disabled={envelopeLocked} />
+                    PF applicable
                   </label>
-                  <button type="button" onClick={handleComputeBreakup} disabled={breakupBusy || !structures.length}
+                  <button type="button" onClick={handleComputeBreakup} disabled={breakupBusy || !structures.length || envelopeLocked}
                     className="ml-auto px-3 py-2 text-sm rounded-lg bg-rivvra-600 hover:bg-rivvra-500 text-white disabled:opacity-50">
                     {breakupBusy ? 'Computing…' : breakup ? 'Recompute' : 'Compute breakup'}
                   </button>
                 </div>
               </div>
               {breakupError && <p className="mt-2 text-xs text-red-400">{breakupError}</p>}
+              {breakupStale && <p className="mt-2 text-xs text-amber-300">The inputs changed since this breakup was computed — press Recompute before saving or sending.</p>}
+              {envelopeLocked && <p className="mt-2 text-xs text-dark-400">Compensation is locked: an offer letter has been {initialOffer?.signedOfferDocId ? 'signed' : 'sent'} with these terms. Disconnect or cancel the envelope to revise.</p>}
               {breakup && (
                 <table className="mt-3 w-full text-sm">
                   <thead><tr className="text-[11px] uppercase tracking-wider text-dark-500"><th className="text-left py-1">Component</th><th className="text-right py-1">Monthly (₹)</th><th className="text-right py-1">Annual (₹)</th></tr></thead>
                   <tbody>
-                    {breakup.rows.map((r) => (
+                    {breakup.rows.filter((r) => !(r.kind === 'variable' && !Number(r.monthly) && !Number(r.annual))).map((r) => (
                       <tr key={r.name} className="border-t border-dark-800"><td className="py-1 text-dark-200">{r.name}</td><td className="py-1 text-right text-dark-200 tabular-nums">{Number(r.monthly).toLocaleString('en-IN')}</td><td className="py-1 text-right text-dark-200 tabular-nums">{Number(r.annual).toLocaleString('en-IN')}</td></tr>
                     ))}
                     <tr className="border-t border-dark-700 font-semibold"><td className="py-1 text-white">Total Cost to Company (CTC)</td><td className="py-1 text-right text-white tabular-nums">{Number(breakup.ctcMonthly).toLocaleString('en-IN')}</td><td className="py-1 text-right text-white tabular-nums">{Number(breakup.ctcAnnual).toLocaleString('en-IN')}</td></tr>
@@ -884,7 +927,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
           <div className="col-span-2 pt-3 mt-1 border-t border-dark-700/60">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer signature</div>
-              <div className="text-[11px] text-dark-500">Optional</div>
+              <div className="text-[11px] text-dark-500">{initialOffer?.signedOfferDocId ? 'Signed' : application?.offer?.signEnvelopeId ? 'Sent — awaiting signatures' : 'Required before Hire'}</div>
             </div>
 
             {alreadyAtOfferSigned && !signedOfferDocId && !application?.offer?.signEnvelopeId ? (
@@ -1110,6 +1153,14 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                       value={directorEmail}
                       onChange={(e) => setDirectorEmail(e.target.value)}
                       placeholder="director@company.com"
+                      className="input-field text-sm mb-1.5"
+                      disabled={sendingEnv}
+                    />
+                    <input
+                      type="text"
+                      value={directorDesignation}
+                      onChange={(e) => setDirectorDesignation(e.target.value)}
+                      placeholder="Designation on the letter (e.g. Director)"
                       className="input-field text-sm"
                       disabled={sendingEnv}
                     />
@@ -1180,7 +1231,8 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                 <button
                   type="button"
                   onClick={handleSendForSignature}
-                  disabled={sendingEnv || signLoading || !signTemplateId}
+                  disabled={sendingEnv || signLoading || !signTemplateId || (isInternalFullTime && (!breakup || breakupStale || !acceptanceDeadline))}
+                  title={isInternalFullTime && (!breakup || breakupStale) ? 'Compute (or recompute) the breakup first' : isInternalFullTime && !acceptanceDeadline ? 'Set the acceptance deadline first' : undefined}
                   className="w-full flex items-center justify-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
                 >
                   {sendingEnv ? <Loader2 size={14} className="animate-spin" /> : <PenTool size={14} />}
