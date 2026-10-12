@@ -6,6 +6,13 @@ import api, { authHeaders, getActiveCompanyId, orgSlugForRequest } from './api';
 import { API_BASE_URL } from './config';
 
 const employeeApi = {
+  // 2026-10-12: Full-Time appointment letter — key→value map for the Sign
+  // template, built from the employee record + current salary.
+  getAppointmentLetterPrefill(orgSlug, employeeId, params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/appointment-letter/prefill${qs ? `?${qs}` : ''}`);
+  },
+
   // ── Employees ─────────────────────────────────────────────────────────
   list(orgSlug, params = {}) {
     const qs = new URLSearchParams(

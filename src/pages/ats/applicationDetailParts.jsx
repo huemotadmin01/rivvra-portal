@@ -323,7 +323,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   const [joiningDate, setJoiningDate] = useState(initJoining);
   const [currency, setCurrency] = useState(initialOffer?.offeredCTC?.currency || 'INR');
   const [amount, setAmount] = useState(initialOffer?.offeredCTC?.amount ? String(initialOffer.offeredCTC.amount) : '');
-  const [noticePeriodDays, setNoticePeriodDays] = useState(initialOffer?.noticePeriodDays != null ? String(initialOffer.noticePeriodDays) : '30');
+  const [noticePeriodDays, setNoticePeriodDays] = useState(initialOffer?.noticePeriodDays != null ? String(initialOffer.noticePeriodDays) : '60'); // 2026-10-12: company default 60 after confirmation
   const [probationMonths, setProbationMonths] = useState(initialOffer?.probationMonths != null ? String(initialOffer.probationMonths) : '6');
   const [signedOfferDocId, setSignedOfferDocId] = useState(initialOffer?.signedOfferDocId || '');
   // ── Compensation breakup (Annexure A), 2026-10-10 ──────────────────────

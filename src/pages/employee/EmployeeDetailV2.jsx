@@ -51,10 +51,11 @@ import {
   Package,
   ExternalLink,
   Eye,
-  CalendarX,
+  CalendarX, FileSignature,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
+import AppointmentLetterModal from '../../components/employee/AppointmentLetterModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
@@ -210,6 +211,7 @@ export default function EmployeeDetail() {
   const [notFound, setNotFound] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showLaunchPlanModal, setShowLaunchPlanModal] = useState(false);
+  const [showAppointmentLetter, setShowAppointmentLetter] = useState(false); // 2026-10-12
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
@@ -1026,6 +1028,17 @@ export default function EmployeeDetail() {
                       </button>
                     )
                   )}
+                  {/* 2026-10-12: Full-Time appointment letter (Director → employee), rendered from the record + salary */}
+                  {isAdmin && emp.employmentType === 'confirmed' && (
+                    <button
+                      onClick={() => setShowAppointmentLetter(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 text-sm transition-colors"
+                      title={emp.appointmentLetter?.refNo ? `Last sent: ${emp.appointmentLetter.refNo} (${emp.appointmentLetter.state})` : 'Send the appointment letter for signature'}
+                    >
+                      <FileSignature size={14} />
+                      {emp.appointmentLetter && !['cancelled', 'refused', 'expired'].includes(emp.appointmentLetter.state) ? 'Re-send Appointment Letter' : 'Send Appointment Letter'}
+                    </button>
+                  )}
                   {/* Launch Plan */}
                   <button
                     onClick={() => setShowLaunchPlanModal(true)}
@@ -1214,6 +1227,14 @@ export default function EmployeeDetail() {
             editable={fp('billable').editable} onSave={handleFieldSave} />
           <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
             editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
+          {emp.employmentType === 'confirmed' && (
+            <>
+              <InlineField label="Notice (after confirmation)" field="noticePeriodDays" value={emp.noticePeriodDays ?? ''} type="number"
+                editable={isAdmin} onSave={handleFieldSave} placeholder="60 (company default)" />
+              <InlineField label="Notice (during probation)" field="noticeDuringProbationDays" value={emp.noticeDuringProbationDays ?? ''} type="number"
+                editable={isAdmin} onSave={handleFieldSave} placeholder="30 (company default)" />
+            </>
+          )}
           <InfoRow label="Salary Disbursement" value={(() => {
             const ruleLabels = {
               'last-working-day': 'Last working day of salary month',
@@ -2270,6 +2291,13 @@ export default function EmployeeDetail() {
       )}
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
+      <AppointmentLetterModal
+        show={showAppointmentLetter}
+        onClose={() => setShowAppointmentLetter(false)}
+        orgSlug={currentOrg?.slug}
+        employee={emp}
+        onSent={(msg) => { setShowAppointmentLetter(false); if (msg) showToast(msg, 'success'); if (currentOrg?.slug && employee?._id) employeeApi.get(currentOrg.slug, employee._id).then((r) => { if (r?.success && r.employee) setEmployee(r.employee); }).catch(() => {}); }}
+      />
       <InviteEmployeeModal
         isOpen={showInviteModal}
         onClose={() => setShowInviteModal(false)}
