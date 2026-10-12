@@ -429,6 +429,10 @@ export default function AtsApplicationDetail() {
     const res = await atsApi.updateApplication(orgSlug, applicationId, { [field]: coerced });
     if (res?.application) {
       setApplication((prev) => ({ ...prev, ...res.application }));
+      // 2026-10-12: the employment MEANING (salary unit, payroll category) is
+      // computed by the GET route, not returned by the PUT — refetch so the
+      // offer modal switches units (Intern → stipend per month) at once.
+      if (field === 'employmentType') fetchApplication();
     } else {
       setApplication((prev) => ({ ...prev, [field]: coerced }));
     }
