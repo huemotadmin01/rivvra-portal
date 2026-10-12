@@ -272,6 +272,7 @@ export function OrgProvider({ children }) {
   const isAlumni = alumniPhase === 'a' || alumniPhase === 'b';
   const isArchivedAlumni = alumniPhase === 'archived';
   const alumniCutoffAt = membership?.alumniCutoffAt ? new Date(membership.alumniCutoffAt) : null;
+  const alumniClaimUntil = membership?.alumniClaimUntil ? new Date(membership.alumniClaimUntil) : null; // 2026-10-12 final-claim deadline
   const alumniDaysRemaining = alumniCutoffAt
     ? Math.max(0, Math.ceil((alumniCutoffAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : null;
@@ -299,13 +300,14 @@ export function OrgProvider({ children }) {
     isAlumni,
     isArchivedAlumni,
     alumniCutoffAt,
+    alumniClaimUntil,
     alumniDaysRemaining,
     refetchOrg: () => {
       fetchedRef.current = false;
       setAccessError(null);
       fetchOrg(false);
     },
-  }), [currentOrg, membership, membershipVerified, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
+  }), [currentOrg, membership, membershipVerified, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniClaimUntil, alumniDaysRemaining]);
 
   // The URL named a workspace this account cannot open. Render the answer
   // INSTEAD of the app — not a redirect, and not the app with an error toast.

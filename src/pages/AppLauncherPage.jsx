@@ -15,7 +15,7 @@ import api from '../utils/api';
 function AppLauncherPage() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
-  const { currentOrg, isAlumni, alumniCutoffAt } = useOrg();
+  const { currentOrg, isAlumni, alumniCutoffAt, alumniClaimUntil } = useOrg();
   const { orgPath } = usePlatform();
   const { pendingCount: policyPending } = usePolicyAck();
   const { slug } = useParams();
@@ -98,7 +98,11 @@ function AppLauncherPage() {
             <p className="text-dark-400 mt-2 text-base">
               Alumni access to {currentCompany?.name || 'your employer'}
               {alumniCutoffAt ? ` until ${alumniCutoffAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
-              {' '}— file your final expense claim in Expenses, and view payslips, salary history, tax report &amp; Form 16, F&amp;F receipt and your documents. Everything else is read-only; download what you need before then.
+              {' '}— view payslips, salary history, tax report &amp; Form 16, F&amp;F receipt and your documents.
+              {alumniClaimUntil
+                ? <> Your final expense claim can be filed in Expenses until <strong>{alumniClaimUntil.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.</>
+                : <> Your final expense claim can be filed in Expenses.</>}
+              {' '}Everything else is read-only; download what you need before then.
             </p>
           ) : (
             <p className="text-dark-400 mt-2 text-base">{currentCompany?.name || 'Your staffing agency command center'}</p>

@@ -15,7 +15,8 @@ import { Clock, AlertTriangle, XCircle } from 'lucide-react';
  *   'archived' — access ended (red — rarely rendered, auth blocks earlier)
  */
 function AlumniBanner() {
-  const { currentOrg, alumniPhase, alumniCutoffAt, alumniDaysRemaining } = useOrg();
+  const { currentOrg, alumniPhase, alumniCutoffAt, alumniClaimUntil, alumniDaysRemaining } = useOrg();
+  const fmt = (d) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
   if (alumniPhase === 'active' || !currentOrg) return null;
 
@@ -30,8 +31,11 @@ function AlumniBanner() {
         <Clock className="w-4 h-4 flex-shrink-0" />
         <span>
           <strong>Alumni access to {orgName}.</strong>{' '}
-          {cutoffStr && <>Your access ends on <strong>{cutoffStr}</strong>{alumniDaysRemaining !== null && ` (${alumniDaysRemaining} ${alumniDaysRemaining === 1 ? 'day' : 'days'} remaining)`}.</>}
-          {' '}You can still file your final expense claim for spend up to your last working day; everything else is read-only. Download any payslips or documents you need before then.
+          {alumniClaimUntil
+            ? <>You can file your final expense claim (spend up to your last working day) until <strong>{fmt(alumniClaimUntil)}</strong>.</>
+            : <>You can still file your final expense claim for spend up to your last working day.</>}
+          {' '}Everything else is read-only.
+          {cutoffStr && <> Your access to payslips and documents ends on <strong>{cutoffStr}</strong>{alumniDaysRemaining !== null && ` (${alumniDaysRemaining} ${alumniDaysRemaining === 1 ? 'day' : 'days'} remaining)`}; download what you need before then.</>}
         </span>
       </div>
     );
