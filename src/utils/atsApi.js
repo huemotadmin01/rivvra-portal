@@ -441,6 +441,12 @@ const atsApi = {
   // this records the metadata (envelopeId + terms) on the application
   // doc and gates by External Consultant + isClientRole + team-scope.
   // payload: { envelopeId, amount, currency, unit, startDate? }
+  // 2026-10-12: key→value map for the Rate Confirmation Sign masters
+  getRateConfirmationPrefill(orgSlug, applicationId, params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/rate-confirmation/prefill${qs ? `?${qs}` : ''}`);
+  },
+
   recordRateConfirmation(orgSlug, applicationId, payload) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/rate-confirmation`, {
       method: 'POST',

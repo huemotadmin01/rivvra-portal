@@ -33,6 +33,44 @@ function classifyRole(roleName) {
   return 'other';
 }
 
+// 2026-10-12: pick the Rate Confirmation master that matches the hire —
+// Dipika sent an External Consultant (C2C) the "Payroll Full-time Employee"
+// letter on 12 Oct because the picker defaulted to the first template. The
+// recruiter can still override in the picker.
+function preferredTemplate(templates, application) {
+  if (!templates.length) return null;
+  const et = String(application?.employmentType || '').toLowerCase();
+  const placement = application?.isClientRole === true && /full[-\s]?time\s*hire/i.test(application?.jobHiringMode || '');
+  let re;
+  if (/intern/.test(et)) re = /intern/i;
+  else if (/consultant|contract/.test(et)) re = /individual\s*contractor/i;
+  else if (/full/.test(et)) re = placement ? /client.*full\s*time\s*hire/i : /payroll/i;
+  const hit = re ? templates.find((t) => re.test(t?.name || '')) : null;
+  return hit || null;
+}
+const RATE_UNIT_OPTIONS = [
+  { value: 'per_day', label: 'per day' },
+  { value: 'per_hour', label: 'per hour' },
+  { value: 'per_month', label: 'per month' },
+  { value: 'lpa', label: 'LPA (lakhs / year)' },
+  { value: 'per_year', label: 'per year' },
+];
+function defaultUnitFor(application) {
+  const u = application?.offer?.offeredCTC?.unit;
+  if (u && RATE_UNIT_OPTIONS.some((o) => o.value === u)) return u;
+  const et = String(application?.employmentType || '').toLowerCase();
+  if (/intern/.test(et)) return 'per_month';
+  if (/consultant|contract/.test(et)) return 'per_day';
+  return 'lpa';
+}
+// Items of a role the sender has NOT covered with prefill (signature fields
+// can never be prefilled). Empty ⇒ that role has no signing step to do.
+function remainingItemsForRole(template, roleId, prefill) {
+  const keys = new Set(Object.keys(prefill || {}));
+  return (template?.signItems || []).filter((it) => String(it?.roleId) === String(roleId)
+    && (it.type === 'signature' || it.type === 'initials' || !(it.key && keys.has(String(it.key)))));
+}
+
 function buildDefaultSubject(candidateName, jobTitle) {
   const name = candidateName?.trim() || 'Candidate';
   return `Rate Confirmation — ${name}${jobTitle ? ` · ${jobTitle}` : ''}`;
@@ -97,6 +135,14 @@ export default function RateConfirmationModal({
   const [subjectDirty, setSubjectDirty] = useState(false);
   const [message, setMessage] = useState('');
   const [messageDirty, setMessageDirty] = useState(false);
+
+  // 2026-10-12: the rate is typed HERE (prefilled on the letter and recorded
+  // on application.rateConfirmation) instead of on the recruiter's signing page.
+  const [rateAmount, setRateAmount] = useState('');
+  const [rateCurrency, setRateCurrency] = useState('INR');
+  const [rateUnit, setRateUnit] = useState('lpa');
+  const [durationMonths, setDurationMonths] = useState('');
+  const templateChosenRef = useRef(false);
 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -188,6 +234,12 @@ export default function RateConfirmationModal({
     setError('');
     setSubmitAttempted(false);
     userEditsRef.current = {};
+    templateChosenRef.current = false;
+    const ctc = application?.offer?.offeredCTC;
+    setRateAmount(ctc?.amount != null && ctc.amount !== '' ? String(ctc.amount) : '');
+    setRateCurrency(ctc?.currency || 'INR');
+    setRateUnit(defaultUnitFor(application));
+    setDurationMonths('');
     setPriorEnvelope(null);
     setForceNew(false);
     setConfirmReplaceSigned(false);
@@ -245,7 +297,9 @@ export default function RateConfirmationModal({
       return;
     }
     if (templateId && rateTemplates.some((t) => String(t._id) === templateId)) return;
-    setTemplateId(String(rateTemplates[0]._id));
+    const preferred = templateChosenRef.current ? null : preferredTemplate(rateTemplates, application);
+    setTemplateId(String((preferred || rateTemplates[0])._id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, rateTemplates, templateId]);
 
   // ── Build signer slots whenever roles/template change, preserving edits ─
@@ -402,16 +456,33 @@ export default function RateConfirmationModal({
       const candName = candidateSlot?.name || application?.candidateName || 'Candidate';
       const reference = `Rate Confirmation — ${candName}${jobTitle ? ` · ${jobTitle}` : ''}`;
 
+      // Sender-known values for the letter (candidate, position, client,
+      // rate…). Best-effort: without it the recruiter fills the blanks on
+      // their own signing page exactly as before.
+      const amt = rateAmount.trim() === '' ? null : Number(rateAmount);
+      let prefill = null;
+      try {
+        const pr = await atsApi.getRateConfirmationPrefill(orgSlug, application._id, {
+          ...(amt != null && Number.isFinite(amt) && amt > 0 ? { amount: amt, currency: rateCurrency, unit: rateUnit } : {}),
+          ...(durationMonths.trim() !== '' ? { durationMonths: Number(durationMonths) } : {}),
+        });
+        if (pr?.success && pr.prefill && Object.keys(pr.prefill).length) prefill = pr.prefill;
+      } catch { /* send without prefill */ }
+
+      // A role with nothing left to fill or sign (every field prefilled, no
+      // signature) gets no envelope step — the candidate is emailed at once.
+      const signers = signerSlots
+        .filter((s) => !(prefill && remainingItemsForRole(selectedTemplate, s.roleId, prefill).length === 0))
+        .map((s) => ({ name: s.name.trim(), email: s.email.trim().toLowerCase(), roleName: s.roleName }));
+      if (signers.length === 0) throw new Error('Nothing left for anyone to sign on this template');
+
       const envelopeRes = await signApi.createRequest(orgSlug, {
         templateId,
         reference,
         subject: subject.trim() || undefined,
         message: messageToHtml(message.trim()) || undefined,
-        signers: signerSlots.map((s) => ({
-          name: s.name.trim(),
-          email: s.email.trim().toLowerCase(),
-          roleName: s.roleName,
-        })),
+        signers,
+        ...(prefill ? { prefill } : {}),
         linkedModel: 'ats_application',
         linkedId: application._id,
         // Explicitly NOT 'offer' — keeps a signed Rate Confirmation from
@@ -424,6 +495,7 @@ export default function RateConfirmationModal({
 
       await atsApi.recordRateConfirmation(orgSlug, application._id, {
         envelopeId: String(envelopeId),
+        ...(amt != null && Number.isFinite(amt) && amt > 0 ? { amount: amt, currency: rateCurrency, unit: rateUnit } : {}),
       });
 
       if (typeof onSent === 'function') onSent('Rate Confirmation sent for signature');
@@ -639,7 +711,7 @@ export default function RateConfirmationModal({
                   <label className="text-xs font-medium text-dark-300 mb-1 block">Sign template</label>
                   <select
                     value={templateId}
-                    onChange={(e) => setTemplateId(e.target.value)}
+                    onChange={(e) => { templateChosenRef.current = true; setTemplateId(e.target.value); }}
                     disabled={sending}
                     className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
                   >
@@ -657,6 +729,58 @@ export default function RateConfirmationModal({
               {selectedTemplate && (
                 <TemplatePreviewRow template={selectedTemplate} roles={orderedRoles} />
               )}
+            </div>
+          )}
+
+          {/* Rate — printed on the letter and recorded on the application */}
+          {showForm && !loading && !loadError && selectedTemplate && (
+            <div>
+              <label className="text-xs font-medium text-dark-300 mb-1 block">
+                {/intern/i.test(selectedTemplate.name || '') ? 'Stipend' : /ctc|full[-\s]?time/i.test(selectedTemplate.name || '') ? 'CTC' : 'Rate'}
+              </label>
+              <div className="grid grid-cols-[88px_1fr_1fr] gap-2">
+                <select
+                  value={rateCurrency}
+                  onChange={(e) => setRateCurrency(e.target.value)}
+                  disabled={sending}
+                  className="px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                >
+                  {['INR', 'USD', 'CAD', 'GBP', 'AUD'].map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input
+                  type="number" min="0" step="any" inputMode="decimal"
+                  value={rateAmount}
+                  onChange={(e) => setRateAmount(e.target.value)}
+                  placeholder={rateUnit === 'lpa' ? 'e.g. 12' : rateUnit === 'per_month' ? 'e.g. 4000' : 'e.g. 4500'}
+                  disabled={sending}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                />
+                <select
+                  value={rateUnit}
+                  onChange={(e) => setRateUnit(e.target.value)}
+                  disabled={sending}
+                  className="px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                >
+                  {RATE_UNIT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              {/intern/i.test(selectedTemplate.name || '') && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs text-dark-300">Internship duration</label>
+                  <input
+                    type="number" min="1" step="1"
+                    value={durationMonths}
+                    onChange={(e) => setDurationMonths(e.target.value)}
+                    placeholder="months"
+                    disabled={sending}
+                    className="w-24 px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                  />
+                  <span className="text-xs text-dark-500">months</span>
+                </div>
+              )}
+              <p className="text-[11px] text-dark-500 mt-1">
+                Printed on the letter with the candidate&rsquo;s name, position{application?.clientName ? ', client' : ''} and today&rsquo;s date. Leave the amount blank to type it on your own signing page instead.
+              </p>
             </div>
           )}
 
@@ -843,7 +967,7 @@ function SignerCard({ index, total, slot, errors, onChange }) {
           <span className="text-[10px] text-dark-500">signer {index + 1} of {total}</span>
         </div>
         {isRecruiter && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-dark-800 text-dark-300 border border-dark-700">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-dark-800 text-dark-300 border border-dark-700" title="Fields filled from this application are stamped read-only; this step is skipped entirely when nothing is left to fill or sign">
             <Lock size={10} /> auto
           </span>
         )}
