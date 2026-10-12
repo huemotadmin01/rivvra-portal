@@ -557,7 +557,9 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       // Keys the template doesn't carry are ignored by Sign, so this is safe
       // on the old template too — those fields simply stay HR-fillable.
       let prefill;
-      if (isInternalFullTime) {
+      // Any Huemot payroll hire gets the prefill (Full-Time, Intern, Internal
+      // Consultant); only client placements are excluded (2026-10-12).
+      if (!isClientPlacement) {
         try {
           const pr = await atsApi.getOfferPrefill(orgSlug, application._id, { signatoryName: directorName.trim(), signatoryDesignation: directorDesignation.trim() });
           if (pr?.success && pr.prefill && Object.keys(pr.prefill).length) prefill = pr.prefill;

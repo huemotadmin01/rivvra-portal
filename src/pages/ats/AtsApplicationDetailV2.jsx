@@ -389,6 +389,21 @@ export default function AtsApplicationDetail() {
   );
 
   // ── Generic per-field inline-save ────────────────────────────────────
+  // Employment-type options for the per-application override (2026-10-12).
+  const [employmentTypeOptions, setEmploymentTypeOptions] = useState([]);
+  useEffect(() => {
+    if (!orgSlug) return;
+    let cancelled = false;
+    atsApi.listConfig(orgSlug, 'employment-types')
+      .then((res) => {
+        if (cancelled) return;
+        const items = res?.items || res?.employmentTypes || [];
+        setEmploymentTypeOptions(items.map((t) => ({ value: t.name, label: t.name })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [orgSlug]);
+
   const saveField = async (field, value) => {
     let coerced = value;
     if (field === 'evaluation') {
@@ -1664,10 +1679,25 @@ export default function AtsApplicationDetail() {
               editable={false}
               linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_application', applicationId)}
             />
-            {/* Employment type is denorm from the job position and not
-                directly editable here (Phase-1 / Q22, 2026-05-10).
-                Edit it on the Job Position page and it propagates. */}
-            <InlineField label="Employment" field="employmentType" value={application.employmentType || '—'} editable={false} />
+            {/* 2026-10-12: editable per application until the candidate is
+                hired — a Full-Time job can still hire an Intern or an Internal
+                Consultant (Palak Tiwari, Akash Singh Bhati). Saving marks the
+                application as overridden so job edits no longer reset it.
+                Drives the offer modal's salary unit, the breakup block, the
+                offer-letter prefill and the employee type at Create Employee. */}
+            <InlineField
+              label="Employment"
+              field="employmentType"
+              value={application.employmentType || ''}
+              type="select"
+              options={withCurrentValue(employmentTypeOptions, application.employmentType)}
+              editable={canEdit && !application.hireDate && !application.employeeId}
+              onSave={saveField}
+              placeholder={employmentTypeOptions.length ? 'Pick employment type' : 'No types — add in ATS Configuration'}
+            />
+            {application.employmentTypeOverride && (
+              <p className="text-[11px] text-amber-300/80 -mt-1 mb-2">Overridden for this candidate — the job says {application.jobEmploymentType || 'a different type'}.</p>
+            )}
             {/* Client Role — denorm from the linked Job Position (2026-05-11).
                 Edit it on the Job page; the cascade in PUT /jobs/:id
                 propagates to every linked application. */}
