@@ -96,9 +96,9 @@ function AppLauncherPage() {
             // Separated employee: say plainly what this login is for now, instead
             // of "where to today?" above a grid that used to be full of 403s.
             <p className="text-dark-400 mt-2 text-base">
-              Read-only access to {currentCompany?.name || 'your employer'}
+              Alumni access to {currentCompany?.name || 'your employer'}
               {alumniCutoffAt ? ` until ${alumniCutoffAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
-              {' '}— payslips, salary history, tax report &amp; Form 16, F&amp;F receipt, expense claims and your documents. Download what you need before then.
+              {' '}— file your final expense claim in Expenses, and view payslips, salary history, tax report &amp; Form 16, F&amp;F receipt and your documents. Everything else is read-only; download what you need before then.
             </p>
           ) : (
             <p className="text-dark-400 mt-2 text-base">{currentCompany?.name || 'Your staffing agency command center'}</p>

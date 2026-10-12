@@ -29,9 +29,9 @@ function AlumniBanner() {
       <div className="px-4 py-2 flex items-center justify-center gap-3 text-sm bg-amber-500/20 border-b border-amber-500/30 text-amber-300">
         <Clock className="w-4 h-4 flex-shrink-0" />
         <span>
-          <strong>Read-only access to {orgName}.</strong>{' '}
+          <strong>Alumni access to {orgName}.</strong>{' '}
           {cutoffStr && <>Your access ends on <strong>{cutoffStr}</strong>{alumniDaysRemaining !== null && ` (${alumniDaysRemaining} ${alumniDaysRemaining === 1 ? 'day' : 'days'} remaining)`}.</>}
-          {' '}Download any payslips or documents you need before then.
+          {' '}You can still file your final expense claim for spend up to your last working day; everything else is read-only. Download any payslips or documents you need before then.
         </span>
       </div>
     );
