@@ -9,8 +9,12 @@ const employeeApi = {
   // 2026-10-12: Full-Time appointment letter — key→value map for the Sign
   // template, built from the employee record + current salary.
   getAppointmentLetterPrefill(orgSlug, employeeId, params = {}) {
+    return employeeApi.getLetterPrefill(orgSlug, employeeId, 'appointment', params);
+  },
+  // kind: 'appointment' | 'nda'
+  getLetterPrefill(orgSlug, employeeId, kind, params = {}) {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
-    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/appointment-letter/prefill${qs ? `?${qs}` : ''}`);
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/letters/${kind}/prefill${qs ? `?${qs}` : ''}`);
   },
 
   // ── Employees ─────────────────────────────────────────────────────────

@@ -212,6 +212,7 @@ export default function EmployeeDetail() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showLaunchPlanModal, setShowLaunchPlanModal] = useState(false);
   const [showAppointmentLetter, setShowAppointmentLetter] = useState(false); // 2026-10-12
+  const [showNda, setShowNda] = useState(false); // 2026-10-12 employee NDA
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
@@ -1039,6 +1040,17 @@ export default function EmployeeDetail() {
                       {emp.appointmentLetter && !['cancelled', 'refused', 'expired'].includes(emp.appointmentLetter.state) ? 'Re-send Appointment Letter' : 'Send Appointment Letter'}
                     </button>
                   )}
+                  {/* 2026-10-12: Employee NDA — every payroll type (FT, intern, internal consultant) */}
+                  {isAdmin && ['confirmed', 'intern', 'internal_consultant'].includes(emp.employmentType) && (
+                    <button
+                      onClick={() => setShowNda(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 text-sm transition-colors"
+                      title={emp.ndaAgreement?.refNo ? `Last sent: ${emp.ndaAgreement.refNo} (${emp.ndaAgreement.state})` : 'Send the confidentiality agreement for signature'}
+                    >
+                      <FileSignature size={14} />
+                      {emp.ndaAgreement && !['cancelled', 'refused', 'expired'].includes(emp.ndaAgreement.state) ? 'Re-send NDA' : 'Send NDA'}
+                    </button>
+                  )}
                   {/* Launch Plan */}
                   <button
                     onClick={() => setShowLaunchPlanModal(true)}
@@ -1795,7 +1807,7 @@ export default function EmployeeDetail() {
           linkedModel="employee"
           linkedId={employeeId}
           prefillData={{ name: emp?.name || '', email: emp?.email || '', phone: emp?.phone || emp?.mobile || '' }}
-          refreshKey={emp?.appointmentLetter?.envelopeId || ''}
+          refreshKey={`${emp?.appointmentLetter?.envelopeId || ''}|${emp?.ndaAgreement?.envelopeId || ''}`}
         />
       </div>
 
@@ -2292,6 +2304,14 @@ export default function EmployeeDetail() {
       )}
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
+      <AppointmentLetterModal
+        kind="nda"
+        show={showNda}
+        onClose={() => setShowNda(false)}
+        orgSlug={currentOrg?.slug}
+        employee={emp}
+        onSent={(msg) => { setShowNda(false); if (msg) showToast(msg, 'success'); if (currentOrg?.slug && employee?._id) employeeApi.get(currentOrg.slug, employee._id).then((r) => { if (r?.success && r.employee) setEmployee(r.employee); }).catch(() => {}); }}
+      />
       <AppointmentLetterModal
         show={showAppointmentLetter}
         onClose={() => setShowAppointmentLetter(false)}

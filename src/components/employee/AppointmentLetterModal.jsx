@@ -11,10 +11,16 @@ import { Loader2, FileSignature, X, AlertTriangle, CheckCircle2 } from 'lucide-r
 import employeeApi from '../../utils/employeeApi';
 import signApi from '../../utils/signApi';
 
-const TEMPLATE_RE = /appointment\s*letter/i;
-const EXCLUDE_RE = /intern/i;
 
-export default function AppointmentLetterModal({ show, onClose, orgSlug, employee, onSent }) {
+// kind: 'appointment' (Full-Time appointment letter, rendered per send) or
+// 'nda' (Employee Confidentiality, IP & Client Protection Agreement, static).
+const KINDS = {
+  appointment: { title: 'Send appointment letter', sub: 'Rendered from this employee’s record and current salary. Director signs first, then the employee.', templateRe: /appointment\s*letter/i, excludeRe: /intern/i, flag: 'dynamicAppointment', subtype: 'appointment_letter', reference: (n) => `Appointment Letter — ${n}`, subject: (n) => `Appointment Letter — ${n} · Huemot Technology Private Limited`, message: (f) => `Hi ${f},<br><br>Please review and sign your appointment letter. It sets out the terms of your employment with Huemot Technology Private Limited, including Annexure A (compensation breakup). Reach out to HR if anything needs correcting before you sign.`, noTemplate: 'No Sign template named “Appointment Letter” is active.' },
+  nda: { title: 'Send confidentiality agreement (NDA)', sub: 'Employee Confidentiality, IP & Client Protection Agreement, prefilled from this employee’s record. Director signs first, then the employee.', templateRe: /confidentiality|non-disclosure|\bNDA\b/i, excludeRe: /vendor|client|msa/i, flag: 'letterType', subtype: 'nda', reference: (n) => `NDA — ${n}`, subject: (n) => `Confidentiality Agreement — ${n} · Huemot Technology Private Limited`, message: (f) => `Hi ${f},<br><br>Please review and sign the Employee Confidentiality, Intellectual Property & Client Protection Agreement. It records the confidentiality and client-protection obligations that apply during and after your time with Huemot Technology Private Limited. Reach out to HR with any question before you sign.`, noTemplate: 'No Sign template for the Employee NDA is active.' },
+};
+
+export default function AppointmentLetterModal({ show, onClose, orgSlug, employee, onSent, kind = 'appointment' }) {
+  const K = KINDS[kind] || KINDS.appointment;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [templates, setTemplates] = useState([]);
@@ -32,10 +38,10 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
     setLoading(true); setError(''); setPrefillRes(null);
     Promise.all([
       signApi.listTemplates(orgSlug),
-      employeeApi.getAppointmentLetterPrefill(orgSlug, employee._id),
+      employeeApi.getLetterPrefill(orgSlug, employee._id, kind),
     ]).then(([tplRes, pr]) => {
       if (cancelled) return;
-      const tpls = (tplRes?.templates || []).filter((t) => t.dynamicAppointment === true || (TEMPLATE_RE.test(t?.name || '') && !EXCLUDE_RE.test(t?.name || '')));
+      const tpls = (tplRes?.templates || []).filter((t) => (kind === 'nda' ? String(t.letterType || '').toUpperCase() === 'NDA' : t.dynamicAppointment === true) || (K.templateRe.test(t?.name || '') && !K.excludeRe.test(t?.name || '')));
       setTemplates(tpls);
       setTemplateId(tpls[0] ? String(tpls[0]._id) : '');
       if (!pr?.success) throw new Error(pr?.error || 'Could not build the letter');
@@ -47,12 +53,13 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
     }).catch((e) => { if (!cancelled) setError(e?.message || 'Failed to load'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [show, orgSlug, employee?._id]);
+  }, [show, orgSlug, employee?._id, kind]);
 
   if (!show) return null;
   const p = prefillRes?.prefill || {};
   const terms = prefillRes?.terms || {};
-  const alreadySent = prefillRes?.appointmentLetter && !['cancelled', 'refused', 'expired'].includes(prefillRes.appointmentLetter.state);
+  const existing = prefillRes?.existing || (kind === 'nda' ? prefillRes?.ndaAgreement : prefillRes?.appointmentLetter);
+  const alreadySent = existing && !['cancelled', 'refused', 'expired'].includes(existing.state);
   const canSend = !loading && !sending && templateId && prefillRes?.hasSalary && signatoryName.trim() && signatoryEmail.trim() && employeeEmail.trim();
 
   const handleSend = async () => {
@@ -60,25 +67,25 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
     setSending(true);
     try {
       // Re-fetch with the signatory typed here so the printed name/designation match the signer
-      const pr = await employeeApi.getAppointmentLetterPrefill(orgSlug, employee._id, { signatoryName: signatoryName.trim(), signatoryDesignation: signatoryDesignation.trim() });
+      const pr = await employeeApi.getLetterPrefill(orgSlug, employee._id, kind, { signatoryName: signatoryName.trim(), signatoryDesignation: signatoryDesignation.trim() });
       if (!pr?.success) throw new Error(pr?.error || 'Could not build the letter');
       const name = pr.employee?.name || employee.fullName || employee.name || 'Employee';
       const res = await signApi.createRequest(orgSlug, {
         templateId,
-        reference: `Appointment Letter — ${name}`,
-        subject: `Appointment Letter — ${name} · Huemot Technology Private Limited`,
-        message: `Hi ${name.split(' ')[0]},<br><br>Please review and sign your appointment letter. It sets out the terms of your employment with Huemot Technology Private Limited, including Annexure A (compensation breakup). Reach out to HR if anything needs correcting before you sign.`,
+        reference: K.reference(name),
+        subject: K.subject(name),
+        message: K.message(name.split(' ')[0]),
         signers: [
           { name: signatoryName.trim(), email: signatoryEmail.trim().toLowerCase(), roleName: 'Director' },
           { name, email: employeeEmail.trim().toLowerCase(), roleName: 'Employee' },
         ],
         linkedModel: 'employee',
         linkedId: employee._id,
-        linkedSubtype: 'appointment_letter',
+        linkedSubtype: K.subtype,
         prefill: pr.prefill,
       });
       if (res?.success === false) throw new Error(res.error || 'Send failed');
-      onSent?.('Appointment letter sent for signature');
+      onSent?.(kind === 'nda' ? 'NDA sent for signature' : 'Appointment letter sent for signature');
       onClose?.();
     } catch (e) {
       setError(e?.message || 'Failed to send');
@@ -94,8 +101,8 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20"><FileSignature size={18} /></div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Send appointment letter</h2>
-              <p className="text-xs text-dark-400 mt-0.5">Rendered from this employee&rsquo;s record and current salary. Director signs first, then the employee.</p>
+              <h2 className="text-lg font-semibold text-white">{K.title}</h2>
+              <p className="text-xs text-dark-400 mt-0.5">{K.sub}</p>
             </div>
           </div>
           <button onClick={() => { if (!sending) onClose?.(); }} className="p-1 rounded-md text-dark-400 hover:text-white hover:bg-dark-800"><X size={18} /></button>
@@ -110,17 +117,17 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
               {alreadySent && (
                 <div className="flex items-start gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
                   <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                  <div>An appointment letter {prefillRes.appointmentLetter.refNo ? <span className="font-mono">{prefillRes.appointmentLetter.refNo}</span> : null} was already sent on {new Date(prefillRes.appointmentLetter.sentAt).toLocaleDateString('en-GB')} ({prefillRes.appointmentLetter.state}). Sending again issues a new letter with a new reference number.</div>
+                  <div>{kind === 'nda' ? 'An NDA' : 'An appointment letter'} {existing.refNo ? <span className="font-mono">{existing.refNo}</span> : null} was already sent on {new Date(existing.sentAt).toLocaleDateString('en-GB')} ({existing.state}). Sending again issues a new document with a new reference number.</div>
                 </div>
               )}
-              {!prefillRes.hasSalary && (
+              {kind === 'appointment' && !prefillRes.hasSalary && (
                 <div className="flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
                   <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                   <div>This employee has no salary breakup in Payroll yet. Set the CTC on the employee record first — Annexure A is built from it.</div>
                 </div>
               )}
               {templates.length === 0 && (
-                <div className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">No Sign template named &ldquo;Appointment Letter&rdquo; is active.</div>
+                <div className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">{K.noTemplate}</div>
               )}
               {templates.length > 1 && (
                 <div>
@@ -138,12 +145,24 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
                 <Row k="Department" v={p.department} />
                 <Row k="Date of joining" v={p.joining_date} />
                 <Row k="Work location" v={p.work_location} />
-                <Row k="Annual CTC" v={p.ctc_amount ? `INR ${p.ctc_amount}` : ''} />
-                <Row k="Salary structure" v={prefillRes.salaryStructure} />
-                <Row k="Probation" v={`${terms.probationMonths} months`} />
-                <Row k="Notice" v={`${terms.noticeDuringProbationDays} days during probation · ${terms.noticePeriodDays} days after confirmation`} />
-                <Row k="Non-solicitation" v={`${terms.nonSolicitMonths} months after exit`} />
-                <p className="text-[11px] text-dark-500 pt-1">Probation and notice come from the employee record (company default if blank). Edit them on the Work Information panel before sending if this hire agreed different terms.</p>
+                {kind === 'nda' ? (
+                  <>
+                    <Row k="Employee ID" v={p.employee_id} />
+                    <Row k="Residential address" v={p.employee_address} />
+                    <Row k="Registered office" v={p.registered_office} />
+                    <Row k="Effective date" v={p.effective_date} />
+                    <p className="text-[11px] text-dark-500 pt-1">Address comes from the employee record (permanent address first, else current). Fix it on the Address panel before sending if it is blank or stale.</p>
+                  </>
+                ) : (
+                  <>
+                    <Row k="Annual CTC" v={p.ctc_amount ? `INR ${p.ctc_amount}` : ''} />
+                    <Row k="Salary structure" v={prefillRes.salaryStructure} />
+                    <Row k="Probation" v={`${terms.probationMonths} months`} />
+                    <Row k="Notice" v={`${terms.noticeDuringProbationDays} days during probation · ${terms.noticePeriodDays} days after confirmation`} />
+                    <Row k="Non-solicitation" v={`${terms.nonSolicitMonths} months after exit`} />
+                    <p className="text-[11px] text-dark-500 pt-1">Probation and notice come from the employee record (company default if blank). Edit them on the Work Information panel before sending if this hire agreed different terms.</p>
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
