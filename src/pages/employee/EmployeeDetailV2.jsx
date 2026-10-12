@@ -1795,6 +1795,7 @@ export default function EmployeeDetail() {
           linkedModel="employee"
           linkedId={employeeId}
           prefillData={{ name: emp?.name || '', email: emp?.email || '', phone: emp?.phone || emp?.mobile || '' }}
+          refreshKey={emp?.appointmentLetter?.envelopeId || ''}
         />
       </div>
 

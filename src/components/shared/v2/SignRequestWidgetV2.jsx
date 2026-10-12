@@ -58,6 +58,8 @@ export default function SignRequestWidgetV2({
   sectionTitle = 'Signature Requests',
   sendButtonLabel = 'Send for Signature',
   modalTitle = 'Send for Signature',
+  // 2026-10-12: bump to refetch after an envelope is created elsewhere on the page
+  refreshKey = null,
 }) {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
@@ -86,7 +88,7 @@ export default function SignRequestWidgetV2({
       } catch { /* ignore */ }
       setLoading(false);
     })();
-  }, [orgSlug, linkedModel, linkedId]);
+  }, [orgSlug, linkedModel, linkedId, refreshKey]);
 
   const openModal = async () => {
     setShowModal(true);
