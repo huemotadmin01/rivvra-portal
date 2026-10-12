@@ -207,6 +207,16 @@ async function generateTypedSignature(text, font, width = 400, height = 150) {
   // most printed contracts more than slate gray did.
   ctx.fillStyle = '#0f3a8a';
   ctx.font = fontSpec;
+  // 2026-10-12: a long name at a fixed 48px overflowed the 400px canvas and
+  // the PNG was clipped at creation ("Shweta Singh Tomar" lost its first and
+  // last letters on a sealed appointment letter). Shrink the font until the
+  // name fits with a 12px margin each side; never below 18px.
+  const maxTextWidth = width - 24;
+  let size = 48;
+  while (size > 18 && ctx.measureText(text).width > maxTextWidth) {
+    size -= 2;
+    ctx.font = `${font.weight || '400'} ${size}px ${font.css}`;
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, width / 2, height / 2);
