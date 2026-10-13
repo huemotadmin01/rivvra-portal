@@ -430,12 +430,17 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       // an explicit per_hour means the per_day default (incl. legacy offers
       // captured before the unit choice existed).
       setRateUnit(io?.offeredCTC?.unit === 'per_hour' ? 'per_hour' : 'per_day');
-      setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : '30');
+      // 2026-10-13 (user): notice default by hire type — Internal Consultant 30 days
+      // (consultancy engagement, either side), Full-Time 60 (company default after
+      // confirmation, agreed 10-12), others 30. A saved offer always wins.
+      const et = String(effectiveEmploymentType || '').toLowerCase();
+      const noticeDefault = /internal consultant/.test(et) ? '30' : /full/.test(et) ? '60' : '30';
+      setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : noticeDefault);
       setProbationMonths(io?.probationMonths != null ? String(io.probationMonths) : '6');
       setSignedOfferDocId(io?.signedOfferDocId || '');
       setErrors({});
     }
-  }, [show, today]);
+  }, [show, today, effectiveEmploymentType]);
   // Keep the signed-doc gate live while open: when the candidate countersigns
   // and a refresh delivers signedOfferDocId, reflect it without touching the
   // recruiter's other in-progress fields (primitive dep — no identity churn).
