@@ -148,7 +148,7 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
                 <Row k="Designation" v={p.designation} />
                 <Row k="Department" v={p.department} />
                 <Row k="Date of joining" v={p.joining_date} />
-                <Row k="Work location" v={p.work_location} />
+                {kind !== 'nda' && <Row k="Work location" v={p.work_location} />}
                 {kind === 'nda' ? (
                   <>
                     <Row k="Employee ID" v={p.employee_id} />
