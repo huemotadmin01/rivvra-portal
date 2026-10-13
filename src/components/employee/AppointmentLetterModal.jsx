@@ -16,7 +16,7 @@ import signApi from '../../utils/signApi';
 // 'nda' (Employee Confidentiality, IP & Client Protection Agreement, static).
 const KINDS = {
   appointment: { title: 'Send appointment letter', sub: 'Rendered from this employee’s record and current salary. Director signs first, then the employee.', templateRe: /appointment\s*letter/i, excludeRe: /intern/i, flag: 'dynamicAppointment', subtype: 'appointment_letter', reference: (n) => `Appointment Letter — ${n}`, subject: (n) => `Appointment Letter — ${n} · Huemot Technology Private Limited`, message: (f) => `Hi ${f},<br><br>Please review and sign your appointment letter. It sets out the terms of your employment with Huemot Technology Private Limited, including Annexure A (compensation breakup). Reach out to HR if anything needs correcting before you sign.`, noTemplate: 'No Sign template named “Appointment Letter” is active.' },
-  nda: { title: 'Send confidentiality agreement (NDA)', sub: 'Employee Confidentiality, IP & Client Protection Agreement, prefilled from this employee’s record. Director signs first, then the employee.', templateRe: /confidentiality|non-disclosure|\bNDA\b/i, excludeRe: /vendor|client|msa/i, flag: 'letterType', subtype: 'nda', reference: (n) => `NDA — ${n}`, subject: (n) => `Confidentiality Agreement — ${n} · Huemot Technology Private Limited`, message: (f) => `Hi ${f},<br><br>Please review and sign the Employee Confidentiality, Intellectual Property & Client Protection Agreement. It records the confidentiality and client-protection obligations that apply during and after your time with Huemot Technology Private Limited. Reach out to HR with any question before you sign.`, noTemplate: 'No Sign template for the Employee NDA is active.' },
+  nda: { title: 'Send confidentiality agreement (NDA)', sub: 'Employee Confidentiality, IP & Client Protection Agreement, prefilled from this employee’s record. Issued in the Director’s name; only the employee signs.', templateRe: /confidentiality|non-disclosure|\bNDA\b/i, excludeRe: /vendor|client|msa/i, flag: 'letterType', subtype: 'nda', reference: (n) => `NDA — ${n}`, subject: (n) => `Confidentiality Agreement — ${n} · Huemot Technology Private Limited`, message: (f) => `Hi ${f},<br><br>Please review and sign the Employee Confidentiality, Intellectual Property & Client Protection Agreement. It records the confidentiality and client-protection obligations that apply during and after your time with Huemot Technology Private Limited. Reach out to HR with any question before you sign.`, noTemplate: 'No Sign template for the Employee NDA is active.' },
 };
 
 export default function AppointmentLetterModal({ show, onClose, orgSlug, employee, onSent, kind = 'appointment' }) {
@@ -60,7 +60,7 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
   const terms = prefillRes?.terms || {};
   const existing = prefillRes?.existing || (kind === 'nda' ? prefillRes?.ndaAgreement : prefillRes?.appointmentLetter);
   const alreadySent = existing && !['cancelled', 'refused', 'expired'].includes(existing.state);
-  const canSend = !loading && !sending && templateId && prefillRes?.hasSalary && signatoryName.trim() && signatoryEmail.trim() && employeeEmail.trim();
+  const canSend = !loading && !sending && templateId && prefillRes?.hasSalary && signatoryName.trim() && (kind === 'nda' || signatoryEmail.trim()) && employeeEmail.trim();
 
   const handleSend = async () => {
     setError('');
@@ -75,10 +75,14 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
         reference: K.reference(name),
         subject: K.subject(name),
         message: K.message(name.split(' ')[0]),
-        signers: [
-          { name: signatoryName.trim(), email: signatoryEmail.trim().toLowerCase(), roleName: 'Director' },
-          { name, email: employeeEmail.trim().toLowerCase(), roleName: 'Employee' },
-        ],
+        // 2026-10-13: the NDA is signed by the employee only — the company
+        // side is a printed issuance line, so the Director is not a signer.
+        signers: kind === 'nda'
+          ? [{ name, email: employeeEmail.trim().toLowerCase(), roleName: 'Employee' }]
+          : [
+            { name: signatoryName.trim(), email: signatoryEmail.trim().toLowerCase(), roleName: 'Director' },
+            { name, email: employeeEmail.trim().toLowerCase(), roleName: 'Employee' },
+          ],
         linkedModel: 'employee',
         linkedId: employee._id,
         linkedSubtype: K.subtype,
@@ -165,19 +169,21 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className={`grid grid-cols-1 ${kind === 'nda' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-2`}>
                 <div>
-                  <label className="text-xs font-medium text-dark-300 mb-1 block">Signs for the company</label>
+                  <label className="text-xs font-medium text-dark-300 mb-1 block">{kind === 'nda' ? 'Issued by (printed, no signature)' : 'Signs for the company'}</label>
                   <input value={signatoryName} onChange={(e) => setSignatoryName(e.target.value)} placeholder="Name" className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-dark-300 mb-1 block">Designation</label>
                   <input value={signatoryDesignation} onChange={(e) => setSignatoryDesignation(e.target.value)} placeholder="Director" className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white" />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-dark-300 mb-1 block">Signer email</label>
-                  <input type="email" value={signatoryEmail} onChange={(e) => setSignatoryEmail(e.target.value)} className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white" />
-                </div>
+                {kind !== 'nda' && (
+                  <div>
+                    <label className="text-xs font-medium text-dark-300 mb-1 block">Signer email</label>
+                    <input type="email" value={signatoryEmail} onChange={(e) => setSignatoryEmail(e.target.value)} className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white" />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-medium text-dark-300 mb-1 block">Employee signs at</label>
