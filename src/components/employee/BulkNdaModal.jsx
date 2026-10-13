@@ -34,9 +34,10 @@ export default function BulkNdaModal({ show, onClose, orgSlug, onSent }) {
       setPlan(r);
       setSignatoryName((v) => v || r.signatory?.name || '');
       setSignatoryDesignation((v) => v || r.signatory?.designation || '');
-      const init = {};
-      for (const row of r.rows || []) init[row.employeeId] = !row.skipReason;
-      setChecked(init);
+      // Nothing is pre-ticked: this dialog doubles as the tracker, so a send
+      // must be an explicit choice (the 'not sent' rows are usually the
+      // people deliberately left out).
+      setChecked({});
     } catch (e) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
   }, [orgSlug]);
