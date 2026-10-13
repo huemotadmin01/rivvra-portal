@@ -287,7 +287,14 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   // itself is reset by the existing initialOffer effect below.
   useEffect(() => {
     if (!show) return;
-    setSignTemplateId('');
+    // 2026-10-13: default the template by the hire's employment type so HR does
+    // not have to find it in the list: Internal Consultant → the consultancy
+    // engagement letter, Intern → the internship letter, otherwise the dynamic
+    // full-time offer. HR can still pick another one.
+    const et = String(effectiveEmploymentType || '').toLowerCase();
+    const want = /internal consultant/.test(et) ? /consultanc/i : /intern/.test(et) ? /internship/i : /dynamic annexure|offer letter 2026/i;
+    const pick = (Array.isArray(signTemplates) ? signTemplates : []).find((t) => want.test(String(t?.name || '')));
+    setSignTemplateId(pick ? String(pick._id) : '');
     // Keep what HR typed last time; fall back to what was saved on the offer,
     // then to the company's configured signatory (2026-10-11 audit #8).
     setDirectorName((cur) => cur || initialOffer?.signatoryName || seededDirectorName);
@@ -297,7 +304,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
     setCandSignEmail(application?.email || '');
     setSendingEnv(false);
     setSignError('');
-  }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email, initialOffer?.signatoryName, initialOffer?.signatoryDesignation, appCompany?.signatoryDesignation]);
+  }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email, initialOffer?.signatoryName, initialOffer?.signatoryDesignation, appCompany?.signatoryDesignation, effectiveEmploymentType, signTemplates]);
 
   // Local-TZ YYYY-MM-DD used as the joining-date default and to detect a
   // stale (past) prefill for the passive amber note below. There is
