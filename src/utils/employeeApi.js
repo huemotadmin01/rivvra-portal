@@ -11,6 +11,10 @@ const employeeApi = {
   getAppointmentLetterPrefill(orgSlug, employeeId, params = {}) {
     return employeeApi.getLetterPrefill(orgSlug, employeeId, 'appointment', params);
   },
+  // 2026-10-13: batch NDA send. { dryRun:true } returns the plan, { dryRun:false, employeeIds } sends.
+  bulkNda(orgSlug, body) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/letters/nda/bulk`, { method: 'POST', body: JSON.stringify(body || { dryRun: true }) });
+  },
   // kind: 'appointment' | 'nda'
   getLetterPrefill(orgSlug, employeeId, kind, params = {}) {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();

@@ -7,9 +7,10 @@ import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import {
   Plus, Users, Mail, Phone, Hash,
-  ChevronLeft, ChevronRight, X, Upload,
+  ChevronLeft, ChevronRight, X, Upload, FileSignature,
 } from 'lucide-react';
 import BulkImportModal from '../../components/BulkImportModal';
+import BulkNdaModal from '../../components/employee/BulkNdaModal';
 import {
   PageHeader, Panel, Chip, Button, SearchInput, SelectChip,
   EmptyState, PageSpinner,
@@ -111,6 +112,8 @@ export default function EmployeeDirectoryV2() {
   const isAdmin = getAppRole('employee') === 'admin';
   const orgSlug = currentOrg?.slug;
   const [showImport, setShowImport] = useState(false);
+  const [showBulkNda, setShowBulkNda] = useState(false);
+  const [flash, setFlash] = useState('');
 
   // Count active filters
   const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter]
@@ -245,6 +248,9 @@ export default function EmployeeDirectoryV2() {
         sub={`${total} ${total === 1 ? 'employee' : 'employees'} total`}
         actions={isAdmin && (
           <>
+            <Button variant="secondary" size="sm" onClick={() => setShowBulkNda(true)} iconLeft={<FileSignature size={15} />}>
+              Send NDA
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => setShowImport(true)} iconLeft={<Upload size={15} />}>
               Import
             </Button>
@@ -255,6 +261,10 @@ export default function EmployeeDirectoryV2() {
         )}
       />
 
+      {isAdmin && (
+        <BulkNdaModal show={showBulkNda} onClose={() => setShowBulkNda(false)} orgSlug={orgSlug} onSent={(m) => { setFlash(m); setTimeout(() => setFlash(''), 6000); }} />
+      )}
+      {flash && <div className="mb-3 text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">{flash}</div>}
       {isAdmin && (
         <BulkImportModal
           open={showImport}
