@@ -434,7 +434,8 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       // (consultancy engagement, either side), Full-Time 60 (company default after
       // confirmation, agreed 10-12), others 30. A saved offer always wins.
       const et = String(effectiveEmploymentType || '').toLowerCase();
-      const noticeDefault = /internal consultant/.test(et) ? '30' : /full/.test(et) ? '60' : '30';
+      // Internal Consultant 30; Full-Time 60; External Consultant 60 (user, 2026-10-14); interns 30
+      const noticeDefault = /internal consultant/.test(et) ? '30' : /full|external consultant|contract/.test(et) ? '60' : '30';
       setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : noticeDefault);
       setProbationMonths(io?.probationMonths != null ? String(io.probationMonths) : '6');
       setSignedOfferDocId(io?.signedOfferDocId || '');
