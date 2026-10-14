@@ -1337,6 +1337,7 @@ export default function PayrollRunPageV2() {
                                     )}
 
                                     {/* Working days */}
+                                    {item.payrollMode === 'contractor' && item.payType === 'hourly' && item.timesheetHours != null && <KV small label="Timesheet Hours" value={`${item.timesheetHours} h${item.rate ? ` × ₹${item.rate}/hr` : ''}`} />}
                                     <KV small label={item.payrollMode === 'contractor' ? 'Timesheet Days' : 'Working Days'} value={`${item.effectiveDays} of ${item.totalWorkingDays}`} />
                                     {item.payrollMode === 'contractor' && item.paidLeave > 0 && (
                                       <KV
