@@ -650,7 +650,13 @@ export default function PayrollRunPageV2() {
       : isLegacyReleaseAll
         ? 'Payslips were released to everyone without a per-employee list, so figures people have already seen can\'t be protected. Hold payslips first, then re-process.'
         : null;
-    const frozenDrift = run.reprocessFrozenDrift || [];
+    const frozenDriftAll = run.reprocessFrozenDrift || [];
+    // 2026-10-14: rows whose only difference is the PF ceiling change already
+    // recovered as arrears in the next run are settled — list them in one line,
+    // and show the genuine residuals (LOP, salary, TDS…) as the table.
+    const frozenSettled = frozenDriftAll.filter((d) => d.settledByArrears);
+    const frozenDrift = frozenDriftAll.filter((d) => !d.settledByArrears);
+    const settledMonth = frozenSettled[0]?.pfArrearsRecovered ? `${MONTHS[frozenSettled[0].pfArrearsRecovered.month]} ${frozenSettled[0].pfArrearsRecovered.year}` : null;
     // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
     const columns = [
       { key: 'name', label: 'Employee' },
@@ -845,17 +851,26 @@ export default function PayrollRunPageV2() {
             run's own month here rather than copying that forward — this is the
             one place this port deliberately does NOT match legacy, and the
             legacy line needs the same one-word fix. */}
+        {frozenSettled.length > 0 && frozenDrift.length === 0 && (
+          <Callout tone="info" icon={<Info size={15} />} title={`${frozenSettled.length} released payslip${frozenSettled.length === 1 ? '' : 's'} kept the figure already paid — nothing to do`} style={{ marginBottom: 14 }}>
+            <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+              The only difference is the PF wage-ceiling change inside {MONTHS[run.month]}{settledMonth ? `, and the ${settledMonth} run already recovered that PF as arrears` : ''}. No correction is owed.
+            </p>
+          </Callout>
+        )}
         {frozenDrift.length > 0 && (
           <Callout
             tone="warn"
             icon={<AlertTriangle size={15} />}
-            title={`${frozenDrift.length} released payslip${frozenDrift.length === 1 ? '' : 's'} kept the figure already paid`}
+            title={`${frozenDrift.length} released payslip${frozenDrift.length === 1 ? '' : 's'} need${frozenDrift.length === 1 ? 's' : ''} a correction as arrears`}
             style={{ marginBottom: 14 }}
           >
             <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
               {MONTHS[run.month]} data changed after these employees were paid. Their rows were left
-              untouched — recomputing would have moved a figure they have already received. Pay any
-              genuine correction as arrears in a later run.
+              untouched — recomputing would have moved a figure they have already received. The amount
+              shown is the genuine difference after setting aside the PF ceiling change; pay it as an
+              ad-hoc arrear (or recover it) in a later run.
+              {frozenSettled.length > 0 && ` ${frozenSettled.length} other released payslip${frozenSettled.length === 1 ? '' : 's'} differ only by the PF ceiling change${settledMonth ? ` already recovered in ${settledMonth}` : ''} — nothing to do for them.`}
             </p>
             <div style={{ marginTop: 8, overflowX: 'auto' }}>
               <table style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", minWidth: '100%' }}>
@@ -863,17 +878,22 @@ export default function PayrollRunPageV2() {
                   <tr style={{ color: 'var(--fg-4)' }}>
                     <th style={{ textAlign: 'left', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Employee</th>
                     <th style={{ textAlign: 'right', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Paid net</th>
-                    <th style={{ textAlign: 'right', fontWeight: 500, paddingBottom: 4 }}>Would have become</th>
+                    <th style={{ textAlign: 'right', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Would have become</th>
+                    <th style={{ textAlign: 'right', fontWeight: 500, paddingBottom: 4 }} title="Net difference after setting aside the PF ceiling change. Positive = owed to the employee.">Owed / (excess)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {frozenDrift.map((d) => (
-                    <tr key={d.employeeId} style={{ color: 'var(--fg-2)' }}>
-                      <td style={{ paddingRight: 16, padding: '2px 16px 2px 0' }}>{d.employeeName}</td>
-                      <td style={{ textAlign: 'right', paddingRight: 16, padding: '2px 16px 2px 0', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(d.storedNet)}</td>
-                      <td style={{ textAlign: 'right', padding: '2px 0', fontVariantNumeric: 'tabular-nums', color: INK.warn }}>{formatMoney(d.wouldBeNet)}</td>
-                    </tr>
-                  ))}
+                  {frozenDrift.map((d) => {
+                    const residual = d.residualNet != null ? d.residualNet : (Number(d.wouldBeNet) - Number(d.storedNet));
+                    return (
+                      <tr key={d.employeeId} style={{ color: 'var(--fg-2)' }}>
+                        <td style={{ paddingRight: 16, padding: '2px 16px 2px 0' }}>{d.employeeName}</td>
+                        <td style={{ textAlign: 'right', paddingRight: 16, padding: '2px 16px 2px 0', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(d.storedNet)}</td>
+                        <td style={{ textAlign: 'right', paddingRight: 16, padding: '2px 16px 2px 0', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)' }}>{formatMoney(d.wouldBeNet)}</td>
+                        <td style={{ textAlign: 'right', padding: '2px 0', fontVariantNumeric: 'tabular-nums', color: residual >= 0 ? INK.warn : 'var(--danger)' }}>{residual >= 0 ? formatMoney(residual) : `(${formatMoney(-residual)})`}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
