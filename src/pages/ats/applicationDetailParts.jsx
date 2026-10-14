@@ -434,10 +434,19 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       // (consultancy engagement, either side), Full-Time 60 (company default after
       // confirmation, agreed 10-12), others 30. A saved offer always wins.
       const et = String(effectiveEmploymentType || '').toLowerCase();
-      // Internal Consultant 30; Full-Time 60; External Consultant 60 (user, 2026-10-14); interns 30
+      // Internal Consultant 30; Full-Time 60; External Consultant 60 (user, 2026-10-14); interns 30 —
+      // code fallbacks; the company's Letter Defaults (Employee → Configuration) override them below.
       const noticeDefault = /internal consultant/.test(et) ? '30' : /full|external consultant|contract/.test(et) ? '60' : '30';
       setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : noticeDefault);
       setProbationMonths(io?.probationMonths != null ? String(io.probationMonths) : '6');
+      if (io?.noticePeriodDays == null || io?.probationMonths == null) {
+        const key = /internal consultant/.test(et) ? 'internal_consultant' : /external consultant|contract/.test(et) ? 'external_consultant' : /intern/.test(et) ? 'intern' : 'confirmed';
+        employeeApi.getLetterDefaults(orgSlug).then((r) => {
+          const row = r?.byType?.[key]; if (!row) return;
+          if (io?.noticePeriodDays == null && row.noticePeriodDays != null) setNoticePeriodDays(String(row.noticePeriodDays));
+          if (io?.probationMonths == null && key === 'confirmed' && row.probationMonths != null) setProbationMonths(String(row.probationMonths));
+        }).catch(() => { /* keep the code defaults */ });
+      }
       setSignedOfferDocId(io?.signedOfferDocId || '');
       setErrors({});
     }

@@ -143,6 +143,14 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/manager-options`);
   },
 
+  // ── Letter defaults (2026-10-14): figures the HR letters print by default, per company ──
+  getLetterDefaults(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/employee/letter-defaults`);
+  },
+  updateLetterDefaults(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/employee/letter-defaults`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+
   // ── App Settings ─────────────────────────────────────────────────────
   getAppSettings(orgSlug) {
     return api.request(`/api/org/${orgSlug}/employee/app-settings`);

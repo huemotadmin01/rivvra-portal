@@ -363,6 +363,7 @@ export const APP_REGISTRY = {
             children: [
               { path: '/settings/employee', label: 'Settings', icon: Settings },
               { path: '/settings/alumni-policy', label: 'Alumni Policy', icon: Shield },
+              { path: '/settings/letter-defaults', label: 'Letter Defaults', icon: FileText },
               { path: '/employee/assets/types', label: 'Asset Types', icon: Package },
             ],
           },
