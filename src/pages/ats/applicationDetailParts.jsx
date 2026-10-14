@@ -292,7 +292,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
     // engagement letter, Intern → the internship letter, otherwise the dynamic
     // full-time offer. HR can still pick another one.
     const et = String(effectiveEmploymentType || '').toLowerCase();
-    const want = /internal consultant/.test(et) ? /consultanc/i : /intern/.test(et) ? /internship/i : /dynamic annexure|offer letter 2026/i;
+    const want = /internal consultant/.test(et) ? /consultanc/i : /external consultant|contract/.test(et) ? /independent contractor services/i : /intern/.test(et) ? /internship/i : /dynamic annexure|offer letter 2026/i;
     const pick = (Array.isArray(signTemplates) ? signTemplates : []).find((t) => want.test(String(t?.name || '')));
     setSignTemplateId(pick ? String(pick._id) : '');
     // Keep what HR typed last time; fall back to what was saved on the offer,
