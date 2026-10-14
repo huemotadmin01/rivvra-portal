@@ -14,6 +14,7 @@ import {
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { formatMoney } from '../../utils/formatCurrency';
+import { formatDateUTC } from '../../utils/dateUtils'; // 2026-10-14: LWD is a date-only value stored at UTC midnight — local-time formatting showed 29 Sept for a 30 Sept LWD
 // Guided-run decisions live in this shared module, NOT in either page. Both
 // shells import the same functions, so who is releasable, what the next action
 // is, and what finalize will freeze cannot drift between legacy and v2 —
@@ -1251,7 +1252,7 @@ export default function PayrollRunPageV2() {
                               {item.lwdProration?.isExitMonth && (
                                 <Callout tone="warn" icon={<CalendarX size={14} />} title="Final Settlement Month">
                                   Paid for {item.lwdProration.calendarDaysWorked} of {item.lwdProration.calendarDaysInMonth} days
-                                  {' '}(LWD: {new Date(item.lwdProration.lastWorkingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}).
+                                  {' '}(LWD: {formatDateUTC(item.lwdProration.lastWorkingDate, { day: 'numeric', month: 'short', year: 'numeric' })}).
                                   Calendar-day prorated on all salary components.
                                 </Callout>
                               )}
