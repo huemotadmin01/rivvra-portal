@@ -27,7 +27,7 @@ const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'Jul
 const dayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // Use UTC extraction — dates stored as midnight UTC in MongoDB
-import { toDateInputValue } from '../../utils/dateUtils';
+import { toDateInputValue, formatDateUTC } from '../../utils/dateUtils';
 function toISTDateStr(d) {
   return toDateInputValue(d);
 }
@@ -454,7 +454,7 @@ export default function MyAttendancePageV2() {
         {lastWorkingDate && (
           <Callout tone="warn" icon={<AlertCircle size={18} />}>
             Your last working date is{' '}
-            <strong>{lastWorkingDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>.
+            <strong>{formatDateUTC(lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })}</strong>.
             {' '}You can mark attendance only up to this date.
           </Callout>
         )}
@@ -568,7 +568,7 @@ export default function MyAttendancePageV2() {
                   const isToday = dateStr === todayStr;
                   const isWeekend = entry.status === 'weekend';
                   const cellTooltip = isPostLwd
-                    ? `Beyond last working date (${lastWorkingDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})`
+                    ? `Beyond last working date (${formatDateUTC(lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })})`
                     : isFuture
                       ? "Can't mark attendance for a future date"
                       : '';
@@ -653,7 +653,7 @@ export default function MyAttendancePageV2() {
               const isWeekend = entry.status === 'weekend';
               const isMuted = isPostLwd || isFuture || entry.status === 'not_joined' || entry.status === 'upcoming';
               const cellTooltip = isPostLwd
-                ? `Beyond last working date (${lastWorkingDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})`
+                ? `Beyond last working date (${formatDateUTC(lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })})`
                 : isFuture
                   ? "Can't mark attendance for a future date"
                   : '';

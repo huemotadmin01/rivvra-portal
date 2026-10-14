@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { formatDateUTC } from './dateUtils'; // 2026-10-14: date-only values are stored at UTC midnight
 
 /**
  * Mask a bank account number to its last 4 digits. The payslip PDF is emailed
@@ -67,7 +68,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   const earn = data.earnings || {};
 
   const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
+  const joinDate = emp.joiningDate ? formatDateUTC(emp.joiningDate, { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
 
   const s = {
     coName: (co.name) || 'Company', coAddr: co.address || '', coPhone: co.phone || '', coWebsite: co.website || '',

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { formatDateUTC } from '../../utils/dateUtils'; // 2026-10-14: date-only values are stored at UTC midnight
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
 import { getMyLeaveBalances, applyLeave, getHolidays } from '../../utils/timesheetApi';
@@ -376,7 +377,7 @@ export default function LeaveApplyV2() {
 
               {lwdMax && (
                 <Callout tone="warn" icon={<AlertCircle size={16} />}>
-                  Your last working date is {new Date(timesheetUser.lastWorkingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}. Leave cannot extend beyond this date.
+                  Your last working date is {formatDateUTC(timesheetUser.lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })}. Leave cannot extend beyond this date.
                 </Callout>
               )}
 

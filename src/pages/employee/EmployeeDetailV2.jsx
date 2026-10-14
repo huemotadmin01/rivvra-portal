@@ -1079,7 +1079,7 @@ export default function EmployeeDetail() {
         <div className="mb-5 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3">
           <CalendarX size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-amber-200">
-            <div className="font-semibold">Scheduled exit on {new Date(emp.lastWorkingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+            <div className="font-semibold">Scheduled exit on {formatDateUTC(emp.lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })}</div>
             <div className="text-xs text-amber-300/80 mt-0.5">
               The employee will be auto-separated the day after their last working date. Final-month payroll will be prorated to days worked. F&F can be prepared in advance below.
             </div>
@@ -1551,7 +1551,7 @@ export default function EmployeeDetail() {
         <div className="mt-5 card p-5 border-amber-500/20">
           {emp.status === 'active' && emp.lastWorkingDate && (
             <div className="mb-4 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">
-              <span className="font-semibold">Scheduled exit:</span> This employee is still active. Their last working date is {new Date(emp.lastWorkingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}. F&F can be prepared in advance and finalized after auto-separation.
+              <span className="font-semibold">Scheduled exit:</span> This employee is still active. Their last working date is {formatDateUTC(emp.lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })}. F&F can be prepared in advance and finalized after auto-separation.
             </div>
           )}
           <FnFSettlement employeeId={emp._id.toString()} employee={emp} />

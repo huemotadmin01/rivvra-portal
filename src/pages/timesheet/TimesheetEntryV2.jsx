@@ -609,7 +609,7 @@ export default function TimesheetEntryV2() {
         />
         {lastWorkingDate && (
           <div className="mx-auto max-w-2xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs sm:text-sm text-amber-200">
-            Your last working date is <span className="font-semibold">{lastWorkingDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>. You can log time only up to this date.
+            Your last working date is <span className="font-semibold">{formatDateUTC(lastWorkingDate, { day: '2-digit', month: 'short', year: 'numeric' })}</span>. You can log time only up to this date.
           </div>
         )}
         {hasProjects && visibleProjects.length > 0 && (

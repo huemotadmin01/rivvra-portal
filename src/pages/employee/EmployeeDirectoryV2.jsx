@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatDateUTC } from '../../utils/dateUtils'; // 2026-10-14: date-only values are stored at UTC midnight
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -374,7 +375,7 @@ export default function EmployeeDirectoryV2() {
                       )}
                       {(emp.status === 'resigned' || emp.status === 'terminated') && emp.lastWorkingDate && (
                         <p style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)', margin: '2px 0 0' }}>
-                          LWD: {new Date(emp.lastWorkingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          LWD: {formatDateUTC(emp.lastWorkingDate, { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                       )}
                     </div>
