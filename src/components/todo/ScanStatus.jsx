@@ -31,18 +31,27 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
   const [scanEnabled, setScanEnabled] = useState(false);
   const [savingToggle, setSavingToggle] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  // Org scan mode (2026-10-16): 'label' (default) | 'off' | 'inbox'
+  const [scanMode, setScanMode] = useState('label');
+  const [labelName, setLabelName] = useState('Rivvra Task');
 
   // Sync prop changes
   useEffect(() => {
     if (initialGmailStatus) setGmailStatus(initialGmailStatus);
   }, [initialGmailStatus]);
 
-  // Load per-user settings (scanEnabled)
+  // Load per-user settings (scanEnabled) and the org's scan mode
   useEffect(() => {
     if (orgSlug) {
       todoApi.getSettings(orgSlug).then(res => {
         if (res.success) {
           setScanEnabled(!!res.settings?.scanEnabled);
+        }
+      }).catch(() => {});
+      todoApi.getOrgConfig(orgSlug).then(res => {
+        if (res.success) {
+          setScanMode(res.config?.scanMode || 'label');
+          setLabelName(res.config?.labelName || 'Rivvra Task');
         }
       }).catch(() => {});
     }
@@ -152,6 +161,17 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
       </div>
 
       <div className="p-4 space-y-3">
+        {/* How email becomes a task in this workspace */}
+        {scanMode === 'off' ? (
+          <p className="text-xs text-dark-400 leading-relaxed">
+            Turning emails into tasks is switched off for this workspace. Add tasks by hand, or ask an admin to turn it on in To-Do settings.
+          </p>
+        ) : scanMode === 'label' ? (
+          <p className="text-xs text-dark-400 leading-relaxed">
+            In Gmail, give an email the label <span className="text-white font-medium">“{labelName}”</span> and it becomes a task here within the hour. Nothing else in your inbox is read.
+          </p>
+        ) : null}
+
         {/* Gmail Connection Status */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -188,7 +208,7 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Power size={16} className={scanEnabled ? 'text-teal-400' : 'text-dark-500'} />
-              <span className="text-sm text-dark-300">Auto-scan</span>
+              <span className="text-sm text-dark-300">{scanMode === 'label' ? 'Check for labelled emails' : 'Auto-scan'}</span>
             </div>
             <button
               onClick={handleToggleScan}
@@ -237,7 +257,7 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
         {/* Scan Button */}
         <button
           onClick={handleScan}
-          disabled={scanning || !gmailStatus?.connected}
+          disabled={scanning || !gmailStatus?.connected || scanMode === 'off'}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-dark-700 disabled:text-dark-500 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {scanning ? (
@@ -248,7 +268,7 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
           ) : (
             <>
               <RefreshCw size={14} />
-              Scan Now
+              {scanMode === 'label' ? 'Check labelled emails now' : 'Scan Now'}
             </>
           )}
         </button>

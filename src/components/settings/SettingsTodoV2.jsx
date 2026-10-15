@@ -69,6 +69,9 @@ export default function SettingsTodoV2() {
 
   // Blocklist input state
   const [blockedInput, setBlockedInput] = useState('');
+  const [labelDraft, setLabelDraft] = useState('Rivvra Task');
+  const scanMode = orgConfig?.scanMode || 'label';
+  useEffect(() => { if (orgConfig?.labelName) setLabelDraft(orgConfig.labelName); }, [orgConfig?.labelName]);
 
   useEffect(() => {
     if (orgSlug) load();
@@ -152,16 +155,61 @@ export default function SettingsTodoV2() {
       <div>
         <h2 style={{ font: "650 16px/1.3 'Inter', system-ui, sans-serif", letterSpacing: '-0.012em', color: 'var(--fg)', margin: 0 }}>To-Do Settings</h2>
         <p style={{ font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '3px 0 0' }}>
-          Org-wide AI scan configuration. These settings apply to all members.
+          How emails become tasks. These settings apply to all members.
         </p>
       </div>
 
       <Callout tone="info">
         These settings are <strong>org-wide</strong> and controlled by admins. Each member connects
-        their own Gmail and toggles auto-scan from the To-Do Dashboard.
+        their own Gmail from the To-Do Dashboard.
       </Callout>
 
+      {/* How email becomes a task (2026-10-16) */}
+      <Panel icon={<RefreshCw size={16} />} title="Email to Task">
+        <div style={{ padding: 6, display: 'grid', gap: 4 }}>
+          <SettingRow
+            label="What Rivvra reads"
+            description={scanMode === 'label'
+              ? 'Only emails a member gives the Gmail label below. Each one becomes a task straight away.'
+              : scanMode === 'off'
+                ? 'Nothing. Members add tasks by hand.'
+                : 'Every recent inbox email is sent to the AI and queued as suggestions (old behaviour: about 1 in 70 was ever accepted).'}
+            control={(
+              <Select
+                value={scanMode}
+                onChange={e => handleSaveConfig({ scanMode: e.target.value })}
+                disabled={saving}
+                aria-label="What Rivvra reads"
+                style={{ width: 'auto' }}
+              >
+                <option value="label">Labelled emails only</option>
+                <option value="off">Off</option>
+                <option value="inbox">Whole inbox (suggestions)</option>
+              </Select>
+            )}
+          />
+          {scanMode === 'label' && (
+            <SettingRow
+              label="Gmail label"
+              description="Members create this label in Gmail once, then apply it to any email that should become a task."
+              control={(
+                <Input
+                  value={labelDraft}
+                  onChange={e => setLabelDraft(e.target.value)}
+                  onBlur={() => { const v = labelDraft.trim(); if (v && v !== (orgConfig?.labelName || 'Rivvra Task')) handleSaveConfig({ labelName: v }); }}
+                  maxLength={40}
+                  disabled={saving}
+                  aria-label="Gmail label"
+                  style={{ width: 180 }}
+                />
+              )}
+            />
+          )}
+        </div>
+      </Panel>
+
       {/* Scan Configuration */}
+      {scanMode !== 'off' && (
       <Panel icon={<RefreshCw size={16} />} title="Scan Configuration">
         <div style={{ padding: 6, display: 'grid', gap: 4 }}>
           <SettingRow
@@ -181,6 +229,7 @@ export default function SettingsTodoV2() {
               </Select>
             )}
           />
+          {scanMode === 'inbox' && (<>
           <SettingRow
             label="Scan window"
             description="How far back in the inbox each scan looks (already-processed emails are always skipped)"
@@ -216,10 +265,13 @@ export default function SettingsTodoV2() {
               </Select>
             )}
           />
+          </>)}
         </div>
       </Panel>
+      )}
 
-      {/* Blocked Senders / Domains */}
+      {/* Blocked Senders / Domains — only the whole-inbox mode filters senders */}
+      {scanMode === 'inbox' && (
       <Panel icon={<Shield size={16} />} title="Blocked Senders & Domains">
         <div style={{ padding: 6, display: 'grid', gap: 12 }}>
           <p style={{ font: "400 11.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 }}>
@@ -272,6 +324,7 @@ export default function SettingsTodoV2() {
           )}
         </div>
       </Panel>
+      )}
 
       {/* Scan Logs */}
       {scanLogs.length > 0 && (
