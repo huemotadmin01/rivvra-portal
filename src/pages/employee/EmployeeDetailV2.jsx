@@ -217,6 +217,7 @@ export default function EmployeeDetail() {
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [docImporting, setDocImporting] = useState(false);
   const [docUploadOpen, setDocUploadOpen] = useState(null); // category key of open dropdown
   const [docUploading, setDocUploading] = useState(null); // category key currently uploading
   const [docPreview, setDocPreview] = useState(null); // { _id, filename, mimeType }
@@ -1677,9 +1678,34 @@ export default function EmployeeDetail() {
           } catch (_) { showToast('Download failed', 'error'); }
         };
 
+        // 2026-10-15: carry the hire's ATS documents (checklist attachments, signed
+        // offer, rate confirmation) onto the record. Idempotent on the API side.
+        const handleImportFromAts = async () => {
+          setDocImporting(true);
+          try {
+            const r = await employeeApi.importDocsFromAts(currentOrg.slug, employeeId);
+            if (!r?.success) throw new Error(r?.error || 'Import failed');
+            if (r.copied?.length) {
+              const fresh = await employeeApi.listEmployeeDocs(currentOrg.slug, employeeId);
+              if (fresh?.success) setEmployeeDocs(fresh.documents || []);
+              showToast(`${r.copied.length} document(s) imported from the application`, 'success');
+            } else {
+              const why = (r.skipped || []).map((x) => `${x.what}: ${x.reason}`).slice(0, 3).join('; ');
+              showToast(why ? `Nothing new to import (${why})` : 'Nothing new to import', 'info');
+            }
+          } catch (e) { showToast(e?.message || 'Import failed', 'error'); }
+          finally { setDocImporting(false); }
+        };
+
         return (
           <div className="mt-5">
-            <Panel title={`Documents (${employeeDocs.length})`} icon={<FileText size={14} />}>
+            <Panel title={`Documents (${employeeDocs.length})`} icon={<FileText size={14} />}
+              actions={isAdmin ? (
+                <Button size="sm" variant="secondary" onClick={handleImportFromAts} disabled={docImporting}
+                  iconLeft={docImporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}>
+                  {docImporting ? 'Importing…' : 'Import from application'}
+                </Button>
+              ) : null}>
               {docsLoading ? (
                 <div className="flex items-center gap-2 text-dark-500 text-sm py-2">
                   <Loader2 size={14} className="animate-spin" /> Loading...

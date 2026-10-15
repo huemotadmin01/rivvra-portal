@@ -208,12 +208,13 @@ const employeeApi = {
   },
 
   // ── Employee Documents (bank proof, education certificates, etc.) ──────────
-  async uploadEmployeeDoc(orgSlug, employeeId, file, category, subcategory = null, educationIndex = null) {
+  async uploadEmployeeDoc(orgSlug, employeeId, file, category, subcategory = null, educationIndex = null, employmentIndex = null) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
     if (subcategory) formData.append('subcategory', subcategory);
     if (educationIndex !== null && educationIndex !== undefined) formData.append('educationIndex', educationIndex);
+    if (employmentIndex !== null && employmentIndex !== undefined) formData.append('employmentIndex', employmentIndex);
     const url = `${API_BASE_URL}/api/org/${orgSlug}/employee/employees/${employeeId}/documents`;
     const token = localStorage.getItem('rivvra_token');
     const companyId = getActiveCompanyId();
@@ -233,12 +234,13 @@ const employeeApi = {
     return res.json();
   },
 
-  async uploadMyDoc(orgSlug, file, category, subcategory = null, educationIndex = null) {
+  async uploadMyDoc(orgSlug, file, category, subcategory = null, educationIndex = null, employmentIndex = null) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
     if (subcategory) formData.append('subcategory', subcategory);
     if (educationIndex !== null && educationIndex !== undefined) formData.append('educationIndex', educationIndex);
+    if (employmentIndex !== null && employmentIndex !== undefined) formData.append('employmentIndex', employmentIndex);
     const url = `${API_BASE_URL}/api/org/${orgSlug}/employee/my-documents`;
     const res = await fetch(url, {
       method: 'POST',
@@ -253,20 +255,32 @@ const employeeApi = {
     return res.json();
   },
 
-  listEmployeeDocs(orgSlug, employeeId, category = null, educationIndex = null) {
+  listEmployeeDocs(orgSlug, employeeId, category = null, educationIndex = null, opts = {}) {
     const params = new URLSearchParams();
     if (category) params.set('category', category);
     if (educationIndex !== null && educationIndex !== undefined) params.set('educationIndex', educationIndex);
+    if (opts.employmentIndex !== null && opts.employmentIndex !== undefined) params.set('employmentIndex', opts.employmentIndex);
+    if (opts.subcategory) params.set('subcategory', opts.subcategory);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/documents${qs}`);
   },
 
-  listMyDocs(orgSlug, category = null, educationIndex = null) {
+  listMyDocs(orgSlug, category = null, educationIndex = null, opts = {}) {
     const params = new URLSearchParams();
     if (category) params.set('category', category);
     if (educationIndex !== null && educationIndex !== undefined) params.set('educationIndex', educationIndex);
+    if (opts.employmentIndex !== null && opts.employmentIndex !== undefined) params.set('employmentIndex', opts.employmentIndex);
+    if (opts.subcategory) params.set('subcategory', opts.subcategory);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return api.request(`/api/org/${orgSlug}/employee/my-documents${qs}`);
+  },
+
+  // 2026-10-15: carry a hire's ATS documents (checklist attachments, signed offer, rate confirmation) onto the record
+  importDocsFromAts(orgSlug, employeeId, dryRun = false) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/documents/from-ats${dryRun ? '?dryRun=1' : ''}`, { method: 'POST' });
+  },
+  atsDocsBackfill(orgSlug, dryRun = false) {
+    return api.request(`/api/org/${orgSlug}/employee/documents/ats-backfill${dryRun ? '?dryRun=1' : ''}`, { method: 'POST' });
   },
 
   getEmployeeDocUrl(orgSlug, employeeId, docId) {

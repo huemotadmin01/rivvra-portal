@@ -6,7 +6,7 @@ import employeeApi from '../../utils/employeeApi';
 import { STEPS as ONBOARDING_STEPS } from '../../components/employee/OnboardingStepper';
 import DocumentUpload from '../../components/employee/DocumentUpload';
 import {
-  Loader2, User, Users, Building2, GraduationCap, ClipboardCheck,
+  Loader2, User, Users, Building2, GraduationCap, ClipboardCheck, Briefcase,
   Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle,
 } from 'lucide-react';
 import {
@@ -64,6 +64,10 @@ const INITIAL_FORM = {
 
   // Step 4 — Education
   education: [],
+
+  // Step 5 — Employment history (null = not answered yet)
+  hasPreviousEmployment: null,
+  previousEmployment: [],
 };
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -123,6 +127,8 @@ export default function EmployeeOnboardingWizardV2() {
   const [errors, setErrors] = useState({});
   const [bankDocs, setBankDocs] = useState([]);
   const [educationDocs, setEducationDocs] = useState({}); // { [index]: docs[] }
+  const [idDocs, setIdDocs] = useState({ aadhaar: [], pan: [] });
+  const [employmentDocs, setEmploymentDocs] = useState({}); // { [index]: docs[] } — experience / relieving letters only
 
   // Load employee profile
   useEffect(() => {
@@ -155,6 +161,10 @@ export default function EmployeeOnboardingWizardV2() {
             bankDetails: emp.bankDetails ? { ...prev.bankDetails, ...emp.bankDetails, ifsc: emp.bankDetails.ifsc || emp.bankDetails.ifscCode || '' } : prev.bankDetails,
             statutory: emp.statutory || prev.statutory,
             education: emp.education?.length ? emp.education : [],
+            hasPreviousEmployment: typeof emp.hasPreviousEmployment === 'boolean' ? emp.hasPreviousEmployment : (emp.previousEmployment?.length ? true : null),
+            previousEmployment: emp.previousEmployment?.length
+              ? emp.previousEmployment.map((pe) => ({ ...pe, fromDate: pe.fromDate ? String(pe.fromDate).slice(0, 10) : '', toDate: pe.toDate ? String(pe.toDate).slice(0, 10) : '' }))
+              : [],
           }));
         }
       })
@@ -239,6 +249,41 @@ export default function EmployeeOnboardingWizardV2() {
     });
   };
 
+  const addEmployment = () => {
+    setForm((prev) => ({
+      ...prev,
+      previousEmployment: [...prev.previousEmployment, { company: '', designation: '', fromDate: '', toDate: '', reasonForLeaving: '', lastCTC: '' }],
+    }));
+  };
+
+  const updateEmployment = (idx, key, value) => {
+    setForm((prev) => {
+      const copy = [...prev.previousEmployment];
+      copy[idx] = { ...copy[idx], [key]: value };
+      return { ...prev, previousEmployment: copy };
+    });
+  };
+
+  const removeEmployment = async (idx) => {
+    // Delete every document uploaded against this employer (letters + salary slip)
+    try {
+      const res = await employeeApi.listMyDocs(currentOrg.slug, 'employment', null, { employmentIndex: idx });
+      for (const doc of (res?.documents || [])) {
+        try { await employeeApi.deleteMyDoc(currentOrg.slug, doc._id); } catch (_) {}
+      }
+    } catch (_) {}
+    setForm((prev) => ({ ...prev, previousEmployment: prev.previousEmployment.filter((_, i) => i !== idx) }));
+    setEmploymentDocs((prev) => {
+      const next = {};
+      Object.keys(prev).forEach((key) => {
+        const k = Number(key);
+        if (k < idx) next[k] = prev[k];
+        else if (k > idx) next[k - 1] = prev[k];
+      });
+      return next;
+    });
+  };
+
   // ---------------------------------------------------------------------------
   // Validation
   // ---------------------------------------------------------------------------
@@ -313,6 +358,9 @@ export default function EmployeeOnboardingWizardV2() {
 
       // Bank proof document required
       if (bankDocs.length === 0) errs.bankDocs = 'Please upload a cancelled cheque or digital passbook';
+      // ID proofs required for everyone (2026-10-15)
+      if (idDocs.aadhaar.length === 0) errs.aadhaarDoc = 'Please upload a copy of your Aadhaar card';
+      if (idDocs.pan.length === 0) errs.panDoc = 'Please upload a copy of your PAN card';
     }
 
     if (step === 'education') {
@@ -325,6 +373,20 @@ export default function EmployeeOnboardingWizardV2() {
       });
     }
 
+    if (step === 'employment') {
+      if (form.hasPreviousEmployment === null) errs.hasPreviousEmployment = 'Please tell us whether you have worked before';
+      if (form.hasPreviousEmployment === true) {
+        if (form.previousEmployment.length === 0) errs.previousEmployment = 'Add at least one previous employer, or choose "No, this is my first job"';
+        form.previousEmployment.forEach((pe, i) => {
+          if (!pe.company?.trim()) errs[`pe_company_${i}`] = `Employer ${i + 1}: Company is required`;
+          if (!pe.designation?.trim()) errs[`pe_designation_${i}`] = `Employer ${i + 1}: Designation is required`;
+          if (!pe.fromDate) errs[`pe_from_${i}`] = `Employer ${i + 1}: Start date is required`;
+          if (pe.fromDate && pe.toDate && pe.toDate < pe.fromDate) errs[`pe_to_${i}`] = `Employer ${i + 1}: End date is before the start date`;
+          if (!(employmentDocs[i]?.length > 0)) errs[`pe_docs_${i}`] = `Employer ${i + 1}: Please upload an experience or relieving letter`;
+        });
+      }
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -332,7 +394,7 @@ export default function EmployeeOnboardingWizardV2() {
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
-  const STEP_ORDER = ['personal', 'family', 'bank', 'education', 'review'];
+  const STEP_ORDER = ['personal', 'family', 'bank', 'education', 'employment', 'review'];
 
   const goNext = () => {
     if (!validateStep()) return;
@@ -695,6 +757,42 @@ export default function EmployeeOnboardingWizardV2() {
 
       <Panel>
         <div style={{ padding: 4 }}>
+          <h3 style={sectionHead}>ID Proofs</h3>
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div>
+              <DocumentUpload
+                orgSlug={currentOrg?.slug}
+                category="id_document"
+                subcategory="Aadhaar Card"
+                required
+                label="Aadhaar Card (front and back, one file or two)"
+                hasError={!!errors.aadhaarDoc}
+                onDocumentsChange={(docs) => setIdDocs(prev => ({ ...prev, aadhaar: docs }))}
+              />
+              {errors.aadhaarDoc && (
+                <p style={{ font: "500 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)', margin: '8px 0 0' }}>{errors.aadhaarDoc}</p>
+              )}
+            </div>
+            <div>
+              <DocumentUpload
+                orgSlug={currentOrg?.slug}
+                category="id_document"
+                subcategory="PAN Card"
+                required
+                label="PAN Card"
+                hasError={!!errors.panDoc}
+                onDocumentsChange={(docs) => setIdDocs(prev => ({ ...prev, pan: docs }))}
+              />
+              {errors.panDoc && (
+                <p style={{ font: "500 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)', margin: '8px 0 0' }}>{errors.panDoc}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel>
+        <div style={{ padding: 4 }}>
           <DocumentUpload
             orgSlug={currentOrg?.slug}
             category="bank_proof"
@@ -788,6 +886,103 @@ export default function EmployeeOnboardingWizardV2() {
     </div>
   );
 
+  // 2026-10-15 (Priyanshu): employment history is "required if you have any".
+  // A fresher answers No and moves on; an experienced hire lists each employer
+  // with at least one letter. The answer itself is saved, so a blank list on
+  // the record means "fresher, confirmed by the employee", not "never asked".
+  const renderEmployment = () => (
+    <div>
+      <h2 style={stepHead}><Briefcase size={17} style={{ color: 'var(--brand-ink)' }} /> Employment History</h2>
+      <p style={{ font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '6px 0 16px' }}>
+        Have you worked anywhere before joining {currentOrg?.name || 'us'}? {req}
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <Button type="button" size="sm" variant={form.hasPreviousEmployment === true ? undefined : 'secondary'}
+          onClick={() => { updateField('hasPreviousEmployment', true); if (form.previousEmployment.length === 0) addEmployment(); }}>
+          Yes, I have worked before
+        </Button>
+        <Button type="button" size="sm" variant={form.hasPreviousEmployment === false ? undefined : 'secondary'}
+          onClick={() => updateField('hasPreviousEmployment', false)}>
+          No, this is my first job
+        </Button>
+      </div>
+      {errors.hasPreviousEmployment && <Callout tone="danger">{errors.hasPreviousEmployment}</Callout>}
+
+      {form.hasPreviousEmployment === false && (
+        <Callout tone="info">Nothing to upload. We will record that you are joining as a fresher.</Callout>
+      )}
+
+      {form.hasPreviousEmployment === true && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+            <Button variant="secondary" size="sm" type="button" onClick={addEmployment} iconLeft={<Plus size={14} />}>
+              Add Employer
+            </Button>
+          </div>
+          {errors.previousEmployment && <Callout tone="danger">{errors.previousEmployment}</Callout>}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {form.previousEmployment.map((pe, i) => (
+              <Panel key={i} style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
+                  <Button variant="ghost" size="sm" type="button" aria-label={`Remove employer ${i + 1}`}
+                    onClick={() => removeEmployment(i)} style={{ color: 'var(--danger)' }} iconLeft={<Trash2 size={14} />} />
+                </span>
+                <div style={{ ...grid2, padding: 4, paddingRight: 28 }}>
+                  <Field label="Company" required htmlFor={`ow-pe-co-${i}`} error={errors[`pe_company_${i}`]}>
+                    <Input id={`ow-pe-co-${i}`} type="text" value={pe.company || ''} invalid={!!errors[`pe_company_${i}`]}
+                      placeholder="Employer name" onChange={(e) => updateEmployment(i, 'company', e.target.value)} />
+                  </Field>
+                  <Field label="Designation" required htmlFor={`ow-pe-des-${i}`} error={errors[`pe_designation_${i}`]}>
+                    <Input id={`ow-pe-des-${i}`} type="text" value={pe.designation || ''} invalid={!!errors[`pe_designation_${i}`]}
+                      placeholder="Your role there" onChange={(e) => updateEmployment(i, 'designation', e.target.value)} />
+                  </Field>
+                  <Field label="From" required htmlFor={`ow-pe-from-${i}`} error={errors[`pe_from_${i}`]}>
+                    <Input id={`ow-pe-from-${i}`} type="date" value={pe.fromDate || ''} invalid={!!errors[`pe_from_${i}`]}
+                      onChange={(e) => updateEmployment(i, 'fromDate', e.target.value)} />
+                  </Field>
+                  <Field label="To" htmlFor={`ow-pe-to-${i}`} error={errors[`pe_to_${i}`]}>
+                    <Input id={`ow-pe-to-${i}`} type="date" value={pe.toDate || ''} invalid={!!errors[`pe_to_${i}`]}
+                      onChange={(e) => updateEmployment(i, 'toDate', e.target.value)} />
+                  </Field>
+                  <Field label="Reason for leaving" htmlFor={`ow-pe-why-${i}`} style={{ gridColumn: '1 / -1' }}>
+                    <Input id={`ow-pe-why-${i}`} type="text" value={pe.reasonForLeaving || ''} placeholder="Optional"
+                      onChange={(e) => updateEmployment(i, 'reasonForLeaving', e.target.value)} />
+                  </Field>
+
+                  <div style={{ gridColumn: '1 / -1', marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--line-2)', display: 'grid', gap: 12 }}>
+                    <div>
+                      <DocumentUpload
+                        orgSlug={currentOrg?.slug}
+                        category="employment"
+                        subcategory="Experience Certificate"
+                        employmentIndex={i}
+                        required
+                        label="Experience / Relieving Letter"
+                        hasError={!!errors[`pe_docs_${i}`]}
+                        onDocumentsChange={(docs) => setEmploymentDocs(prev => ({ ...prev, [i]: docs }))}
+                      />
+                      {errors[`pe_docs_${i}`] && (
+                        <p style={{ font: "500 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)', margin: '6px 0 0' }}>{errors[`pe_docs_${i}`]}</p>
+                      )}
+                    </div>
+                    <DocumentUpload
+                      orgSlug={currentOrg?.slug}
+                      category="employment"
+                      subcategory="Salary Slip"
+                      employmentIndex={i}
+                      label="Last Salary Slip (optional)"
+                    />
+                  </div>
+                </div>
+              </Panel>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   const renderReview = () => {
     const addr = form.sameAsCurrentAddress ? form.address : form.permanentAddress;
     const addrStr = [addr.street, addr.city, addr.state, addr.zip, addr.country].filter(Boolean).join(', ');
@@ -835,6 +1030,8 @@ export default function EmployeeOnboardingWizardV2() {
           <ReviewRow label="IFSC" value={form.bankDetails.ifsc} />
           <ReviewRow label="PAN" value={form.bankDetails.pan} />
           <ReviewRow label="Bank Proof" value={`${bankDocs.length} document(s) uploaded`} />
+          <ReviewRow label="Aadhaar Card copy" value={`${idDocs.aadhaar.length} document(s) uploaded`} />
+          <ReviewRow label="PAN Card copy" value={`${idDocs.pan.length} document(s) uploaded`} />
         </ReviewSection>
 
         <ReviewSection title="Statutory Details">
@@ -851,6 +1048,13 @@ export default function EmployeeOnboardingWizardV2() {
             ))}
           </ReviewSection>
         )}
+        <ReviewSection title="Employment History">
+          {form.hasPreviousEmployment === false && <ReviewRow label="Previous employment" value="None — joining as a fresher" />}
+          {form.hasPreviousEmployment === true && form.previousEmployment.map((pe, i) => (
+            <ReviewRow key={i} label={pe.company || 'Employer'} value={`${pe.designation || ''}${pe.fromDate ? ` (${pe.fromDate}${pe.toDate ? ` – ${pe.toDate}` : ' – present'})` : ''} — ${(employmentDocs[i]?.length || 0)} letter(s)`} />
+          ))}
+          {form.hasPreviousEmployment === null && <ReviewRow label="Previous employment" value="Not answered" />}
+        </ReviewSection>
       </div>
     );
   };
@@ -863,6 +1067,7 @@ export default function EmployeeOnboardingWizardV2() {
     family: renderFamily,
     bank: renderBank,
     education: renderEducation,
+    employment: renderEmployment,
     review: renderReview,
   };
 

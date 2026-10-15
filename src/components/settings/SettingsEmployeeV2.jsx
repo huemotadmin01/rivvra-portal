@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import { Save, AlertCircle, Users, UserCog, CalendarClock, Shield } from 'lucide-react';
+import { Save, AlertCircle, Users, UserCog, CalendarClock, Shield, FolderInput, Loader2 } from 'lucide-react';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
 import { Panel, Button, Input, Select, Switch, SettingRow, EmptyState, PageSpinner } from '../ds';
@@ -42,6 +42,58 @@ function FieldBlock({ id, label, hint, children }) {
       <p style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '0 0 8px' }}>{hint}</p>
       {children}
     </div>
+  );
+}
+
+// 2026-10-15: one-off (and re-runnable) import of every hire's ATS documents —
+// checklist attachments, signed offer, signed rate confirmation — onto their
+// employee records. Preview first (dry run), then import. Idempotent.
+function AtsDocumentsBackfillPanel({ orgSlug, showToast }) {
+  const [busy, setBusy] = useState(null); // 'preview' | 'import'
+  const [preview, setPreview] = useState(null);
+  const run = async (dryRun) => {
+    setBusy(dryRun ? 'preview' : 'import');
+    try {
+      const r = await employeeApi.atsDocsBackfill(orgSlug, dryRun);
+      if (!r?.success) throw new Error(r?.error || 'Failed');
+      setPreview({ ...r, ranAt: new Date() });
+      if (!dryRun) showToast(`${r.totalCopied} document(s) imported for ${r.rows.filter((x) => x.copied.length).length} employee(s)`, 'success');
+    } catch (e) { showToast(e?.message || 'Failed', 'error'); }
+    finally { setBusy(null); }
+  };
+  const withWork = preview ? preview.rows.filter((x) => x.copied.length) : [];
+  return (
+    <Panel icon={<FolderInput size={16} />} title="Documents from the ATS">
+      <div style={{ padding: 4, display: 'grid', gap: 12 }}>
+        <p style={{ font: "450 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+          New hires get their collected documents (ID proofs, certificates, experience letters, the signed offer and rate confirmation) copied from the application automatically. Run this once for employees hired before 15 Oct 2026, or again any time — nothing is copied twice.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="sm" variant="secondary" onClick={() => run(true)} disabled={!!busy}
+            iconLeft={busy === 'preview' ? <Loader2 size={13} className="animate-spin" /> : null}>
+            {busy === 'preview' ? 'Checking…' : 'Preview'}
+          </Button>
+          <Button size="sm" onClick={() => run(false)} disabled={!!busy || !preview || !preview.dryRun || preview.totalCopied === 0}
+            iconLeft={busy === 'import' ? <Loader2 size={13} className="animate-spin" /> : null}>
+            {busy === 'import' ? 'Importing…' : `Import${preview?.dryRun && preview.totalCopied ? ` ${preview.totalCopied} document(s)` : ''}`}
+          </Button>
+        </div>
+        {preview && (
+          <div style={{ font: "450 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+            <p style={{ margin: '0 0 6px' }}>
+              {preview.dryRun ? 'Would copy' : 'Copied'} <strong>{preview.totalCopied}</strong> document(s) across <strong>{withWork.length}</strong> of {preview.employees} linked employee(s).
+            </p>
+            {withWork.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 220, overflow: 'auto' }}>
+                {withWork.map((r) => (
+                  <li key={r.employeeId}><strong>{r.name}</strong> — {r.copied.map((c) => c.subcategory || c.category).join(', ')}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </Panel>
   );
 }
 
@@ -333,6 +385,8 @@ export default function SettingsEmployeeV2() {
           </div>
         </Panel>
       </div>
+
+      <AtsDocumentsBackfillPanel orgSlug={currentOrg?.slug} showToast={showToast} />
 
       <div>
         <Button onClick={handleSave} disabled={saving} iconLeft={<Save size={15} />}>

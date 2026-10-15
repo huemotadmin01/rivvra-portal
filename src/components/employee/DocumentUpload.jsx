@@ -35,7 +35,7 @@ function isPreviewable(mimeType) {
  * @param {Function} onDocumentsChange - Called with current doc list whenever it changes
  */
 export default function DocumentUpload({
-  orgSlug, employeeId = null, category, educationIndex = null,
+  orgSlug, employeeId = null, category, educationIndex = null, employmentIndex = null, subcategory = null,
   required = false, label = 'Upload Document', hasError = false,
   onDocumentsChange,
 }) {
@@ -53,8 +53,8 @@ export default function DocumentUpload({
     if (!orgSlug) return;
     try {
       const res = isSelfService
-        ? await employeeApi.listMyDocs(orgSlug, category, educationIndex)
-        : await employeeApi.listEmployeeDocs(orgSlug, employeeId, category, educationIndex);
+        ? await employeeApi.listMyDocs(orgSlug, category, educationIndex, { employmentIndex, subcategory })
+        : await employeeApi.listEmployeeDocs(orgSlug, employeeId, category, educationIndex, { employmentIndex, subcategory });
       const fetchedDocs = res.success ? (res.documents || []) : [];
       setDocs(fetchedDocs);
       onDocumentsChange?.(fetchedDocs);
@@ -65,7 +65,7 @@ export default function DocumentUpload({
     }
   };
 
-  useEffect(() => { fetchDocs(); }, [orgSlug, employeeId, category, educationIndex]);
+  useEffect(() => { fetchDocs(); }, [orgSlug, employeeId, category, educationIndex, employmentIndex, subcategory]);
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -87,8 +87,8 @@ export default function DocumentUpload({
     setUploading(true);
     try {
       const res = isSelfService
-        ? await employeeApi.uploadMyDoc(orgSlug, file, category, null, educationIndex)
-        : await employeeApi.uploadEmployeeDoc(orgSlug, employeeId, file, category, null, educationIndex);
+        ? await employeeApi.uploadMyDoc(orgSlug, file, category, subcategory, educationIndex, employmentIndex)
+        : await employeeApi.uploadEmployeeDoc(orgSlug, employeeId, file, category, subcategory, educationIndex, employmentIndex);
       if (res.success && res.document) {
         const newDocs = [res.document, ...docs];
         setDocs(newDocs);

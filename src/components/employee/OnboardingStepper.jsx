@@ -5,7 +5,8 @@ const STEPS = [
   { key: 'family', label: 'Family & Emergency', num: 2 },
   { key: 'bank', label: 'Bank & Statutory', num: 3 },
   { key: 'education', label: 'Education', num: 4 },
-  { key: 'review', label: 'Review & Submit', num: 5 },
+  { key: 'employment', label: 'Employment History', num: 5 },
+  { key: 'review', label: 'Review & Submit', num: 6 },
 ];
 
 export default function OnboardingStepper({ currentStep }) {
