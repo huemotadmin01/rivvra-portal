@@ -656,7 +656,15 @@ export default function PayrollRunPageV2() {
     // and show the genuine residuals (LOP, salary, TDS…) as the table.
     const frozenSettled = frozenDriftAll.filter((d) => d.settledByArrears);
     const frozenDrift = frozenDriftAll.filter((d) => !d.settledByArrears);
-    const settledMonth = frozenSettled[0]?.pfArrearsRecovered ? `${MONTHS[frozenSettled[0].pfArrearsRecovered.month]} ${frozenSettled[0].pfArrearsRecovered.year}` : null;
+    const settledPf = frozenSettled.filter((d) => d.settledVia !== 'adhoc');
+    const settledAdhoc = frozenSettled.filter((d) => d.settledVia === 'adhoc');
+    const settledMonth = settledPf[0]?.pfArrearsRecovered ? `${MONTHS[settledPf[0].pfArrearsRecovered.month]} ${settledPf[0].pfArrearsRecovered.year}` : null;
+    const adhocMonth = settledAdhoc[0]?.adhocArrear ? `${MONTHS[settledAdhoc[0].adhocArrear.month]} ${settledAdhoc[0].adhocArrear.year}` : null;
+    // One sentence covering both kinds of settled rows (2026-10-15)
+    const settledSentence = [
+      settledPf.length ? `${settledPf.length} differ only by the PF wage-ceiling change${settledMonth ? ` already recovered as arrears in ${settledMonth}` : ''}` : null,
+      settledAdhoc.length ? `${settledAdhoc.length} ${settledAdhoc.length === 1 ? 'was' : 'were'} already settled as an ad-hoc arrear${adhocMonth ? ` in ${adhocMonth}` : ''} (${settledAdhoc.map((d) => `${d.employeeName} ${formatMoney(Math.abs(d.residualNet))}`).join(', ')})` : null,
+    ].filter(Boolean).join('; ');
     // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
     const columns = [
       { key: 'name', label: 'Employee' },
@@ -854,7 +862,7 @@ export default function PayrollRunPageV2() {
         {frozenSettled.length > 0 && frozenDrift.length === 0 && (
           <Callout tone="info" icon={<Info size={15} />} title={`${frozenSettled.length} released payslip${frozenSettled.length === 1 ? '' : 's'} kept the figure already paid — nothing to do`} style={{ marginBottom: 14 }}>
             <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
-              The only difference is the PF wage-ceiling change inside {MONTHS[run.month]}{settledMonth ? `, and the ${settledMonth} run already recovered that PF as arrears` : ''}. No correction is owed.
+              {settledSentence}. No correction is owed.
             </p>
           </Callout>
         )}
@@ -870,7 +878,7 @@ export default function PayrollRunPageV2() {
               untouched — recomputing would have moved a figure they have already received. The amount
               shown is the genuine difference after setting aside the PF ceiling change; pay it as an
               ad-hoc arrear (or recover it) in a later run.
-              {frozenSettled.length > 0 && ` ${frozenSettled.length} other released payslip${frozenSettled.length === 1 ? '' : 's'} differ only by the PF ceiling change${settledMonth ? ` already recovered in ${settledMonth}` : ''} — nothing to do for them.`}
+              {frozenSettled.length > 0 && ` Of the other released payslips, ${settledSentence} — nothing to do for them.`}
             </p>
             <div style={{ marginTop: 8, overflowX: 'auto' }}>
               <table style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", minWidth: '100%' }}>
