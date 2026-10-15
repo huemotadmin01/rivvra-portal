@@ -1235,8 +1235,10 @@ export default function EmployeeDetail() {
               }
             />
           )}
-          <InlineField label="Billable" field="billable" value={emp.billable} type="toggle"
-            editable={fp('billable').editable} onSave={handleFieldSave} />
+          {/* 2026-10-15: derived from the assignment set (bench / unbench rule), never edited by hand —
+              it drives the ESS mode, the payroll path, holidays/leave and the pay formula. */}
+          <InlineField label="Billable" field="billable" value={emp.billable} type="toggle" editable={false}
+            displayValue={`${emp.billable === true ? 'Yes' : 'No'} · set by project assignments`} />
           <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
             editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
           {emp.employmentType === 'confirmed' && (
