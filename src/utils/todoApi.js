@@ -117,6 +117,11 @@ const todoApi = {
     return api.request(`/api/org/${orgSlug}/todo/org-config`);
   },
 
+  // Read-only: who the assignee reminders / manager summary would reach (admin).
+  previewAssignmentNotices(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/todo/assignment-notices/preview`);
+  },
+
   updateOrgConfig(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/todo/org-config`, {
       method: 'PUT',

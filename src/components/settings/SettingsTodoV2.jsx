@@ -3,9 +3,9 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import todoApi from '../../utils/todoApi';
 import {
-  Loader2, CheckCircle2, XCircle, RefreshCw, Shield, X, Plus,
+  Loader2, CheckCircle2, XCircle, RefreshCw, Shield, X, Plus, Bell, Eye,
 } from 'lucide-react';
-import { Panel, Chip, Button, Input, Select, Callout, SettingRow, PageSpinner } from '../ds';
+import { Panel, Chip, Button, Input, Select, Switch, Callout, SettingRow, PageSpinner } from '../ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Org-wide AI scan config. Note for anyone testing this tab: every control here
@@ -70,6 +70,17 @@ export default function SettingsTodoV2() {
   // Blocklist input state
   const [blockedInput, setBlockedInput] = useState('');
   const [labelDraft, setLabelDraft] = useState('Rivvra Task');
+  const [noticePreview, setNoticePreview] = useState(null);
+  const [noticePreviewLoading, setNoticePreviewLoading] = useState(false);
+  async function loadNoticePreview() {
+    setNoticePreviewLoading(true);
+    try {
+      const r = await todoApi.previewAssignmentNotices(orgSlug);
+      if (!r?.success) throw new Error(r?.error || 'Preview failed');
+      setNoticePreview(r);
+    } catch (e) { showToast(e?.message || 'Preview failed', 'error'); }
+    finally { setNoticePreviewLoading(false); }
+  }
   const scanMode = orgConfig?.scanMode || 'label';
   useEffect(() => { if (orgConfig?.labelName) setLabelDraft(orgConfig.labelName); }, [orgConfig?.labelName]);
 
@@ -155,7 +166,7 @@ export default function SettingsTodoV2() {
       <div>
         <h2 style={{ font: "650 16px/1.3 'Inter', system-ui, sans-serif", letterSpacing: '-0.012em', color: 'var(--fg)', margin: 0 }}>To-Do Settings</h2>
         <p style={{ font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '3px 0 0' }}>
-          How emails become tasks. These settings apply to all members.
+          Team task notices and how emails become tasks. These settings apply to all members.
         </p>
       </div>
 
@@ -163,6 +174,81 @@ export default function SettingsTodoV2() {
         These settings are <strong>org-wide</strong> and controlled by admins. Each member connects
         their own Gmail from the To-Do Dashboard.
       </Callout>
+
+      {/* Team task notices (2026-10-16) — off until an admin switches them on */}
+      <Panel icon={<Bell size={16} />} title="Team Task Notices">
+        <div style={{ padding: 6, display: 'grid', gap: 4 }}>
+          <SettingRow
+            label="Remind people about tasks assigned to them"
+            description="Weekday mornings. A bell the day before a task is due, and a bell and email when it becomes overdue and again a week later."
+            control={(
+              <Switch
+                label="Remind people about tasks assigned to them"
+                checked={!!orgConfig?.assigneeReminders}
+                disabled={saving}
+                onChange={v => handleSaveConfig({ assigneeReminders: v })}
+              />
+            )}
+          />
+          <SettingRow
+            label="Monday summary for managers"
+            description="Each person who assigns tasks gets one email on Monday morning: what is open, overdue and done, per person."
+            control={(
+              <Switch
+                label="Monday summary for managers"
+                checked={!!orgConfig?.managerWeeklySummary}
+                disabled={saving}
+                onChange={v => handleSaveConfig({ managerWeeklySummary: v })}
+              />
+            )}
+          />
+          <div style={{ padding: '8px 10px 4px', display: 'grid', gap: 10 }}>
+            <div>
+              <Button size="sm" variant="secondary" onClick={loadNoticePreview} disabled={noticePreviewLoading}
+                iconLeft={noticePreviewLoading ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}>
+                {noticePreviewLoading ? 'Checking…' : 'Preview who would get them'}
+              </Button>
+            </div>
+            {noticePreview && (
+              <div style={{ font: "400 12.5px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', display: 'grid', gap: 10 }}>
+                <div>
+                  <strong>Next weekday morning — reminders</strong>
+                  {noticePreview.assigneeReminders.length === 0 ? (
+                    <p style={{ margin: '2px 0 0', color: 'var(--fg-4)' }}>Nobody: no assigned task is due tomorrow or newly overdue.</p>
+                  ) : (
+                    <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                      {noticePreview.assigneeReminders.map((p, i) => (
+                        <li key={i}>
+                          {p.name} — {[
+                            p.overdue.length ? `${p.overdue.length} overdue (email): ${p.overdue.map(t => t.title).join('; ')}` : null,
+                            p.dueTomorrow.length ? `${p.dueTomorrow.length} due tomorrow (bell)` : null,
+                          ].filter(Boolean).join(' · ')}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <strong>Next Monday — manager summaries</strong>
+                  {noticePreview.managerSummaries.length === 0 ? (
+                    <p style={{ margin: '2px 0 0', color: 'var(--fg-4)' }}>Nobody has open or recently finished assigned tasks.</p>
+                  ) : (
+                    <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                      {noticePreview.managerSummaries.map((p, i) => (
+                        <li key={i}>
+                          {p.name} — {p.totals.open} open, {p.totals.overdue} overdue, {p.totals.done} done this week
+                          {' '}({p.people.map(r => `${r.name}: ${r.open} open`).join(', ')})
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <p style={{ margin: 0, color: 'var(--fg-4)' }}>This is a preview only. Nothing has been sent.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Panel>
 
       {/* How email becomes a task (2026-10-16) */}
       <Panel icon={<RefreshCw size={16} />} title="Email to Task">
