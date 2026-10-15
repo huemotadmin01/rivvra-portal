@@ -269,9 +269,9 @@ export default function EmployeeOnboardingWizardV2() {
     try {
       const res = await employeeApi.listMyDocs(currentOrg.slug, 'employment', null, { employmentIndex: idx });
       for (const doc of (res?.documents || [])) {
-        try { await employeeApi.deleteMyDoc(currentOrg.slug, doc._id); } catch (_) {}
+        try { await employeeApi.deleteMyDoc(currentOrg.slug, doc._id); } catch { /* best effort — orphan docs are harmless */ }
       }
-    } catch (_) {}
+    } catch { /* listing failed; nothing to delete */ }
     setForm((prev) => ({ ...prev, previousEmployment: prev.previousEmployment.filter((_, i) => i !== idx) }));
     setEmploymentDocs((prev) => {
       const next = {};
