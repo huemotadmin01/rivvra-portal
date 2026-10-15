@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react';
 import {
   CheckCircle2, Circle, Clock, AlertTriangle, Sparkles, Pencil, Trash2,
   Check, X, Mail, Wand2, ChevronDown, ChevronUp, Loader2, RefreshCw,
-  Repeat, UserCheck, ArrowRight,
+  Repeat, UserCheck, ArrowRight, CircleStop,
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import todoApi from '../../../utils/todoApi';
@@ -42,17 +42,21 @@ const iconBtn = {
   color: 'var(--fg-4)', cursor: 'pointer',
 };
 
+// Due dates are date-only, stored as UTC midnight. Compare calendar DAYS in UTC
+// (same boundary as the server's overdue filter) and print the date in UTC —
+// local formatting showed the previous day west of UTC (Huemot Inc users).
 function formatDate(d) {
   if (!d) return null;
   const date = new Date(d);
   const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const dueDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((dueDay - today) / (1000 * 60 * 60 * 24));
 
   if (days < 0) return { text: `${Math.abs(days)}d overdue`, overdue: true };
   if (days === 0) return { text: 'Due today', overdue: false };
   if (days === 1) return { text: 'Due tomorrow', overdue: false };
-  return { text: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), overdue: false };
+  return { text: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }), overdue: false };
 }
 
 export default function TaskCardV2({
@@ -63,6 +67,7 @@ export default function TaskCardV2({
   onToggleStatus,
   onEdit,
   onDelete,
+  onEndSeries,
   onAccept,
   onDismiss,
   showCheckbox,
@@ -182,7 +187,7 @@ export default function TaskCardV2({
           )}
 
           {/* Recurring badge */}
-          {task.recurrence?.freq && (
+          {task.recurrence?.freq && !task.recurrence.ended && (
             <Chip tone="info" title={`Repeats ${task.recurrence.freq}`}>
               <Repeat size={10} />
               {task.recurrence.freq}
@@ -332,6 +337,14 @@ export default function TaskCardV2({
             style={{ ...iconBtn, color: 'var(--brand)', opacity: generating ? 0.5 : 1 }}
           >
             {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+          </button>
+        )}
+
+        {/* End repeat — open to the assignee too: a delegated daily task used to
+            be impossible to stop from either side (2026-10-15). */}
+        {onEndSeries && task.recurrence?.freq && !task.recurrence.ended && (
+          <button type="button" onClick={onEndSeries} title="Stop repeating" aria-label="Stop repeating" style={iconBtn}>
+            <CircleStop size={15} />
           </button>
         )}
 

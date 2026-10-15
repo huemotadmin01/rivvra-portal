@@ -92,6 +92,22 @@ export default function TodoTeamTasksV2() {
     }
   }
 
+  // Stop a repeating task. Two plain questions: stop the repeat at all, then
+  // whether this copy is finished too (the usual case — "the project is over").
+  async function handleEndSeries(task) {
+    if (!window.confirm(`Stop repeating "${task.title}"?\n\nNo new copies will be created, and any other open copies of it will be closed.`)) return;
+    const completeCurrent = task.status !== 'done'
+      && window.confirm('Is this one done as well?\n\nOK = mark it done.  Cancel = keep it open as a one-time task.');
+    try {
+      const res = await todoApi.endSeries(orgSlug, task._id, completeCurrent);
+      if (!res?.success) throw new Error(res?.error || 'Failed');
+      showToast(res.closedCopies ? `Repeat stopped — ${res.closedCopies} other open copy(ies) closed` : 'Repeat stopped', 'success');
+      loadTasks();
+    } catch (err) {
+      showToast(err.message || 'Could not stop the repeat', 'error');
+    }
+  }
+
   async function handleDeleteTask(id) {
     try {
       const res = await todoApi.deleteTask(orgSlug, id);
@@ -160,6 +176,7 @@ export default function TodoTeamTasksV2() {
                 onToggleStatus={() => handleToggleStatus(task)}
                 onEdit={() => setEditingTask(task)}
                 onDelete={() => handleDeleteTask(task._id)}
+                onEndSeries={() => handleEndSeries(task)}
               />
             </div>
           ))}

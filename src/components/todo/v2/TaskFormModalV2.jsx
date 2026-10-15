@@ -87,6 +87,17 @@ export default function TaskFormModalV2({ task, onClose, onSave, canAssign, assi
       taskData.status = status;
     } else if (assigneeEmployeeId) {
       taskData.assigneeEmployeeId = assigneeEmployeeId;
+      // A repeating task assigned to someone else lands in their list every
+      // day/week until stopped — three one-off asks became 40-copy series this
+      // way (2026-10-15). Make it a deliberate choice.
+      if (recurrenceFreq) {
+        const emp = assignableEmployees?.find(e => e._id === assigneeEmployeeId);
+        const who = emp?.fullName || emp?.email || 'this person';
+        if (!window.confirm(`This task will repeat ${recurrenceFreq} for ${who} until one of you stops it.\n\nFor a one-time task, choose Cancel and set Repeat to "Doesn't repeat".`)) {
+          setSaving(false);
+          return;
+        }
+      }
     }
 
     try {
@@ -206,7 +217,7 @@ export default function TaskFormModalV2({ task, onClose, onSave, canAssign, assi
               ) : (
                 <p style={hint}>
                   {recurrenceFreq
-                    ? `A fresh copy is created ${recurrenceFreq} once this one is done or its date passes`
+                    ? `A new copy appears ${recurrenceFreq} after this one is done. Stop it any time with the ⏹ button on the task.`
                     : 'This task happens once'}
                 </p>
               )}

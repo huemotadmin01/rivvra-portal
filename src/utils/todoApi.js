@@ -49,6 +49,14 @@ const todoApi = {
     });
   },
 
+  // Stop a repeating task for good (assignee or assigner). 2026-10-15.
+  endSeries(orgSlug, id, completeCurrent = false) {
+    return api.request(`/api/org/${orgSlug}/todo/tasks/${id}/end-series`, {
+      method: 'POST',
+      body: JSON.stringify({ completeCurrent }),
+    });
+  },
+
   bulkStatus(orgSlug, taskIds, status) {
     return api.request(`/api/org/${orgSlug}/todo/tasks/bulk-status`, {
       method: 'POST',

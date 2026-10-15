@@ -163,11 +163,29 @@ export default function TodoTasksV2() {
     const newStatus = task.status === 'done' ? 'pending' : 'done';
     try {
       await todoApi.updateTask(orgSlug, task._id, { status: newStatus });
-      setTasks(prev => prev.map(t =>
-        t._id === task._id ? { ...t, status: newStatus } : t
-      ));
-    } catch {
-      showToast('Failed to update', 'error');
+      // Reload rather than patch in place: on a status tab the row no longer
+      // belongs (a done row lingered, struck through, under "Pending"), the
+      // count must move, and a repeating task's next copy has to appear.
+      showToast(newStatus === 'done' ? (task.recurrence?.freq && !task.recurrence.ended ? 'Done — next copy scheduled' : 'Marked done') : 'Reopened', 'success');
+      loadTasks();
+    } catch (err) {
+      showToast(err?.message || 'Failed to update', 'error');
+    }
+  }
+
+  // Stop a repeating task. Two plain questions: stop the repeat at all, then
+  // whether this copy is finished too (the usual case — "the project is over").
+  async function handleEndSeries(task) {
+    if (!window.confirm(`Stop repeating "${task.title}"?\n\nNo new copies will be created, and any other open copies of it will be closed.`)) return;
+    const completeCurrent = task.status !== 'done'
+      && window.confirm('Is this one done as well?\n\nOK = mark it done.  Cancel = keep it open as a one-time task.');
+    try {
+      const res = await todoApi.endSeries(orgSlug, task._id, completeCurrent);
+      if (!res?.success) throw new Error(res?.error || 'Failed');
+      showToast(res.closedCopies ? `Repeat stopped — ${res.closedCopies} other open copy(ies) closed` : 'Repeat stopped', 'success');
+      loadTasks();
+    } catch (err) {
+      showToast(err.message || 'Could not stop the repeat', 'error');
     }
   }
 
@@ -196,6 +214,7 @@ export default function TodoTasksV2() {
     try {
       await todoApi.dismissAiTask(orgSlug, taskId);
       setTasks(prev => prev.filter(t => t._id !== taskId));
+      setTotal(prev => Math.max(0, (prev || 0) - 1));
     } catch {
       showToast('Failed to dismiss', 'error');
     } finally {
@@ -321,6 +340,7 @@ export default function TodoTasksV2() {
                   onToggleStatus={() => handleToggleStatus(task)}
                   onEdit={() => setEditingTask(task)}
                   onDelete={() => handleDeleteTask(task._id)}
+                  onEndSeries={() => handleEndSeries(task)}
                   onAccept={task.source === 'ai' && !task.aiMeta?.accepted ? () => handleAcceptAiTask(task._id) : null}
                   onDismiss={task.source === 'ai' && !task.aiMeta?.accepted ? () => handleDismissAiTask(task._id) : null}
                   showCheckbox
