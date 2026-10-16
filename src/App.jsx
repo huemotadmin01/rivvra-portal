@@ -162,6 +162,7 @@ const ExpenseListV2 = lazy(() => import('./pages/expenses/ExpenseListV2'));
 const LeaveBalancesV2 = lazy(() => import('./pages/timesheet/LeaveBalancesV2'));
 const MyAssetsV2 = lazy(() => import('./pages/timesheet/MyAssetsV2'));
 const TimesheetDashboardV2 = lazy(() => import('./pages/timesheet/TimesheetDashboardV2'));
+const ConsultantMarginV2 = lazy(() => import('./pages/timesheet/ConsultantMarginV2'));
 const TimesheetEntryV2 = lazy(() => import('./pages/timesheet/TimesheetEntryV2'));
 const MyAttendancePageV2 = lazy(() => import('./pages/timesheet/MyAttendancePageV2'));
 const TimesheetUsersV2 = lazy(() => import('./pages/timesheet/TimesheetUsersV2'));
@@ -560,6 +561,7 @@ function App() {
                 <Route element={<CountryGate allowed={['IN']} appName="Employee Self Service" />}>
                 <Route element={<ESSCompanyGate />}>
                   <Route path="/org/:slug/timesheet/dashboard" element={<ErrorBoundary><TimesheetDashboardV2 /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/margin" element={<ErrorBoundary><ConsultantMarginV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-timesheet" element={<ErrorBoundary><TimesheetEntryV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-attendance" element={<ErrorBoundary><MyAttendancePageV2 /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><TimesheetEarningsV2 /></ErrorBoundary>} />

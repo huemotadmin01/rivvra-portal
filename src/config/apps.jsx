@@ -123,7 +123,7 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/timesheet/dashboard',
     derivedRoles: true, // Roles derived from orgRole + manager status — no per-app assignment
-    getSidebarItems: (user, timesheetUser, orgAppRole, currentCompany) => {
+    getSidebarItems: (user, timesheetUser, orgAppRole, currentCompany, isOrgOwner, canViewProfitability) => {
       const tsRole = timesheetUser?.role || 'contractor';
       const isAdmin = tsRole === 'admin';
       // ESS Tax pages (Declarations, Tax Report) are India-only in the backend —
@@ -236,6 +236,11 @@ export const APP_REGISTRY = {
               { path: '/timesheet/tax/report', label: 'Tax Report', icon: BarChart3 },
             ],
           },
+        ] : []),
+        // Consultant Margin (2026-10-17): billing vs pay side by side — same
+        // visibility as Invoicing → Profitability.
+        ...((isOrgOwner || user?.superAdmin || canViewProfitability) ? [
+          { type: 'item', path: '/timesheet/margin', label: 'Consultant Margin', icon: TrendingUp },
         ] : []),
         // Admin only: configuration
         ...(isAdmin ? [

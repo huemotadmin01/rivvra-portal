@@ -18,6 +18,11 @@ const invoicingApi = {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/profitability${qs ? '?' + qs : ''}`);
   },
+  // Per consultant, per month: invoiced revenue vs payroll cost (2026-10-17)
+  getConsultantMargin(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/consultant-margin${qs ? '?' + qs : ''}`);
+  },
   getProfitabilityRecords(orgSlug, params = {}) {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/profitability/records${qs ? '?' + qs : ''}`);
