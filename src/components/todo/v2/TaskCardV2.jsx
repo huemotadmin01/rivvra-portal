@@ -45,6 +45,15 @@ const iconBtn = {
 // Due dates are date-only, stored as UTC midnight. Compare calendar DAYS in UTC
 // (same boundary as the server's overdue filter) and print the date in UTC —
 // local formatting showed the previous day west of UTC (Huemot Inc users).
+// Older AI tasks stored Gmail's HTML-escaped snippet text — show it as plain text.
+function plain(str) {
+  return String(str || '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+
 function formatDate(d) {
   if (!d) return null;
   const date = new Date(d);
@@ -173,7 +182,7 @@ export default function TaskCardV2({
             color: isDone ? 'var(--fg-4)' : 'var(--fg)',
             textDecoration: isDone ? 'line-through' : 'none',
           }}>
-            {task.title}
+            {plain(task.title)}
           </span>
 
           {/* Priority badge */}
@@ -222,7 +231,7 @@ export default function TaskCardV2({
             font: `450 12px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 2,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {task.description}
+            {plain(task.description)}
           </p>
         )}
 
@@ -234,7 +243,7 @@ export default function TaskCardV2({
           }}>
             <Mail size={10} style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              From: {task.aiMeta.emailFrom} — {task.aiMeta.emailSubject}
+              From: {plain(task.aiMeta.emailFrom)} — {plain(task.aiMeta.emailSubject)}
             </span>
           </div>
         )}
