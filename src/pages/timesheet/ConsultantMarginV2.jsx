@@ -90,10 +90,13 @@ export default function ConsultantMarginV2() {
   const rows = useMemo(() => {
     if (!data || !month) return [];
     const list = data.rows.filter((r) => r.months[month]).map((r) => ({ ...r, cell: r.months[month] }));
-    const inv = (r) => (r.cell.revenue?.[cur] || 0) + (r.cell.revenue?.USD || 0) * 1000; // rank only, never displayed
     if (sortBy === 'margin') return list.sort((a, b) => (a.cell.marginPct ?? 1e9) - (b.cell.marginPct ?? 1e9));
     if (sortBy === 'name') return list.sort((a, b) => a.name.localeCompare(b.name));
-    return list.sort((a, b) => inv(b) - inv(a));
+    // Never compare across currencies: rupee-billed people by rupees, then
+    // other-currency people by their own amount, then people with no invoice.
+    const group = (r) => (r.cell.revenue?.[cur] ? 0 : Object.keys(r.cell.revenue || {}).length ? 1 : 2);
+    const amount = (r) => (group(r) === 0 ? r.cell.revenue[cur] : group(r) === 1 ? Math.max(...Object.values(r.cell.revenue)) : r.cell.cost || 0);
+    return list.sort((a, b) => group(a) - group(b) || amount(b) - amount(a));
   }, [data, month, sortBy, cur]);
 
   if (forbidden) {
