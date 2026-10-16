@@ -173,6 +173,16 @@ export default function TodoTasksV2() {
     }
   }
 
+  async function handleSetStatus(task, status) {
+    try {
+      await todoApi.updateTask(orgSlug, task._id, { status });
+      showToast(status === 'in-progress' ? 'Marked in progress' : 'Moved back to pending', 'success');
+      loadTasks();
+    } catch (err) {
+      showToast(err?.message || 'Failed to update', 'error');
+    }
+  }
+
   // Stop a repeating task. Two plain questions: stop the repeat at all, then
   // whether this copy is finished too (the usual case — "the project is over").
   async function handleEndSeries(task) {
@@ -341,6 +351,7 @@ export default function TodoTasksV2() {
                   onEdit={() => setEditingTask(task)}
                   onDelete={() => handleDeleteTask(task._id)}
                   onEndSeries={() => handleEndSeries(task)}
+                  onSetStatus={(st) => handleSetStatus(task, st)}
                   onAccept={task.source === 'ai' && !task.aiMeta?.accepted ? () => handleAcceptAiTask(task._id) : null}
                   onDismiss={task.source === 'ai' && !task.aiMeta?.accepted ? () => handleDismissAiTask(task._id) : null}
                   showCheckbox

@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react';
 import {
   CheckCircle2, Circle, Clock, AlertTriangle, Sparkles, Pencil, Trash2,
   Check, X, Mail, Wand2, ChevronDown, ChevronUp, Loader2, RefreshCw,
-  Repeat, UserCheck, ArrowRight, CircleStop,
+  Repeat, UserCheck, ArrowRight, CircleStop, Play, Pause,
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import todoApi from '../../../utils/todoApi';
@@ -68,6 +68,7 @@ export default function TaskCardV2({
   onEdit,
   onDelete,
   onEndSeries,
+  onSetStatus,
   onAccept,
   onDismiss,
   showCheckbox,
@@ -338,6 +339,20 @@ export default function TaskCardV2({
           >
             {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
           </button>
+        )}
+
+        {/* Start / pause — the only other way to reach "In Progress" was the Edit
+            form, which is hidden on tasks someone else assigned you (2026-10-16). */}
+        {onSetStatus && !isDone && !isAiSuggestion && (
+          task.status === 'in-progress' ? (
+            <button type="button" onClick={() => onSetStatus('pending')} title="Pause (back to pending)" aria-label="Pause task" style={iconBtn}>
+              <Pause size={15} />
+            </button>
+          ) : (
+            <button type="button" onClick={() => onSetStatus('in-progress')} title="Start (mark in progress)" aria-label="Start task" style={iconBtn}>
+              <Play size={15} />
+            </button>
+          )
         )}
 
         {/* End repeat — open to the assignee too: a delegated daily task used to
