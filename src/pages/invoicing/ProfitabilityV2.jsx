@@ -43,7 +43,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import {
-  Loader2, ArrowLeft, Lock, Info, X, TrendingUp, SlidersHorizontal, Users,
+  Loader2, ArrowLeft, Lock, Info, X, TrendingUp, SlidersHorizontal, Users, UserRound,
 } from 'lucide-react';
 import { Button, EmptyState, PageHeader } from '../../components/ds';
 
@@ -520,6 +520,10 @@ export default function ProfitabilityV2() {
             )}
             <Button variant="secondary" size="sm" onClick={() => setShowAdj(true)} iconLeft={<SlidersHorizontal size={15} />}>
               Other expenses
+            </Button>
+            {/* 2026-10-17: the same money split per person (invoiced vs payroll) */}
+            <Button variant="secondary" size="sm" onClick={() => navigate(`/org/${currentOrg?.slug}/timesheet/margin`)} iconLeft={<UserRound size={15} />}>
+              Per consultant
             </Button>
           </>
         }
