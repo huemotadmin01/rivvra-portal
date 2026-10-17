@@ -142,7 +142,7 @@ export default function ConsultantMarginV2() {
                   style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--r-3, 14px)', cursor: 'pointer',
                     background: active ? 'var(--brand-soft, var(--surface-2))' : 'var(--surface)', border: `1px solid ${active ? 'var(--brand)' : 'var(--line)'}` }}>
                   <div style={{ font: `600 12px/1.3 ${FONT}`, color: 'var(--fg)' }}>{MONTH_LABEL(m)}</div>
-                  <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 4 }}>Invoiced {money(t.revenue)}</div>
+                  <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 4 }}>Invoiced (ex-GST) {money(t.revenue)}</div>
                   <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>{noPayroll ? 'No payroll in Rivvra' : `Payroll ${formatCurrency(t.cost, cur)}`}</div>
                   {!noPayroll && <div style={{ font: `600 11.5px/1.5 ${FONT}`, color: t.margin >= 0 ? 'var(--brand-ink, var(--brand))' : 'var(--danger)' }}>Rupee margin {formatCurrency(t.margin, cur)}</div>}
                 </button>
@@ -166,7 +166,7 @@ export default function ConsultantMarginV2() {
                   <thead>
                     <tr>
                       <th style={th}>Person</th>
-                      <th style={{ ...th, textAlign: 'right' }}>Invoiced</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Invoiced (before GST)</th>
                       <th style={{ ...th, textAlign: 'right' }}>Payroll cost</th>
                       <th style={{ ...th, textAlign: 'right' }}>Margin</th>
                       <th style={{ ...th, textAlign: 'right' }}>Margin %</th>
@@ -220,7 +220,7 @@ export default function ConsultantMarginV2() {
             )}
           </Panel>
           <p style={{ font: `450 12px/1.5 ${FONT}`, color: 'var(--fg-4)', margin: '12px 2px 0' }}>
-            Invoiced = finalized invoices (credit notes subtract), counted in the month the work was done, the same rule as Profitability. Payroll cost = the person’s line in that month’s payroll run: gross pay for consultants, full cost-to-company for employees.
+            Invoiced = finalized invoices before GST (credit notes subtract), counted in the month the work was done, the same rule as Profitability. Payroll cost = the person’s line in that month’s payroll run: gross pay for consultants, full cost-to-company for employees.
           </p>
         </>
       )}
