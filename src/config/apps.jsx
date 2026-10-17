@@ -190,6 +190,11 @@ export const APP_REGISTRY = {
         ...(isAdmin ? [
           { type: 'item', path: '/timesheet/leave/balances', label: 'Leave Balances', icon: CalendarDays },
         ] : []),
+        // Consultant Margin (2026-10-17): billing vs pay side by side — same
+        // visibility as Invoicing → Profitability.
+        ...((isOrgOwner || user?.superAdmin || canViewProfitability) ? [
+          { type: 'item', path: '/timesheet/margin', label: 'Consultant Margin', icon: TrendingUp },
+        ] : []),
         // Attendance vs Timesheet — driven by org-level timesheetMode config
         ...(timesheetUser?.timesheetMode === 'timesheet'
           ? [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
@@ -236,11 +241,6 @@ export const APP_REGISTRY = {
               { path: '/timesheet/tax/report', label: 'Tax Report', icon: BarChart3 },
             ],
           },
-        ] : []),
-        // Consultant Margin (2026-10-17): billing vs pay side by side — same
-        // visibility as Invoicing → Profitability.
-        ...((isOrgOwner || user?.superAdmin || canViewProfitability) ? [
-          { type: 'item', path: '/timesheet/margin', label: 'Consultant Margin', icon: TrendingUp },
         ] : []),
         // Admin only: configuration
         ...(isAdmin ? [
