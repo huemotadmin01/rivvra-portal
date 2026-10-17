@@ -40,6 +40,8 @@ function noteText(cell, costCurrency) {
   switch (cell.note) {
     case 'other_currency': return 'Billed in another currency — no margin without conversion';
     case 'not_invoiced': return 'Paid, but no invoice names this person this month';
+    case 'no_client_project': return 'No client project this month';
+    case 'not_invoiced_by_agreement': return 'Not invoiced to client (by agreement)';
     case 'no_payroll_cost': return 'Invoiced, but not in this month’s payroll';
     case 'no_payroll_run': return 'No payroll run in Rivvra for this company and month';
     case 'invoiced_by_sister': return `Invoiced by ${cell.sister?.companyName || 'the other company'}: ${money(cell.sister?.revenue)}`;

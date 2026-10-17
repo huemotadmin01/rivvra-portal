@@ -506,6 +506,7 @@ export default function EmployeeDetail() {
       endDate: toDateInputValue(a.endDate),
       status: a.status || 'active',
       paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+      notInvoiced: a.notInvoiced === true,
     });
   }, [employee]);
 
@@ -550,6 +551,7 @@ export default function EmployeeDetail() {
         startDate: a.startDate || '', endDate: a.endDate || '',
         status: a.status || 'active', paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
         rateHistory: Array.isArray(a.rateHistory) ? a.rateHistory : [],
+        notInvoiced: a.notInvoiced === true,
       });
       const editedRow = { ...baseFields(existing[index] || {}), ...data };
       let assignments;
@@ -588,6 +590,7 @@ export default function EmployeeDetail() {
       startDate: todayStr(),
       endDate: '',
       status: 'active',
+      notInvoiced: false,
     });
   }, [employee]);
 
@@ -2700,6 +2703,17 @@ export default function EmployeeDetail() {
               {dateRangeInvalid && (
                 <p className="text-xs text-red-400 -mt-2">End date cannot be before start date.</p>
               )}
+
+              {/* Not invoiced to client (2026-10-17) */}
+              <label className="flex items-start gap-2 text-sm text-dark-300 cursor-pointer">
+                <input type="checkbox" checked={!!editAssignment.notInvoiced}
+                  onChange={e => setEditAssignment(prev => ({ ...prev, notInvoiced: e.target.checked }))}
+                  className="mt-0.5" />
+                <span>
+                  Not invoiced to client
+                  <span className="block text-xs text-dark-500">Tick when this work is deliberately not billed. Consultant Margin will stop flagging it as missing an invoice.</span>
+                </span>
+              </label>
 
               {/* Paid Leave */}
               {isNewAssignment ? (
