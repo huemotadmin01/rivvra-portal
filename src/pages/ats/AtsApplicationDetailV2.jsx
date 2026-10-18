@@ -21,7 +21,7 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import { withFromContext } from '../../utils/entityDescribe';
 import PersonLookup from '../../components/shared/PersonLookup';
 import ReasonPromptDialog from '../../components/shared/ReasonPromptDialog';
-import { InlineField, Panel, RecordMeta, StageBar as DsStageBar } from '../../components/ds';
+import { InlineField, Panel, RecordMeta, StageBar as DsStageBar, Modal, Button, Field, Input } from '../../components/ds';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
@@ -49,6 +49,7 @@ import {
   Check,
   ShieldOff,
   Upload,
+  Building2,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import SubmittalSummary from '../../components/ats/SubmittalSummary';
@@ -104,6 +105,8 @@ export default function AtsApplicationDetail() {
 
   // Modal / action UI state
   const [showRefuseModal, setShowRefuseModal] = useState(false);
+  // 2026-10-18: placement candidate already joined the client — Hired without emailing them
+  const [clientJoined, setClientJoined] = useState(null); // { joiningDate, annualCtc, note, saving }
   const [showDocumentsBypassDialog, setShowDocumentsBypassDialog] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
   // editOfferOnly: opens the HireModal in 'offer' mode without any
@@ -1364,6 +1367,15 @@ export default function AtsApplicationDetail() {
                 >
                   <Award size={14} /> Hire
                 </button>
+                {application?.isClientRole && (
+                  <button
+                    onClick={() => setClientJoined({ joiningDate: '', annualCtc: '', note: '', saving: false })}
+                    title="The candidate has already joined the client (full-time hire). Moves to Hired without emailing the candidate."
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                  >
+                    <Building2 size={14} /> Joined client
+                  </button>
+                )}
               </>
             )}
             {/* 2026-05-25: gate by Employee app access, not ATS admin.
@@ -2142,6 +2154,58 @@ export default function AtsApplicationDetail() {
           onClose={() => setPreviewDoc(null)}
         />
       )}
+
+      <Modal
+        open={!!clientJoined}
+        onClose={() => !clientJoined?.saving && setClientJoined(null)}
+        size="sm"
+        title="Joined the client"
+        sub="For a full-time hire placement. Moves the application to Hired. The candidate is NOT emailed, and no employee record is created."
+        footer={(
+          <>
+            <Button variant="ghost" onClick={() => setClientJoined(null)} disabled={clientJoined?.saving}>Cancel</Button>
+            <Button
+              disabled={!clientJoined?.joiningDate || clientJoined?.saving}
+              onClick={async () => {
+                setClientJoined((c) => ({ ...c, saving: true }));
+                try {
+                  const r = await atsApi.markClientJoined(orgSlug, application._id, {
+                    joiningDate: clientJoined.joiningDate,
+                    annualCtc: clientJoined.annualCtc ? Number(clientJoined.annualCtc) : null,
+                    note: clientJoined.note,
+                  });
+                  if (!r?.success) throw new Error(r?.error || 'Failed');
+                  showToast(r.alreadyHired ? 'Already hired' : 'Moved to Hired — candidate not notified', 'success');
+                  setClientJoined(null);
+                  fetchApplication();
+                } catch (e) {
+                  showToast(e?.message || 'Failed to mark as joined', 'error');
+                  setClientJoined((c) => (c ? { ...c, saving: false } : c));
+                }
+              }}
+            >
+              {clientJoined?.saving ? 'Saving…' : 'Move to Hired'}
+            </Button>
+          </>
+        )}
+      >
+        {clientJoined && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <Field label="Joined the client on" required htmlFor="cj-date">
+              <Input id="cj-date" type="date" value={clientJoined.joiningDate}
+                onChange={(e) => setClientJoined((c) => ({ ...c, joiningDate: e.target.value }))} />
+            </Field>
+            <Field label="Annual CTC at the client (for the placement fee)" htmlFor="cj-ctc">
+              <Input id="cj-ctc" type="number" min="0" value={clientJoined.annualCtc} placeholder="Optional, e.g. 1560000"
+                onChange={(e) => setClientJoined((c) => ({ ...c, annualCtc: e.target.value }))} />
+            </Field>
+            <Field label="Note" htmlFor="cj-note">
+              <Input id="cj-note" type="text" value={clientJoined.note} maxLength={500} placeholder="Optional"
+                onChange={(e) => setClientJoined((c) => ({ ...c, note: e.target.value }))} />
+            </Field>
+          </div>
+        )}
+      </Modal>
 
       <RefuseModal
         show={showRefuseModal}

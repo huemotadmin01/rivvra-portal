@@ -356,6 +356,15 @@ const atsApi = {
   // P0.1 (2026-05-10): /hire now requires offer-acceptance data.
   //   payload: { offer: { joiningDate, offeredCTC: {currency, amount},
   //                       noticePeriodDays, probationMonths, signedOfferDocId? } }
+  // 2026-10-18: client full-time hire (placement) whose candidate has already
+  // joined the client — Hired, no candidate email, no signed-offer gate.
+  markClientJoined(orgSlug, id, payload) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/client-joined`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
   hireApplication(orgSlug, id, payload) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}/hire`, {
       method: 'PATCH',
