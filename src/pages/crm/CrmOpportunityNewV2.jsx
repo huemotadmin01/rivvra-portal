@@ -45,6 +45,13 @@ export default function CrmOpportunityNewV2() {
   const [individualContacts, setIndividualContacts] = useState([]);
   const [companyContacts, setCompanyContacts] = useState([]);
   const [contactSearch, setContactSearch] = useState('');
+  // The POC is required and the Create button is gated on it, so this fetch
+  // failing used to leave an empty picker indistinguishable from "this company
+  // has no contacts" — blocked, with nothing said. Three states, not two: a
+  // failure, a genuinely empty address book, and a search that simply matched
+  // nothing (which is ordinary and gets no banner).
+  const [contactsError, setContactsError] = useState('');
+  const [contactsLoaded, setContactsLoaded] = useState(false);
   // Admin-only salesperson override. Non-admins always get the creator as
   // salesperson server-side, so we don't render the picker for them.
   const [employeeOptions, setEmployeeOptions] = useState([]);
@@ -54,14 +61,25 @@ export default function CrmOpportunityNewV2() {
   // picker) instead of a one-shot pre-load of the first 500. Pre-load was a
   // hard cap — tenants with more contacts saw the tail of their list silently
   // disappear from the picker.
-  useEffect(() => {
+  const loadContacts = useCallback(() => {
     if (!slug) return;
+    setContactsError('');
     const params = { type: 'individual', limit: 50 };
     if (contactSearch) params.search = contactSearch;
     contactsApi.list(slug, params)
-      .then((res) => { if (res.success) setIndividualContacts(res.contacts || []); })
-      .catch(() => {});
+      .then((res) => {
+        if (res.success) setIndividualContacts(res.contacts || []);
+        else setContactsError(res?.error || 'Could not load contacts.');
+        setContactsLoaded(true);
+      })
+      .catch((err) => {
+        setIndividualContacts([]);
+        setContactsLoaded(true);
+        setContactsError(err?.message || 'Could not load contacts.');
+      });
   }, [slug, contactSearch]);
+
+  useEffect(() => { loadContacts(); }, [loadContacts]);
 
   useEffect(() => {
     if (!slug) return;
@@ -217,6 +235,25 @@ export default function CrmOpportunityNewV2() {
                 emptyLabel="Select a contact…"
                 placeholder="Search by company or contact name…"
               />
+              {contactsError && (
+                <p style={{ margin: '6px 0 0', font: `400 11.5px/1.4 ${FONT}`, color: 'var(--danger, #ef4444)' }}>
+                  {contactsError}{' '}
+                  <button
+                    type="button"
+                    onClick={loadContacts}
+                    style={{ background: 'none', border: 0, padding: 0, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
+                  >
+                    Retry
+                  </button>
+                </p>
+              )}
+              {/* Only when the address book is actually empty — a search that
+                  matched nothing is ordinary and says so in the picker. */}
+              {contactsLoaded && !contactsError && individualContacts.length === 0 && !contactSearch && (
+                <p style={{ margin: '6px 0 0', font: `400 11.5px/1.4 ${FONT}`, color: 'var(--warn-ink, #f59e0b)' }}>
+                  No contacts yet — add one in Contacts before creating an opportunity.
+                </p>
+              )}
             </Field>
 
             {/* Admin-only salesperson override. Non-admins always inherit the
