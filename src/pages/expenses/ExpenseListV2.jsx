@@ -41,6 +41,9 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'nu
 /* v2 Expenses list (Slice 3 Wave A) — same data flow as ExpenseList.jsx
    (stale-while-revalidate cache, URL-derived scope, client-side status
    tabs), rendered on ds Stat/FilterBar/DataTable. */
+// One screenful plus headroom. The server caps `limit` at 200.
+const PAGE_SIZE = 100;
+
 export default function ExpenseListV2() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,6 +86,10 @@ export default function ExpenseListV2() {
   const [summary, setSummary] = useState(initHit?.summary || null);
   const [loading, setLoading] = useState(!initHit);
   const [refreshing, setRefreshing] = useState(false);
+  // Paging. The server used to cap the list at 500 rows with nothing on
+  // screen to say so, which at scale means claims that simply are not there.
+  const [pagination, setPagination] = useState(initHit?.pagination || null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const abortRef = useRef(null);
 
   // currentCompany deliberately NOT a dep — company switches hard-reload;
@@ -94,6 +101,7 @@ export default function ExpenseListV2() {
     if (hit && !force) {
       setRows(hit.expenses);
       setSummary(hit.summary);
+      setPagination(hit.pagination || null);
       setLoading(false);
       if (Date.now() - hit.ts < cacheTTL()) return;
     }
@@ -102,15 +110,17 @@ export default function ExpenseListV2() {
     abortRef.current = ctrl;
     try {
       setRefreshing(true);
-      const params = { scope };
+      const params = { scope, page: 1, limit: PAGE_SIZE };
       if (searchDebounced) params.q = searchDebounced;
       const res = await expensesApi.getOverview(orgSlug, params);
       if (ctrl.signal.aborted) return;
       const freshExpenses = res?.expenses || [];
       const freshSummary = res?.summary || null;
-      cacheSet(cacheKey, { expenses: freshExpenses, summary: freshSummary });
+      const freshPagination = res?.pagination || null;
+      cacheSet(cacheKey, { expenses: freshExpenses, summary: freshSummary, pagination: freshPagination });
       setRows(freshExpenses);
       setSummary(freshSummary);
+      setPagination(freshPagination);
     } catch (err) {
       if (err.name === 'AbortError') return;
       showToast(err.message || 'Failed to load expenses', 'error');
@@ -120,13 +130,37 @@ export default function ExpenseListV2() {
         setRefreshing(false);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, scope, searchDebounced, showToast]);
 
   useEffect(() => {
     load();
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [load]);
+
+  // Appended pages are deliberately NOT cached: the cache holds the first
+  // page so a back-navigation is instant, and a half-paged list in there
+  // would be indistinguishable from a complete one.
+  const loadMore = useCallback(async () => {
+    if (!orgSlug || !pagination?.hasMore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = { scope, page: pagination.page + 1, limit: pagination.limit || PAGE_SIZE };
+      if (searchDebounced) params.q = searchDebounced;
+      const res = await expensesApi.getOverview(orgSlug, params);
+      const more = res?.expenses || [];
+      setRows((prev) => {
+        // A claim submitted while the user is paging shifts every later row
+        // down by one; without this a row can arrive twice.
+        const seen = new Set(prev.map((r) => r._id));
+        return [...prev, ...more.filter((r) => !seen.has(r._id))];
+      });
+      setPagination(res?.pagination || null);
+    } catch (err) {
+      showToast(err.message || 'Failed to load more claims', 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [orgSlug, scope, searchDebounced, pagination, loadingMore, showToast]);
 
   const tabCounts = useMemo(() => {
     const c = { '': rows.length };
@@ -260,6 +294,29 @@ export default function ExpenseListV2() {
           />
         )}
       />
+
+      {/* Never leave the list silently short. When more claims exist than are
+          loaded, say so plainly — the status tabs filter what is on screen,
+          so a partial list would otherwise quietly understate a tab. */}
+      {pagination && pagination.total > rows.length && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 12, flexWrap: 'wrap', padding: '14px 12px',
+        }}>
+          <span style={{ font: '400 12px/1.4 var(--font)', color: 'var(--fg-4)' }}>
+            Showing {rows.length} of {pagination.total} claims
+            {statusTab ? ' — tabs filter the loaded claims only' : ''}
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={loadMore}
+            disabled={loadingMore || !pagination.hasMore}
+          >
+            {loadingMore ? 'Loading…' : `Load ${Math.min(pagination.limit || PAGE_SIZE, pagination.total - rows.length)} more`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
