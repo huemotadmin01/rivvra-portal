@@ -1367,7 +1367,9 @@ export default function AtsApplicationDetail() {
                 >
                   <Award size={14} /> Hire
                 </button>
-                {application?.isClientRole && (
+                {/* Placements only: job hiring mode "Full-time Hire" (incl. "C2C or Full-time Hire").
+                    Never on C2C / C2H contract roles — 2026-10-19 fix: it showed on every client role. */}
+                {application?.isClientRole && /full[-\s]?time\s*hire/i.test(application?.jobHiringMode || '') && (
                   <button
                     onClick={() => setClientJoined({ joiningDate: '', annualCtc: '', note: '', saving: false })}
                     title="The candidate has already joined the client (full-time hire). Moves to Hired without emailing the candidate."
