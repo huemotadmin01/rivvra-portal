@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import assetApi from '../../utils/assetApi';
 import { Plus, Pencil, Trash2, Loader2, X, Check, Package } from 'lucide-react';
-import { PageHeader, Panel, Button, Input, EmptyState, PageSpinner } from '../../components/ds';
+import { PageHeader, Panel, Button, Input, EmptyState, PageSpinner, Callout } from '../../components/ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Asset types are the vocabulary every asset record is filed under, so `handleDelete`
@@ -19,6 +19,7 @@ export default function AssetTypeConfigV2() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ name: '', description: '' });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     load();
@@ -28,13 +29,15 @@ export default function AssetTypeConfigV2() {
     try {
       const res = await assetApi.listTypes(orgSlug);
       setTypes(res.data || []);
-    } catch (e) { console.error(e); }
+      setError('');
+    } catch (e) { console.error(e); setError(e?.message || 'Could not load asset types.'); }
     finally { setLoading(false); }
   }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
+    setError('');
     try {
       if (editId) {
         await assetApi.updateType(orgSlug, editId, form);
@@ -45,16 +48,22 @@ export default function AssetTypeConfigV2() {
       setShowAdd(false);
       setEditId(null);
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      // A duplicate name answers 409 and an in-use type answers 400; both
+      // used to vanish into console.error and look like nothing happened.
+      console.error(e);
+      setError(e?.message || 'Could not save this asset type.');
+    }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id) {
     if (!confirm('Delete this asset type?')) return;
+    setError('');
     try {
       await assetApi.deleteType(orgSlug, id);
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); setError(e?.message || 'Could not delete this asset type.'); }
   }
 
   function startEdit(t) {
@@ -79,6 +88,10 @@ export default function AssetTypeConfigV2() {
           </Button>
         )}
       />
+
+      {error && (
+        <div style={{ marginBottom: 12 }}><Callout tone="danger">{error}</Callout></div>
+      )}
 
       {showAdd && (
         <Panel title={editId ? 'Edit Asset Type' : 'New Asset Type'} style={{ marginBottom: 14 }}>

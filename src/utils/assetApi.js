@@ -46,6 +46,9 @@ const assetApi = {
   assign(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/assets/${id}/assign`, { method: 'POST', body: JSON.stringify(data) });
   },
+  reassign(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/assets/${id}/reassign`, { method: 'POST', body: JSON.stringify(data) });
+  },
   returnAsset(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/assets/${id}/return`, { method: 'POST', body: JSON.stringify(data) });
   },

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
   PageHeader, Panel, Stat, Chip, Button, Input, Textarea, Select, SearchInput,
-  Modal, EmptyState, PageSpinner,
+  Modal, EmptyState, PageSpinner, Callout,
 } from '../../components/ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +78,8 @@ export default function AssetListV2() {
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '', assignTo: '' });
   const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [employees, setEmployees] = useState([]);
   const [empSearch, setEmpSearch] = useState('');
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
@@ -108,6 +110,7 @@ export default function AssetListV2() {
 
   async function loadAll() {
     setLoading(true);
+    setLoadError('');
     try {
       const [assetsRes, typesRes, statsRes] = await Promise.all([
         assetApi.list(orgSlug),
@@ -117,7 +120,10 @@ export default function AssetListV2() {
       setAssets(assetsRes.data || []);
       setTypes(typesRes.data || []);
       setStats(statsRes.data || null);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setLoadError(e?.message || 'Could not load assets.');
+    }
     finally { setLoading(false); }
   }
 
@@ -138,21 +144,41 @@ export default function AssetListV2() {
     return list;
   }, [assets, statusFilter, typeFilter, search]);
 
+  function resetAddForm() {
+    setAddForm({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '', assignTo: '' });
+    setEmpSearch('');
+    setShowEmpDropdown(false);
+    setAddError('');
+  }
+
+  function closeAdd() { setShowAdd(false); resetAddForm(); }
+
   async function handleAdd() {
     if (!addForm.assetTypeId || !addForm.name.trim()) return;
     setSaving(true);
+    setAddError('');
+    // Create and assign are two calls. If the second fails the asset DOES
+    // exist — say so, otherwise the operator retries and creates a duplicate.
+    let createdId = null;
     try {
-      const { assignTo, assignToName, ...createData } = addForm;
+      // `assignToName` is display-only state; strip it so it never reaches the API.
+      const { assignTo, assignToName: _assignToName, ...createData } = addForm;
       const created = await assetApi.create(orgSlug, createData);
-      // If employee selected, assign immediately
-      if (assignTo && created?.data?._id) {
-        await assetApi.assign(orgSlug, created.data._id, { employeeId: assignTo });
+      createdId = created?.data?._id || null;
+      // Assigning is optional — an asset with nobody picked goes into stock
+      // as Available, which is how spare kit is meant to be recorded.
+      if (assignTo && createdId) {
+        await assetApi.assign(orgSlug, createdId, { employeeId: assignTo });
       }
-      setShowAdd(false);
-      setAddForm({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '', assignTo: '' });
-      setEmpSearch('');
+      closeAdd();
       await loadAll();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setAddError(createdId
+        ? `Asset created, but assigning it failed: ${e?.message || 'unknown error'}. It is in the list as Available — assign it from its page.`
+        : (e?.message || 'Could not add the asset.'));
+      if (createdId) await loadAll();
+    }
     finally { setSaving(false); }
   }
 
@@ -167,6 +193,15 @@ export default function AssetListV2() {
           <Button size="sm" onClick={() => setShowAdd(true)} iconLeft={<Plus size={15} />}>Add Asset</Button>
         )}
       />
+
+      {loadError && (
+        <div style={{ marginBottom: 12 }}>
+          <Callout tone="danger">
+            {loadError}{' '}
+            <Button variant="ghost" size="sm" onClick={loadAll}>Retry</Button>
+          </Callout>
+        </div>
+      )}
 
       {/* Stats */}
       {stats && (
@@ -218,7 +253,11 @@ export default function AssetListV2() {
       {filtered.length === 0 ? (
         <Panel>
           <EmptyState icon={<Package size={22} />}
-            title={assets.length === 0 ? 'No assets yet' : 'No assets match your filters'} />
+            title={assets.length === 0 ? 'No assets yet' : 'No assets match your filters'}
+            actions={assets.length === 0
+              ? (isAdmin ? <Button size="sm" iconLeft={<Plus size={15} />} onClick={() => setShowAdd(true)}>Add Asset</Button> : null)
+              : <Button variant="secondary" size="sm" iconLeft={<X size={13} />}
+                  onClick={() => { setStatusFilter(''); setTypeFilter(''); setSearch(''); }}>Clear filters</Button>} />
         </Panel>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -226,6 +265,8 @@ export default function AssetListV2() {
             const st = STATUS_CONFIG[asset.status] || STATUS_CONFIG.available;
             const cond = CONDITION_CONFIG[asset.condition] || CONDITION_CONFIG.good;
             const TypeIcon = getTypeIcon(asset.assetTypeName);
+            const hist = asset.assignmentHistory || [];
+            const lastReturn = [...hist].reverse().find(h => h.returnedDate) || null;
             return (
               <Panel
                 key={asset._id}
@@ -262,9 +303,26 @@ export default function AssetListV2() {
                     <span style={{ flexShrink: 0 }}><Chip tone={st.tone}>{st.label}</Chip></span>
                   </div>
 
-                  {/* Assignee — status-gated like V1: return/lost don't clear
-                      assignedToName, so without the gate a returned asset keeps
-                      showing its last holder under a "Returned" chip */}
+                  {/* A returned or lost asset has no assignee any more, but the
+                      card showed nothing at all — you could not tell who had it
+                      or when it came back without opening the record. */}
+                  {asset.status !== 'assigned' && lastReturn && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      paddingTop: 8, borderTop: '1px solid var(--line-2)',
+                    }}>
+                      <Undo2 size={12} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+                      <span style={{ font: "400 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lastReturn.employeeName}
+                      </span>
+                      {lastReturn.returnedDate && (
+                        <span style={{ marginLeft: 'auto', flexShrink: 0, font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+                          {new Date(lastReturn.returnedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {asset.status === 'assigned' && asset.assignedToName && (
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 6,
@@ -297,14 +355,14 @@ export default function AssetListV2() {
       {/* ── Add asset ────────────────────────────────────────────────────── */}
       <Modal
         open={showAdd}
-        onClose={() => { setShowAdd(false); setEmpSearch(''); setShowEmpDropdown(false); }}
+        onClose={closeAdd}
         size="sm"
         title="Add Asset"
         footer={(
           <>
-            <Button variant="secondary" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={closeAdd}>Cancel</Button>
             <Button size="sm" block onClick={handleAdd}
-              disabled={saving || !addForm.assetTypeId || !addForm.name.trim() || !addForm.assignTo}
+              disabled={saving || !addForm.assetTypeId || !addForm.name.trim()}
               iconLeft={saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}>
               Add Asset
             </Button>
@@ -312,6 +370,7 @@ export default function AssetListV2() {
         )}
       >
         <div style={{ display: 'grid', gap: 12 }} onClick={() => setShowEmpDropdown(false)}>
+          {addError && <Callout tone="danger">{addError}</Callout>}
           <div>
             <label htmlFor="as-type" style={label}>Asset Type *</label>
             <Select id="as-type" value={addForm.assetTypeId}
@@ -340,6 +399,7 @@ export default function AssetListV2() {
               <option value="new">New</option>
               <option value="good">Good</option>
               <option value="fair">Fair</option>
+              <option value="damaged">Damaged</option>
             </Select>
           </div>
 
@@ -351,7 +411,7 @@ export default function AssetListV2() {
 
           {/* Assign To — server-side search, so anyone in the company is reachable */}
           <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <label htmlFor="as-emp" style={label}>Assign To *</label>
+            <label htmlFor="as-emp" style={label}>Assign To</label>
             {addForm.assignTo ? (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -403,6 +463,9 @@ export default function AssetListV2() {
                 )}
               </>
             )}
+            <p style={{ font: "400 10.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '5px 0 0' }}>
+              Leave empty to add it to stock as Available.
+            </p>
           </div>
         </div>
       </Modal>

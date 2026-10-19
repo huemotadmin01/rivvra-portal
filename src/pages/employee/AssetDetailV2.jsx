@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
@@ -7,7 +7,7 @@ import employeeApi from '../../utils/employeeApi';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   ArrowLeft, User, Calendar, Package, Pencil, RotateCcw, AlertTriangle,
-  Loader2, CheckCircle2, History, IndianRupee, RefreshCw,
+  Loader2, CheckCircle2, History, IndianRupee, RefreshCw, Trash2,
 } from 'lucide-react';
 import {
   Panel, Chip, Button, Input, Textarea, Select, ComboBox, Field,
@@ -90,7 +90,9 @@ export default function AssetDetailV2() {
   const [showReturn, setShowReturn] = useState(false);
   const [showLost, setShowLost] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   // Forms
   const [assignForm, setAssignForm] = useState({ employeeId: '', notes: '' });
@@ -109,12 +111,16 @@ export default function AssetDetailV2() {
 
   useEffect(() => { load(); }, [assetId, orgSlug]);
 
+  // One `error` state is shared by every modal, so a failure in one used to
+  // still be on screen when the next was opened. Clear it as each one opens.
+  const openModal = (setter) => () => { setError(''); setter(true); };
+
   async function load() {
     setLoading(true);
     try {
       const [assetRes, empRes, typesRes] = await Promise.all([
         assetApi.get(orgSlug, assetId),
-        isAdmin ? employeeApi.list(orgSlug, { limit: 100 }) : Promise.resolve({ employees: [] }),
+        isAdmin ? employeeApi.list(orgSlug, { limit: 50 }) : Promise.resolve({ employees: [] }),
         assetApi.listTypes(orgSlug),
       ]);
       const a = assetRes.data;
@@ -131,6 +137,20 @@ export default function AssetDetailV2() {
   }
 
   const [error, setError] = useState('');
+
+  // `limit: 100` silently truncated large companies: anyone past the first 100
+  // alphabetically could not be picked here. ComboBox debounces this for us.
+  const searchEmployees = useCallback((q) => {
+    if (!isAdmin) return;
+    employeeApi.list(orgSlug, { search: q || undefined, limit: 50 })
+      .then(res => {
+        const list = res.employees || res.data || [];
+        setEmployees((Array.isArray(list) ? list : [])
+          .filter(e => e.status !== 'separated')
+          .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
+      })
+      .catch(() => {});
+  }, [orgSlug, isAdmin]);
 
   async function handleAssign() {
     if (!assignForm.employeeId) return;
@@ -149,8 +169,10 @@ export default function AssetDetailV2() {
     if (!reassignForm.employeeId) return;
     setSaving(true); setError('');
     try {
-      await assetApi.returnAsset(orgSlug, assetId, { condition: 'good', notes: 'Reassigned to another employee' });
-      await assetApi.assign(orgSlug, assetId, { employeeId: reassignForm.employeeId, notes: reassignForm.notes });
+      // One server-side call. This used to be return-then-assign from here,
+      // which left the asset *returned* if the second half failed and forced
+      // its condition to 'good'.
+      await assetApi.reassign(orgSlug, assetId, { employeeId: reassignForm.employeeId, notes: reassignForm.notes });
       setShowReassign(false);
       setReassignForm({ employeeId: '', notes: '' });
       setReassignSearch('');
@@ -192,11 +214,25 @@ export default function AssetDetailV2() {
   }
 
   async function handleMakeAvailable() {
-    setSaving(true);
+    setSaving(true); setActionError('');
     try {
+      // No condition sent on purpose — the server keeps the one it came back
+      // in rather than defaulting it to 'good'.
       await assetApi.makeAvailable(orgSlug, assetId);
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setActionError(e?.message || 'Could not make this asset available.');
+    }
+    finally { setSaving(false); }
+  }
+
+  async function handleDelete() {
+    setSaving(true); setError('');
+    try {
+      await assetApi.remove(orgSlug, assetId);
+      navigate(orgPath('/employee/assets'));
+    } catch (e) { setError(e?.message || 'Failed to delete'); }
     finally { setSaving(false); }
   }
 
@@ -254,32 +290,50 @@ export default function AssetDetailV2() {
       {isAdmin && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
           {asset.status === 'available' && (
-            <Button variant="secondary" size="sm" onClick={() => setShowAssign(true)} iconLeft={<User size={14} />}>
+            <Button variant="secondary" size="sm" onClick={openModal(setShowAssign)} iconLeft={<User size={14} />}>
               Assign to Employee
             </Button>
           )}
           {asset.status === 'assigned' && (
             <>
-              <Button variant="secondary" size="sm" onClick={() => setShowReassign(true)} iconLeft={<User size={14} />}>
+              <Button variant="secondary" size="sm" onClick={openModal(setShowReassign)} iconLeft={<User size={14} />}>
                 Reassign
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => setShowReturn(true)} iconLeft={<RotateCcw size={14} />}>
+              <Button variant="secondary" size="sm" onClick={openModal(setShowReturn)} iconLeft={<RotateCcw size={14} />}>
                 Mark Returned
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => setShowLost(true)}
+              <Button variant="secondary" size="sm" onClick={openModal(setShowLost)}
                 style={{ color: 'var(--danger)' }} iconLeft={<AlertTriangle size={14} />}>
                 Mark Lost
               </Button>
             </>
           )}
-          {(asset.status === 'returned' || asset.status === 'retired') && (
-            <Button variant="secondary" size="sm" onClick={handleMakeAvailable} iconLeft={<RefreshCw size={14} />}>
-              Make Available
+          {/* 'lost' belongs here too: a found asset had no way back into the
+              pool, even though the server has always allowed it. */}
+          {(asset.status === 'returned' || asset.status === 'retired' || asset.status === 'lost') && (
+            <Button variant="secondary" size="sm" onClick={handleMakeAvailable} disabled={saving}
+              iconLeft={saving ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}>
+              {asset.status === 'lost' ? 'Mark Found — Make Available' : 'Make Available'}
             </Button>
           )}
-          <Button variant="secondary" size="sm" onClick={() => setShowEdit(true)} iconLeft={<Pencil size={14} />}>
+          <Button variant="secondary" size="sm" onClick={openModal(setShowEdit)} iconLeft={<Pencil size={14} />}>
             Edit Details
           </Button>
+          {/* The delete endpoint has always existed but nothing called it, so a
+              mistyped asset could never be removed. Assigned ones are refused
+              by the server; hide the button rather than invite the error. */}
+          {asset.status !== 'assigned' && (
+            <Button variant="ghost" size="sm" onClick={openModal(setShowDelete)}
+              style={{ color: 'var(--danger)' }} iconLeft={<Trash2 size={14} />}>
+              Delete
+            </Button>
+          )}
+        </div>
+      )}
+
+      {actionError && (
+        <div style={{ marginBottom: 12 }}>
+          <Callout tone="danger">{actionError}</Callout>
         </div>
       )}
 
@@ -333,6 +387,9 @@ export default function AssetDetailV2() {
                       <IndianRupee size={10} /> Deduction: {h.deductionAmount.toLocaleString('en-IN')}
                     </p>
                   )}
+                  {h.assignNotes && (
+                    <p style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '4px 0 0' }}>{h.assignNotes}</p>
+                  )}
                   {h.returnNotes && (
                     <p style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '4px 0 0' }}>{h.returnNotes}</p>
                   )}
@@ -352,7 +409,7 @@ export default function AssetDetailV2() {
           {error && <Callout tone="danger">{error}</Callout>}
           <Field label="Employee" required htmlFor="as-assign-emp">
             <ComboBox id="as-assign-emp" aria-label="Employee" options={empOptions}
-              value={assignForm.employeeId}
+              value={assignForm.employeeId} onSearch={searchEmployees}
               onChange={(id) => setAssignForm(f => ({ ...f, employeeId: id }))}
               placeholder="Search employee..." emptyLabel="Select employee…" />
           </Field>
@@ -374,7 +431,7 @@ export default function AssetDetailV2() {
           </p>
           <Field label="New Employee" required htmlFor="as-reassign-emp">
             <ComboBox id="as-reassign-emp" aria-label="New Employee" options={reassignOptions}
-              value={reassignForm.employeeId}
+              value={reassignForm.employeeId} onSearch={searchEmployees}
               onChange={(id) => setReassignForm(f => ({ ...f, employeeId: id }))}
               placeholder="Search employee..." emptyLabel="Select employee…" />
           </Field>
@@ -408,7 +465,7 @@ export default function AssetDetailV2() {
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
                 font: "400 12.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', pointerEvents: 'none',
               }}>INR</span>
-              <Input id="as-ret-ded" type="number" placeholder="0" value={returnForm.deductionAmount}
+              <Input id="as-ret-ded" type="number" min="0" step="0.01" placeholder="0" value={returnForm.deductionAmount}
                 onChange={e => setReturnForm(f => ({ ...f, deductionAmount: e.target.value }))}
                 style={{ paddingLeft: 46 }} />
             </div>
@@ -435,7 +492,7 @@ export default function AssetDetailV2() {
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
                 font: "400 12.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', pointerEvents: 'none',
               }}>INR</span>
-              <Input id="as-lost-ded" type="number" placeholder="0" value={lostForm.deductionAmount}
+              <Input id="as-lost-ded" type="number" min="0" step="0.01" placeholder="0" value={lostForm.deductionAmount}
                 onChange={e => setLostForm(f => ({ ...f, deductionAmount: e.target.value }))}
                 style={{ paddingLeft: 46 }} />
             </div>
@@ -444,6 +501,18 @@ export default function AssetDetailV2() {
             <Textarea id="as-lost-notes" rows={2} value={lostForm.notes}
               onChange={e => setLostForm(f => ({ ...f, notes: e.target.value }))} />
           </Field>
+        </div>
+      </Modal>
+
+      {/* ── Delete ─────────────────────────────────────────────────────────── */}
+      <Modal open={showDelete} size="sm" title="Delete Asset"
+        onClose={() => setShowDelete(false)}
+        footer={modalFoot(handleDelete, () => { setShowDelete(false); setError(''); }, 'Delete Asset', { danger: true })}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          {error && <Callout tone="danger">{error}</Callout>}
+          <Callout tone="danger" icon={<AlertTriangle size={16} />}>
+            <strong>{asset.name}</strong> and its assignment history will be removed permanently. This cannot be undone.
+          </Callout>
         </div>
       </Modal>
 
@@ -466,6 +535,14 @@ export default function AssetDetailV2() {
           <Field label="Model Name" htmlFor="as-edit-model">
             <Input id="as-edit-model" value={editForm.modelName}
               onChange={e => setEditForm(f => ({ ...f, modelName: e.target.value }))} />
+          </Field>
+          {/* `condition` was already in editForm and already sent to the API —
+              there was just no control for it, so a wrong grade was permanent. */}
+          <Field label="Condition" htmlFor="as-edit-cond">
+            <Select id="as-edit-cond" value={editForm.condition}
+              onChange={e => setEditForm(f => ({ ...f, condition: e.target.value }))}>
+              {Object.entries(CONDITION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </Select>
           </Field>
           <Field label="Notes" htmlFor="as-edit-notes">
             <Textarea id="as-edit-notes" rows={2} value={editForm.notes}
