@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
+import { currencySymbol, formatMoney } from '../../utils/currency';
 import assetApi from '../../utils/assetApi';
 import employeeApi from '../../utils/employeeApi';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   ArrowLeft, User, Calendar, Package, Pencil, RotateCcw, AlertTriangle,
-  Loader2, CheckCircle2, History, IndianRupee, RefreshCw, Trash2,
+  Loader2, CheckCircle2, History, RefreshCw, Trash2,
 } from 'lucide-react';
 import {
   Panel, Chip, Button, Input, Textarea, Select, ComboBox, Field,
@@ -26,10 +28,12 @@ import {
 // reassigned, and the error text says "Failed to reassign". Carried across
 // exactly, including that window.
 //
-// Money is carried verbatim and untouched: `deductionAmount` on the return and
-// lost forms is a payroll deduction, and the history row's
-// `h.deductionAmount.toLocaleString('en-IN')` is its display. Both are
-// hardcoded to INR — see the note in the PR; not changed here.
+// Money: `deductionAmount` on the return and lost forms is a payroll
+// deduction. It used to be labelled INR everywhere — wrong for the CAD and
+// USD entities that sit alongside the INR ones. The amount itself is
+// untouched; only the code it is denominated in is now resolved, from the
+// code stamped on the history entry when it was recorded, falling back to
+// the active entity's own currency.
 //
 // Not triggered: assign, reassign, return, mark lost, edit, make available.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,8 +80,18 @@ export default function AssetDetailV2() {
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
   const { getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const isAdmin = getAppRole('employee') === 'admin';
   const handleScoped404 = useCompanyScoped404('asset');
+  // A deduction comes out of the holder's pay, so it is in the employing
+  // entity's currency. Assets are company-scoped, so the asset on screen
+  // belongs to the active company. Same source the Expenses pages use.
+  const companyCurrency = (currentCompany?.currency || 'INR').toUpperCase();
+  // Symbols run from one character ('₹', '$') to four ('AED '), so the input's
+  // left padding is derived from the symbol rather than fixed — a literal 46px
+  // sized for the old 'INR' text leaves a gap under '₹' and crowds 'AED '.
+  const curSymbol = currencySymbol(companyCurrency);
+  const curPadLeft = `calc(12px + ${Math.max(1, curSymbol.trim().length)}ch + 8px)`;
 
   const [asset, setAsset] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -383,8 +397,11 @@ export default function AssetDetailV2() {
                   </div>
                   {/* Money — display carried across verbatim, INR and all. */}
                   {h.deductionAmount > 0 && (
-                    <p style={{ display: 'flex', alignItems: 'center', gap: 4, font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)', margin: '4px 0 0' }}>
-                      <IndianRupee size={10} /> Deduction: {h.deductionAmount.toLocaleString('en-IN')}
+                    <p style={{ font: "400 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)', margin: '4px 0 0' }}>
+                      {/* The code stamped when the deduction was recorded wins;
+                          rows predating that fall back to the entity's own
+                          currency rather than to a rupee sign. */}
+                      Deduction: {formatMoney(h.deductionAmount, h.deductionCurrency || companyCurrency)}
                     </p>
                   )}
                   {h.assignNotes && (
@@ -464,10 +481,10 @@ export default function AssetDetailV2() {
               <span style={{
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
                 font: "400 12.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', pointerEvents: 'none',
-              }}>INR</span>
+              }}>{currencySymbol(companyCurrency)}</span>
               <Input id="as-ret-ded" type="number" min="0" step="0.01" placeholder="0" value={returnForm.deductionAmount}
                 onChange={e => setReturnForm(f => ({ ...f, deductionAmount: e.target.value }))}
-                style={{ paddingLeft: 46 }} />
+                style={{ paddingLeft: curPadLeft }} />
             </div>
           </Field>
           <Field label="Notes" htmlFor="as-ret-notes">
@@ -491,10 +508,10 @@ export default function AssetDetailV2() {
               <span style={{
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
                 font: "400 12.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', pointerEvents: 'none',
-              }}>INR</span>
+              }}>{currencySymbol(companyCurrency)}</span>
               <Input id="as-lost-ded" type="number" min="0" step="0.01" placeholder="0" value={lostForm.deductionAmount}
                 onChange={e => setLostForm(f => ({ ...f, deductionAmount: e.target.value }))}
-                style={{ paddingLeft: 46 }} />
+                style={{ paddingLeft: curPadLeft }} />
             </div>
           </Field>
           <Field label="Notes" htmlFor="as-lost-notes">
