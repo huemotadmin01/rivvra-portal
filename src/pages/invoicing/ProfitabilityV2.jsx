@@ -215,13 +215,23 @@ function PnlBlock({ currency, series, total, onDrill }) {
 function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
   const [records, setRecords] = useState(null);
   const [error, setError] = useState(null);
+  // The server caps a drill-down as a safety valve. The footer sums whatever
+  // rows arrive, so a silent cap would show a total that does not match the
+  // cell this modal was opened from.
+  const [truncated, setTruncated] = useState(false);
+  const [totalCount, setTotalCount] = useState(null);
 
   useEffect(() => {
     let alive = true;
     invoicingApi.getProfitabilityRecords(orgSlug, {
       granularity, fy, period: ctx.period, bucket: ctx.bucket, currency: ctx.currency,
     })
-      .then((res) => { if (alive) setRecords(res.data?.records || []); })
+      .then((res) => {
+        if (!alive) return;
+        setRecords(res.data?.records || []);
+        setTruncated(!!res.data?.truncated);
+        setTotalCount(res.data?.totalCount ?? null);
+      })
       .catch((err) => { if (alive) setError(err.message || 'Failed to load records'); });
     return () => { alive = false; };
   }, [orgSlug, granularity, fy, ctx.period, ctx.bucket, ctx.currency]);
@@ -242,6 +252,12 @@ function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
           {error && <div className="p-5 text-red-400 text-sm">{error}</div>}
           {!error && records === null && (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-rivvra-400 animate-spin" /></div>
+          )}
+          {truncated && (
+            <div className="mx-5 mt-4 mb-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
+              Showing the {records?.length || 0} most recent
+              {totalCount ? ` of ${totalCount}` : ''} — the total below covers only these and will not match the cell.
+            </div>
           )}
           {records && records.length === 0 && <div className="p-8 text-center text-dark-500 text-sm">No records</div>}
           {records && records.length > 0 && (
@@ -269,8 +285,13 @@ function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
           )}
         </div>
         <div className="p-4 border-t border-dark-700 flex justify-between text-sm">
-          <span className="text-dark-400">{records?.length || 0} record{(records?.length || 0) !== 1 ? 's' : ''}</span>
-          <span className="text-white font-semibold">{formatCurrency(sum, ctx.currency)}</span>
+          <span className="text-dark-400">
+            {records?.length || 0} record{(records?.length || 0) !== 1 ? 's' : ''}
+            {truncated && totalCount ? ` of ${totalCount}` : ''}
+          </span>
+          <span className={truncated ? 'text-amber-300 font-semibold' : 'text-white font-semibold'}>
+            {formatCurrency(sum, ctx.currency)}{truncated ? ' (partial)' : ''}
+          </span>
         </div>
       </div>
     </div>
