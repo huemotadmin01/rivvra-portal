@@ -6,11 +6,11 @@ import assetApi from '../../utils/assetApi';
 import employeeApi from '../../utils/employeeApi';
 import {
   Plus, Loader2, Package, X, Monitor, Headphones, Briefcase, Box,
-  User, ArrowRight, Check, Undo2, AlertTriangle,
+  User, ArrowRight, Check, Undo2, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import {
   PageHeader, Panel, Stat, Chip, Button, Input, Textarea, Select, SearchInput,
-  Modal, EmptyState, PageSpinner, Callout,
+  Modal, EmptyState, PageSpinner, Callout, Checkbox,
 } from '../../components/ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,6 +42,11 @@ const CONDITION_CONFIG = {
   damaged: { label: 'Damaged', color: 'var(--danger)'     },
   lost:    { label: 'Lost',    color: 'var(--danger)'     },
 };
+
+// Statuses that can go back into stock. 'available' is excluded because it is
+// already there, and 'assigned' because the server refuses it — the same guard
+// the single Make Available action uses.
+const RESTOCKABLE = new Set(['returned', 'retired', 'lost']);
 
 const TYPE_ICONS = {
   laptop: Monitor,
@@ -80,6 +85,11 @@ export default function AssetListV2() {
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState('');
   const [loadError, setLoadError] = useState('');
+
+  // Bulk restock
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [empSearch, setEmpSearch] = useState('');
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
@@ -152,6 +162,54 @@ export default function AssetListV2() {
   }
 
   function closeAdd() { setShowAdd(false); resetAddForm(); }
+
+  // Only ever act on rows the operator can currently see. Selecting, then
+  // changing a filter, must not quietly restock something off-screen.
+  const eligibleIds = useMemo(
+    () => new Set(filtered.filter(a => RESTOCKABLE.has(a.status)).map(a => a._id)),
+    [filtered]
+  );
+  const activeSelection = useMemo(
+    () => [...selected].filter(id => eligibleIds.has(id)),
+    [selected, eligibleIds]
+  );
+  const allEligibleSelected = eligibleIds.size > 0 && activeSelection.length === eligibleIds.size;
+
+  function toggleOne(id, on) {
+    setBulkMsg(null);
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleAllEligible(on) {
+    setBulkMsg(null);
+    setSelected(on ? new Set(eligibleIds) : new Set());
+  }
+
+  async function handleBulkMakeAvailable() {
+    if (activeSelection.length === 0) return;
+    setBulkSaving(true);
+    setBulkMsg(null);
+    try {
+      const res = await assetApi.bulkMakeAvailable(orgSlug, activeSelection);
+      const { updated = 0, skipped = [] } = res?.data || {};
+      setBulkMsg({
+        tone: updated > 0 ? 'success' : 'warn',
+        text: skipped.length
+          ? `${updated} moved to Available. ${skipped.length} skipped (${[...new Set(skipped.map(s => s.reason))].join(', ').replace(/_/g, ' ')}).`
+          : `${updated} asset${updated === 1 ? '' : 's'} moved to Available.`,
+      });
+      setSelected(new Set());
+      await loadAll();
+    } catch (e) {
+      console.error(e);
+      setBulkMsg({ tone: 'danger', text: e?.message || 'Could not update the selected assets.' });
+    }
+    finally { setBulkSaving(false); }
+  }
 
   async function handleAdd() {
     if (!addForm.assetTypeId || !addForm.name.trim()) return;
@@ -249,6 +307,47 @@ export default function AssetListV2() {
         )}
       </div>
 
+      {/* Bulk restock. Only shown when there is actually something to restock,
+          so the ordinary list stays uncluttered. */}
+      {isAdmin && eligibleIds.size > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          padding: '9px 12px', marginBottom: 12, borderRadius: 10,
+          background: 'var(--surface-2)', border: '1px solid var(--line-2)',
+        }}>
+          <Checkbox
+            checked={allEligibleSelected}
+            indeterminate={activeSelection.length > 0 && !allEligibleSelected}
+            onChange={toggleAllEligible}
+            label={`Select all ${eligibleIds.size} returnable assets`}
+          />
+          <span style={{ font: "400 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
+            {activeSelection.length > 0
+              ? `${activeSelection.length} of ${eligibleIds.size} selected`
+              : `${eligibleIds.size} asset${eligibleIds.size === 1 ? '' : 's'} can go back into stock`}
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {activeSelection.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => toggleAllEligible(false)}>Clear</Button>
+            )}
+            <Button
+              size="sm"
+              disabled={activeSelection.length === 0 || bulkSaving}
+              onClick={handleBulkMakeAvailable}
+              iconLeft={bulkSaving ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            >
+              Make Available{activeSelection.length > 0 ? ` (${activeSelection.length})` : ''}
+            </Button>
+          </span>
+        </div>
+      )}
+
+      {bulkMsg && (
+        <div style={{ marginBottom: 12 }}>
+          <Callout tone={bulkMsg.tone === 'success' ? 'brand' : bulkMsg.tone}>{bulkMsg.text}</Callout>
+        </div>
+      )}
+
       {/* Asset grid */}
       {filtered.length === 0 ? (
         <Panel>
@@ -286,6 +385,17 @@ export default function AssetListV2() {
                   {/* Top row */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                      {/* Checkbox handles its own stopPropagation, so ticking a
+                          card does not also open it. */}
+                      {isAdmin && RESTOCKABLE.has(asset.status) && (
+                        <span style={{ flexShrink: 0, display: 'inline-flex' }}>
+                          <Checkbox
+                            checked={selected.has(asset._id)}
+                            onChange={(on) => toggleOne(asset._id, on)}
+                            label={`Select ${asset.name}`}
+                          />
+                        </span>
+                      )}
                       <span style={{
                         flexShrink: 0, width: 34, height: 34, borderRadius: 9,
                         background: 'var(--surface-3)', display: 'inline-flex',

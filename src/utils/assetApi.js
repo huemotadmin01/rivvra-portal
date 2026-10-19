@@ -58,6 +58,9 @@ const assetApi = {
   makeAvailable(orgSlug, id, data = {}) {
     return api.request(`/api/org/${orgSlug}/assets/${id}/make-available`, { method: 'POST', body: JSON.stringify(data) });
   },
+  bulkMakeAvailable(orgSlug, assetIds) {
+    return api.request(`/api/org/${orgSlug}/assets/bulk-make-available`, { method: 'POST', body: JSON.stringify({ assetIds }) });
+  },
   bulkAssign(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/assets/bulk-assign`, { method: 'POST', body: JSON.stringify(data) });
   },
