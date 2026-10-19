@@ -256,6 +256,11 @@ export default function AtsApplicationDetail() {
           // 2026-08-31: linked JOB's employment type — offer modal salary
           // units fall back to this when the app's own type is blank.
           jobEmploymentType: res.jobEmploymentType || null,
+          // 2026-10-19: same sibling pattern — never merged, so every reader of
+          // application.jobHiringMode / jobIsClientRole (placement-aware offer
+          // modal, RC template pick, Joined client button) always saw null.
+          jobHiringMode: res.jobHiringMode || a.jobHiringMode || null,
+          jobIsClientRole: res.jobIsClientRole === true || a.jobIsClientRole === true,
           // 2026-09-20 REGRESSION FIX: the API returns this as a SIBLING of
           // `application`, like jobEmploymentType above, and this merge is what
           // moves siblings onto the record. It was added server-side on 09-19
