@@ -1,9 +1,9 @@
 // Module-level stale-while-revalidate cache shared between ExpenseList
-// (which fills it) and ExpenseDetail (which invalidates it after mutations
+// (which fills it) and ExpenseDetailV2 (which invalidates it after mutations
 // so navigating back to the list shows fresh data instead of the stale row).
 //
 // Key shape: `${orgSlug}:${scope}:${statusTab}:${search}`. After any write
-// in ExpenseDetail, every key for the current org is dropped — scope/status
+// in ExpenseDetailV2, every key for the current org is dropped — scope/status
 // filters can all be affected by a status transition.
 
 const _cache = new Map();
@@ -22,7 +22,7 @@ export function cacheTTL() {
 }
 
 // Drop all entries belonging to a specific org. Called after any mutation
-// in ExpenseDetail so the next visit to the list refetches fresh rows.
+// in ExpenseDetailV2 so the next visit to the list refetches fresh rows.
 export function invalidateExpensesList(orgSlug) {
   if (!orgSlug) {
     _cache.clear();

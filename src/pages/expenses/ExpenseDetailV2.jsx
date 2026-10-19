@@ -393,6 +393,12 @@ export default function ExpenseDetailV2() {
 
   const [expense, setExpense] = useState(null);
   const [categories, setCategories] = useState([]);
+  // Category is a REQUIRED field. This fetch used to end in `.catch(() => {})`,
+  // so a 403/500/network failure rendered an empty dropdown indistinguishable
+  // from "this org has no categories" — the user is blocked with nothing to
+  // pick and no reason given. Track the failure and say which it is.
+  const [categoriesError, setCategoriesError] = useState('');
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [comment, setComment] = useState('');
   const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
@@ -466,12 +472,22 @@ export default function ExpenseDetailV2() {
 
   useEffect(() => { loadExpense(); }, [loadExpense]);
 
-  useEffect(() => {
+  const loadCategories = useCallback(() => {
     if (!orgSlug) return;
+    setCategoriesError('');
     expensesApi.listCategories(orgSlug)
-      .then((r) => setCategories(r?.categories || []))
-      .catch(() => {});
+      .then((r) => {
+        setCategories(r?.categories || []);
+        setCategoriesLoaded(true);
+      })
+      .catch((err) => {
+        setCategories([]);
+        setCategoriesLoaded(true);
+        setCategoriesError(err?.message || 'Could not load categories.');
+      });
   }, [orgSlug]);
+
+  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   // Approver preview — show "Will be sent to X" (only for new expenses, or
   // for an existing draft when the viewer is the submitter; third-party
@@ -1065,14 +1081,27 @@ export default function ExpenseDetailV2() {
                     <div>
                       <label className="block text-[11px] font-medium text-dark-300 mb-1">Category {editable && <span className="text-red-400">*</span>}</label>
                       {editable ? (
-                        <select
-                          value={line.categoryId}
-                          onChange={(e) => updateLine(line._id, { categoryId: e.target.value })}
-                          className="w-full px-2.5 py-1.5 bg-dark-800 border border-dark-700 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-                        >
-                          <option value="">Select…</option>
-                          {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                        </select>
+                        <>
+                          <select
+                            value={line.categoryId}
+                            onChange={(e) => updateLine(line._id, { categoryId: e.target.value })}
+                            className="w-full px-2.5 py-1.5 bg-dark-800 border border-dark-700 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
+                          >
+                            <option value="">Select…</option>
+                            {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                          </select>
+                          {categoriesLoaded && categoriesError && (
+                            <p className="mt-1 text-[11px] text-red-400">
+                              {categoriesError}{' '}
+                              <button type="button" onClick={loadCategories} className="underline hover:text-red-300">Retry</button>
+                            </p>
+                          )}
+                          {categoriesLoaded && !categoriesError && categories.length === 0 && (
+                            <p className="mt-1 text-[11px] text-amber-400">
+                              No expense categories configured for this company — an admin can add them in Settings.
+                            </p>
+                          )}
+                        </>
                       ) : (
                         <div className="px-2.5 py-1.5 text-sm text-white">{line.categoryName || <span className="text-dark-500 italic">Uncategorized</span>}</div>
                       )}
