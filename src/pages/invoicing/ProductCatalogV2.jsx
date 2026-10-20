@@ -119,6 +119,8 @@ export default function ProductCatalogV2() {
       internalRef: String(values.internalRef ?? '').trim(),
       taxIds: values.taxIds || [],
       active: values.active !== false,
+      // 2026-10-20: off = invoice lines with this product confirm without a consultant
+      requiresConsultant: values.requiresConsultant !== false,
     };
   }
 
@@ -222,6 +224,8 @@ export default function ProductCatalogV2() {
         { key: 'internalRef', label: 'Internal reference', type: 'text' },
         { key: 'taxIds', label: 'Default taxes', type: 'checkboxList', defaultValue: [],
           options: taxes.map(t => ({ value: t._id, label: taxName(t._id) })) },
+        { key: 'requiresConsultant', label: 'Needs a consultant on invoice lines', type: 'toggle', defaultValue: true,
+          hint: 'Turn off for fees not tied to a consultant (e.g. a placement fee). Start and end dates are still required.' },
         { key: 'active', label: 'Active', type: 'toggle', defaultValue: true },
       ]}
       onCreate={handleCreate}
