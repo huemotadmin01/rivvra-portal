@@ -19,12 +19,13 @@
 // Mirrors Odoo behavior: "New" instantly creates a draft record, user edits inline.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { createDraftOnce } from '../../utils/createDraftOnce';
 import { Spinner } from '../../components/ds';
 
 export default function InvoiceFormV2() {
@@ -35,7 +36,9 @@ export default function InvoiceFormV2() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
-  const [creating, setCreating] = useState(false);
+  // Per-mount marker (a ref, not state: no re-render, no setState in the effect).
+  // Cross-mount duplicates are stopped by createDraftOnce.
+  const startedRef = useRef(false);
 
   // If editing (invoiceId present), redirect straight to detail page
   useEffect(() => {
@@ -45,17 +48,18 @@ export default function InvoiceFormV2() {
     }
 
     // Create a blank draft invoice and redirect to its detail page
-    if (!creating && orgSlug) {
-      setCreating(true);
+    if (!startedRef.current && orgSlug) {
+      startedRef.current = true;
       (async () => {
         try {
           const today = new Date().toISOString().split('T')[0];
-          const res = await invoicingApi.createInvoice(orgSlug, {
+          // Module-level de-dup: a remount must not create a second draft.
+          const res = await createDraftOnce(`${orgSlug}|customer_invoice|${journalId || ''}`, () => invoicingApi.createInvoice(orgSlug, {
             type: 'customer_invoice',
             date: today,
             lines: [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }],
             ...(journalId ? { journalId } : {}),
-          });
+          }));
           const newId = res?.invoice?._id;
           if (newId) {
             navigate(orgPath(`/invoicing/invoices/${newId}`), { replace: true });
@@ -69,7 +73,7 @@ export default function InvoiceFormV2() {
         }
       })();
     }
-  }, [invoiceId, orgSlug, creating, navigate, orgPath, showToast]);
+  }, [invoiceId, orgSlug, navigate, orgPath, showToast]);
 
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', gap: 12 }}>

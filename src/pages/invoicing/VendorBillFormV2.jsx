@@ -12,12 +12,13 @@
 // VendorBillForm.jsx — Creates a blank draft vendor bill and redirects to detail
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { createDraftOnce } from '../../utils/createDraftOnce';
 import { Spinner } from '../../components/ds';
 
 export default function VendorBillFormV2() {
@@ -30,7 +31,9 @@ export default function VendorBillFormV2() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
-  const [creating, setCreating] = useState(false);
+  // Per-mount marker (a ref, not state: no re-render, no setState in the effect).
+  // Cross-mount duplicates are stopped by createDraftOnce.
+  const startedRef = useRef(false);
 
   useEffect(() => {
     if (billId) {
@@ -38,17 +41,18 @@ export default function VendorBillFormV2() {
       return;
     }
 
-    if (!creating && orgSlug) {
-      setCreating(true);
+    if (!startedRef.current && orgSlug) {
+      startedRef.current = true;
       (async () => {
         try {
           const today = new Date().toISOString().split('T')[0];
-          const res = await invoicingApi.createInvoice(orgSlug, {
+          // Module-level de-dup: a remount must not create a second draft.
+          const res = await createDraftOnce(`${orgSlug}|vendor_bill|${journalId || ''}`, () => invoicingApi.createInvoice(orgSlug, {
             type: 'vendor_bill',
             date: today,
             lines: [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }],
             ...(journalId ? { journalId } : {}),
-          });
+          }));
           const newId = res?.invoice?._id;
           if (newId) {
             navigate(orgPath(`/invoicing/invoices/${newId}`), { replace: true });
@@ -62,7 +66,7 @@ export default function VendorBillFormV2() {
         }
       })();
     }
-  }, [billId, orgSlug, creating, navigate, orgPath, showToast, journalId]);
+  }, [billId, orgSlug, navigate, orgPath, showToast, journalId]);
 
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', gap: 12 }}>
