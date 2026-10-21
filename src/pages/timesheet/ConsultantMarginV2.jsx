@@ -7,9 +7,9 @@
 // service month (the Profitability rule). Cost = the person's payroll-run line.
 // 2026-10-21: other currencies are converted to rupees at ECB daily market rates
 // (payment date for paid invoices, invoice date otherwise — the Profitability
-// rule; owner-set monthly rates are for incentives only). When Huemot Inc invoices someone Pvt Ltd
-// pays, both companies' client revenue and cost are combined into one margin,
-// and invoices between the two companies are left out so nothing counts twice.
+// rule; owner-set monthly rates are for incentives only). ONE company at a time
+// — the company switcher decides. A sister company's figures for the same
+// person are shown in the note, never added in (user decision 21 Oct).
 // ============================================================================
 import { useEffect, useMemo, useState } from 'react';
 import { useOrg } from '../../context/OrgContext';
@@ -41,10 +41,20 @@ const shortCo = (name) => String(name || 'the other company').replace(/^Huemot T
 const rateLabel = (f) => (f ? `₹${Number(f.rate).toLocaleString('en-IN', { maximumFractionDigits: 4 })}` : '');
 
 function noteText(cell, costCurrency) {
+  const base = noteBase(cell, costCurrency);
+  // Same person on the other company's books: show its figures, never add them.
+  const also = cell.sister && !['invoiced_by_sister', 'paid_by_sister'].includes(cell.note)
+    ? `Also on ${shortCo(cell.sister.companyName)}'s books: ${money(cell.sister.revenue)} invoiced${cell.sister.cost ? `, ${formatCurrency(cell.sister.cost, costCurrency)} paid` : ''} (not included)` : '';
+  return [base, also].filter(Boolean).join(' · ');
+}
+
+function noteBase(cell, costCurrency) {
   const at = cell.fx ? Object.entries(cell.fx).map(([k, f]) => (f?.rate ? `${k} at market rate (~${rateLabel(f)})` : `${k} at market rate`)).join(', ') : '';
   switch (cell.note) {
     case 'combined': return `Includes ${shortCo(cell.sister?.companyName)}: ${money(cell.sister?.external)} invoiced${cell.sister?.cost ? `, ${formatCurrency(cell.sister.cost, costCurrency)} paid` : ''}${at ? ` · ${at}` : ''}${cell.interCompany ? ` · inter-company ${money(cell.interCompany)} left out` : ''}`;
     case 'converted': return `Converted: ${at}${cell.interCompany ? ` · includes ${money(cell.interCompany)} billed to a Huemot company` : ''}`;
+    case 'invoiced_by_sister': return `${shortCo(cell.sister?.companyName)} invoiced the client ${money(cell.sister?.revenue)}; this company has no invoice for the month, so no margin here`;
+    case 'paid_by_sister': return `Paid by ${shortCo(cell.sister?.companyName)} (${formatCurrency(cell.sister?.cost || 0, costCurrency)}), not this company — no margin here`;
     case 'no_rate': return `No market exchange rate available for ${(cell.missingRates || []).join(', ')}`;
     case 'other_currency': return 'Billed in another currency — no margin without conversion';
     case 'not_invoiced': return 'Paid, but no invoice names this person this month';
@@ -52,9 +62,7 @@ function noteText(cell, costCurrency) {
     case 'not_invoiced_by_agreement': return 'Not invoiced to client (by agreement)';
     case 'no_payroll_cost': return 'Invoiced, but not in this month’s payroll';
     case 'no_payroll_run': return 'No payroll run in Rivvra for this company and month';
-    case 'invoiced_by_sister': return `Invoiced by ${cell.sister?.companyName || 'the other company'}: ${money(cell.sister?.revenue)}`;
-    case 'paid_by_sister': return `Paid by ${cell.sister?.companyName || 'the other company'}: ${formatCurrency(cell.sister?.cost || 0, costCurrency)}`;
-    default: return cell.sister ? `Also: ${cell.sister.companyName} ${money(cell.sister.revenue)}${cell.sister.cost ? `, paid ${formatCurrency(cell.sister.cost, costCurrency)}` : ''}` : '';
+    default: return '';
   }
 }
 
@@ -143,7 +151,7 @@ export default function ConsultantMarginV2() {
     <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1200 }}>
       <PageHeader
         title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><TrendingUp size={18} style={{ color: 'var(--brand)' }} />Consultant Margin</span>}
-        sub={`What we invoiced for each person against what they cost in payroll, in rupees. Dollars are converted at daily market rates; people on both Huemot companies’ books are combined. ${data?.companyName ? `Company: ${data.companyName}.` : ''}`}
+        sub={`What we invoiced for each person against what they cost in payroll, in rupees. Dollars are converted at daily market rates. One company at a time — switch company to see the other. ${data?.companyName ? `Company: ${data.companyName}.` : ''}`}
         actions={(
           <Select value={span} onChange={(e) => setSpan(Number(e.target.value))} aria-label="Period" style={{ width: 'auto' }}>
             <option value={3}>Last 3 months</option>
@@ -171,7 +179,7 @@ export default function ConsultantMarginV2() {
                   <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 4 }}>Invoiced by this company {money(t.revenue)}</div>
                   <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>{noPayroll ? 'No payroll in Rivvra' : `Payroll ${formatCurrency(t.cost, cur)}`}</div>
                   {!noPayroll && <div style={{ font: `600 11.5px/1.5 ${FONT}`, color: t.margin >= 0 ? 'var(--brand-ink, var(--brand))' : 'var(--danger)' }}>Margin {formatCurrency(t.margin, cur)}{t.marginRevenue ? ` (${((t.margin / t.marginRevenue) * 100).toFixed(1)}%)` : ''}</div>}
-                  {!noPayroll && t.marginRevenue > 0 && <div style={{ font: `450 11px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>on {formatCurrency(t.marginRevenue, cur)}, both companies</div>}
+                  {!noPayroll && t.marginRevenue > 0 && <div style={{ font: `450 11px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>on {formatCurrency(t.marginRevenue, cur)} invoiced</div>}
                 </button>
               );
             })}
@@ -250,7 +258,7 @@ export default function ConsultantMarginV2() {
                         <td style={{ ...num, fontWeight: 650, color: 'var(--fg)' }}>{formatCurrency(totals.cost, cur)}</td>
                         <td style={{ ...num, fontWeight: 650, color: totals.margin < 0 ? 'var(--danger)' : 'var(--fg)' }}>{formatCurrency(totals.margin, cur)}</td>
                         <td style={num}></td>
-                        <td style={{ ...td, font: `450 11.5px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>{totals.marginRevenue ? `Margin on ${formatCurrency(totals.marginRevenue, cur)} invoiced against ${formatCurrency(totals.marginCost, cur)} cost, where both are known — both companies, converted at market rates` : 'Margin total covers people whose invoice and pay are both known'}</td>
+                        <td style={{ ...td, font: `450 11.5px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>{totals.marginRevenue ? `Margin on ${formatCurrency(totals.marginRevenue, cur)} invoiced against ${formatCurrency(totals.marginCost, cur)} cost, where both are known — this company only, converted at market rates` : 'Margin total covers people whose invoice and pay are both known'}</td>
                       </tr>
                     )}
                   </tbody>
