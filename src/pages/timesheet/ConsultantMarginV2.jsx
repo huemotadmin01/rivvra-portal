@@ -235,6 +235,9 @@ export default function ConsultantMarginV2() {
                           </td>
                           <td style={num}>
                             {c.cost ? formatCurrency(c.cost, cur) : '—'}
+                            {c.costRecovered?.amount > 0 && (
+                              <div style={sub} title={(c.costRecovered.labels || []).join('\n')}>after {formatCurrency(c.costRecovered.amount, cur)} recovered</div>
+                            )}
                             {c.note === 'combined' && c.sister?.cost > 0 && <div style={sub}>+ {shortCo(c.sister.companyName)} {formatCurrency(c.sister.cost, cur)}</div>}
                           </td>
                           <td style={{ ...num, color: c.margin == null ? 'var(--fg-4)' : c.margin < 0 ? 'var(--danger)' : 'var(--fg)' }}>{c.margin == null ? '—' : formatCurrency(c.margin, cur)}</td>
@@ -267,7 +270,7 @@ export default function ConsultantMarginV2() {
             )}
           </Panel>
           <p style={{ font: `450 12px/1.5 ${FONT}`, color: 'var(--fg-4)', margin: '12px 2px 0' }}>
-            Invoiced = finalized invoices before GST (credit notes subtract), counted in the month the work was done, the same rule as Profitability. Payroll cost = the person’s line in that month’s payroll run: gross pay for consultants, full cost-to-company for employees.
+            Invoiced = finalized invoices before GST (credit notes subtract), counted in the month the work was done, the same rule as Profitability. Payroll cost = the person’s line in that month’s payroll run: gross pay including bonuses, allowances and incentives, plus employer PF/ESI where the company pays it on top, minus money recovered from the person that month (overpayment, salary or incentive recoveries — not repayments of advances or expenses).
           </p>
         </>
       )}
