@@ -23,6 +23,10 @@ const invoicingApi = {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/consultant-margin${qs ? '?' + qs : ''}`);
   },
+  // Correct only the consultant on a finalized invoice line (2026-10-21).
+  changeLineConsultant(orgSlug, invoiceId, lineId, consultantId, reason) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/lines/${lineId}/consultant`, { method: 'PATCH', body: JSON.stringify({ consultantId, reason }) });
+  },
   getProfitabilityRecords(orgSlug, params = {}) {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/profitability/records${qs ? '?' + qs : ''}`);

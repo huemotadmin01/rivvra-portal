@@ -3139,7 +3139,7 @@ export default function InvoiceDetailV2() {
                               <tr key={li._id || i} style={trStyle}>
                                 <td style={{ ...tdStyle, paddingLeft: 24 }}>{li.product?.name || li.productName || dash}</td>
                                 <td style={{ ...tdMuted, font: "400 11.5px/1.5 ui-monospace, SFMono-Regular, monospace" }}>{li.hsnSacCode || dash}</td>
-                                <td style={tdStyle}>{li.consultantName || dash}</td>
+                                <FixableConsultantCell orgSlug={orgSlug} invoice={invoice} line={li} index={i} onChanged={fetchInvoice} showToast={showToast} tdStyle={tdStyle} />
                                 <td style={{ ...tdMuted, maxWidth: 320 }}>{li.description || dash}</td>
                                 <td style={tdStyle}>{li.startDate ? formatDate(li.startDate, countryCode) : dash}</td>
                                 <td style={tdStyle}>{li.endDate ? formatDate(li.endDate, countryCode) : dash}</td>
@@ -3747,6 +3747,46 @@ const totalsRowStrong = {
 // ============================================================================
 // InlineLineRow — editable line item row for draft invoices
 // ============================================================================
+
+// Finalized invoice line: the consultant can still be corrected (amounts,
+// tax and numbering never change) — 2026-10-21. Server checks admin rights,
+// the invoice company and any live incentive tied to the line.
+function FixableConsultantCell({ orgSlug, invoice, line, index, onChanged, showToast, tdStyle }) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const canFix = line?._id && invoice?.status && !['draft', 'cancelled'].includes(invoice.status)
+    && ['customer_invoice', 'credit_note'].includes(invoice.type);
+  const dash = <span style={{ color: 'var(--fg-4)' }}>—</span>;
+  if (!canFix) return <td style={tdStyle}>{line.consultantName || dash}</td>;
+  const pick = async (emp) => {
+    setOpen(false);
+    if (!emp?._id || String(emp._id) === String(line.consultantId || '')) return;
+    if (!window.confirm(`Change the consultant on line ${index + 1} from "${line.consultantName || 'none'}" to "${emp.fullName}"?\n\nOnly the consultant changes — amounts, tax and the invoice number stay the same. The change is logged on this invoice.`)) return;
+    try {
+      const r = await invoicingApi.changeLineConsultant(orgSlug, invoice._id, line._id, emp._id, 'Corrected on a finalized invoice');
+      if (!r?.success) throw new Error(r?.error || 'Failed to change the consultant');
+      showToast(`Line ${index + 1}: consultant is now ${emp.fullName}`, 'success');
+      onChanged();
+    } catch (e) {
+      showToast(e?.message || 'Failed to change the consultant', 'error');
+    }
+  };
+  return (
+    <td style={tdStyle}>
+      <span ref={triggerRef} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {line.consultantName || dash}
+        <button type="button" onClick={() => setOpen(true)} title="Correct the consultant on this line" aria-label={`Change consultant on line ${index + 1}`}
+          style={{ border: 0, background: 'transparent', padding: 2, cursor: 'pointer', color: 'var(--fg-4)', display: 'inline-flex' }}>
+          <Pencil size={11} />
+        </button>
+      </span>
+      {open && (
+        <EmployeeSearch orgSlug={orgSlug} customerContactId={invoice.contactId || ''} triggerRef={triggerRef}
+          onSelect={pick} onClose={() => setOpen(false)} />
+      )}
+    </td>
+  );
+}
 
 function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, onConsultantSelect, productLocked, isVendorBill = false, expenseCategories = [] }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
