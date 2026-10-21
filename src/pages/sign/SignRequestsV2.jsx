@@ -31,7 +31,7 @@ import signApi from '../../utils/signApi';
 import { downloadFile } from '../../utils/download';
 import { API_BASE_URL } from '../../utils/config';
 import {
-  Loader2, Plus, FileText, Search, X,
+  AlertCircle, Loader2, Plus, FileText, Search, X,
   ChevronLeft, ChevronRight, ChevronDown,
   Bell, XCircle, Send, User, Calendar, Clock,
   ArrowRight, ArrowLeft, Check, Mail,
@@ -248,6 +248,11 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
   const [templates, setTemplates] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  // api.request throws on any non-2xx, and this list used to swallow that into
+  // an empty array — so a 502 during an API restart rendered "No templates
+  // available. Upload a template first." to someone who owns twenty. Telling
+  // them to create a duplicate is worse than saying nothing.
+  const [templatesError, setTemplatesError] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [envelopeDocs, setEnvelopeDocs] = useState([]); // For multi-doc envelope
   const [signers, setSigners] = useState([EMPTY_SIGNER()]);
@@ -261,6 +266,55 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
 
   const isEnvelope = envelopeDocs.length > 1;
 
+  // Extracted so Retry can re-run just the fetch without resetting the form
+  // the operator may already have filled in on a later step.
+  const loadTemplatesAndRoles = useCallback(async () => {
+    if (!orgSlug) return;
+    setLoadingTemplates(true);
+    setTemplatesError('');
+    try {
+      // allSettled, not all: roles failing must not read as "no templates",
+      // and both still go out in parallel.
+      const [tRes, rRes] = await Promise.allSettled([
+        signApi.listTemplates(orgSlug),
+        signApi.listRoles(orgSlug),
+      ]);
+      const tmpls = tRes.status === 'fulfilled' ? (tRes.value.templates || []) : [];
+      const rls = rRes.status === 'fulfilled' ? (rRes.value.roles || []) : [];
+      if (tRes.status === 'rejected') {
+        setTemplatesError(tRes.reason?.message || 'Could not load templates.');
+      }
+      setTemplates(tmpls);
+      setRoles(rls);
+      // Auto-select template if preSelectedTemplateId is provided. Only
+      // advance to step 2 once we actually have the template object —
+      // landing on step 2 with selectedTemplate null crashes at send.
+      if (preSelectedTemplateId) {
+        const match = tmpls.find(t => (t._id || t.id) === preSelectedTemplateId);
+        if (match) {
+          setSelectedTemplate(match);
+          setStep(2);
+        } else {
+          // Not in the first page of templates — fetch it directly.
+          try {
+            const res = await signApi.getTemplate(orgSlug, preSelectedTemplateId);
+            const tpl = res?.template || null;
+            if (res?.success !== false && tpl?._id) {
+              setSelectedTemplate(tpl);
+              setStep(2);
+            } else {
+              showToast('Could not load the selected template — please pick one from the list.', 'error');
+            }
+          } catch {
+            showToast('Could not load the selected template — please pick one from the list.', 'error');
+          }
+        }
+      }
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, [orgSlug, preSelectedTemplateId, showToast]);
+
   useEffect(() => {
     if (show && orgSlug) {
       setStep(1);
@@ -273,40 +327,10 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
       setReminderDays(7);
       setCcEmails('');
       setParallelSign(false);
-      setLoadingTemplates(true);
-      Promise.all([
-        signApi.listTemplates(orgSlug).then((res) => res.templates || []).catch(() => []),
-        signApi.listRoles(orgSlug).then((res) => res.roles || []).catch(() => []),
-      ]).then(async ([tmpls, rls]) => {
-        setTemplates(tmpls);
-        setRoles(rls);
-        // Auto-select template if preSelectedTemplateId is provided. Only
-        // advance to step 2 once we actually have the template object —
-        // landing on step 2 with selectedTemplate null crashes at send.
-        if (preSelectedTemplateId) {
-          const match = tmpls.find(t => (t._id || t.id) === preSelectedTemplateId);
-          if (match) {
-            setSelectedTemplate(match);
-            setStep(2);
-          } else {
-            // Not in the first page of templates — fetch it directly.
-            try {
-              const res = await signApi.getTemplate(orgSlug, preSelectedTemplateId);
-              const tpl = res?.template || null;
-              if (res?.success !== false && tpl?._id) {
-                setSelectedTemplate(tpl);
-                setStep(2);
-              } else {
-                showToast('Could not load the selected template — please pick one from the list.', 'error');
-              }
-            } catch {
-              showToast('Could not load the selected template — please pick one from the list.', 'error');
-            }
-          }
-        }
-      }).finally(() => setLoadingTemplates(false));
+      loadTemplatesAndRoles();
     }
-  }, [show, orgSlug]);
+  }, [show, orgSlug, loadTemplatesAndRoles]);
+
 
   // When template is selected, prefill signers from template's signItem roles
   useEffect(() => {
@@ -531,6 +555,11 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
         <Field label="Choose a template" required>
           {loadingTemplates ? (
             <div style={{ display: 'grid', placeItems: 'center', padding: 32 }}><Spinner /></div>
+          ) : templatesError ? (
+            <EmptyState compact icon={<AlertCircle size={22} />} tone="danger" title="Couldn't load your templates"
+              actions={<Button variant="secondary" size="sm" onClick={loadTemplatesAndRoles}>Retry</Button>}>
+              {templatesError}
+            </EmptyState>
           ) : templates.length === 0 ? (
             <EmptyState compact icon={<FileText size={22} />} title="No templates available">
               Upload a template first.
@@ -1185,12 +1214,25 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
   const [sendResult, setSendResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
+  // Same gate as the single-send modal: step 1 here is a required template
+  // choice, so a failed fetch must not read as "you have none".
+  const [templatesError, setTemplatesError] = useState('');
+
+  const loadTemplates = useCallback(async () => {
+    if (!orgSlug) return;
+    setTemplatesError('');
+    try {
+      const res = await signApi.listTemplates(orgSlug);
+      setTemplates(res.templates || []);
+    } catch (err) {
+      setTemplates([]);
+      setTemplatesError(err?.message || 'Could not load templates.');
+    }
+  }, [orgSlug]);
 
   useEffect(() => {
-    if (show && orgSlug) {
-      signApi.listTemplates(orgSlug).then(res => { if (res.templates) setTemplates(res.templates); }).catch(() => {});
-    }
-  }, [show, orgSlug]);
+    if (show && orgSlug) loadTemplates();
+  }, [show, orgSlug, loadTemplates]);
 
   const reset = () => {
     setStep(1); setSelectedTemplate(null); setCsvFile(null); setPreviewRows([]);
@@ -1350,7 +1392,15 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
             style={{ width: '100%' }}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
-            {filteredTemplates.length === 0 ? (
+            {templatesError ? (
+              <p style={{ font: `450 12px/1.5 ${FONT}`, color: 'var(--danger)', textAlign: 'center', padding: '16px 0' }}>
+                {templatesError}{' '}
+                <button type="button" onClick={loadTemplates}
+                  style={{ background: 'none', border: 0, padding: 0, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}>
+                  Retry
+                </button>
+              </p>
+            ) : filteredTemplates.length === 0 ? (
               <p style={{ font: `450 12px/1.5 ${FONT}`, color: 'var(--fg-3)', textAlign: 'center', padding: '16px 0' }}>
                 {templateSearch ? 'No templates match that search.' : 'No templates yet.'}
               </p>
