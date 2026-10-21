@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -90,19 +90,38 @@ export default function AttendanceApprovalsV2() {
   const [lockedMonths, setLockedMonths] = useState({});
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [sendingReminder, setSendingReminder] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   const { month: selectedMonth, year: selectedYear } = usePeriod();
 
-  const controllerRef = { current: null };
+  // Was a plain object rebuilt on every render, so the abort at the top of
+  // load() only ever saw a controller this render had stored — an in-flight
+  // request from a previous render was never cancelled and could land after a
+  // newer one, overwriting it.
+  const controllerRef = useRef(null);
+
   const load = () => {
     controllerRef.current?.abort();
-    controllerRef.current = new AbortController();
+    const controller = new AbortController();
+    controllerRef.current = controller;
     setLoading(true);
+    setLoadError('');
     setRecords([]);
-    timesheetApi.get(`/attendance/all?month=${selectedMonth}&year=${selectedYear}`, { signal: controllerRef.current.signal })
+    timesheetApi.get(`/attendance/all?month=${selectedMonth}&year=${selectedYear}`, { signal: controller.signal })
       .then(r => setRecords(r.data?.attendance || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        // A month change aborts the previous request; that is not a failure
+        // and must not flash an error at the user.
+        if (err?.name === 'AbortError') return;
+        // An approvals queue that silently reads as empty is worse than a
+        // list: the right response to "nothing to approve" is to do nothing,
+        // so the failure hides itself and sheets sit unapproved.
+        setLoadError(err?.message || 'Could not load attendance records.');
+      })
+      .finally(() => {
+        // Only the newest request owns the spinner.
+        if (controllerRef.current === controller) setLoading(false);
+      });
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,8 +235,17 @@ export default function AttendanceApprovalsV2() {
         style={{ marginBottom: 14 }}
       />
 
+      {loadError && (
+        <div style={{ marginBottom: 12 }}>
+          <Callout tone="danger">
+            {loadError}{' '}
+            <Button variant="ghost" size="sm" onClick={load}>Retry</Button>
+          </Callout>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gap: 10 }}>
-        {filtered.length === 0 ? (
+        {loadError ? null : filtered.length === 0 ? (
           <Panel><EmptyState title="No attendance records found" /></Panel>
         ) : (
           filtered.map(att => {
