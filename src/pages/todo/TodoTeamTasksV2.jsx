@@ -18,7 +18,7 @@ import useTodoAssign from '../../hooks/useTodoAssign';
 import TaskCardV2 from '../../components/todo/v2/TaskCardV2';
 import TaskFormModalV2 from '../../components/todo/v2/TaskFormModalV2';
 import { Plus, Users } from 'lucide-react';
-import { Button, EmptyState, PageHeader, Panel, Spinner, Tabs } from '../../components/ds';
+import { Button, Callout, EmptyState, PageHeader, Panel, Spinner, Tabs } from '../../components/ds';
 
 const STATUS_TABS = [
   { key: '', label: 'All' },
@@ -27,6 +27,9 @@ const STATUS_TABS = [
   { key: 'done', label: 'Done' },
 ];
 
+// One screenful plus headroom; the server caps `limit` at 200.
+const PAGE_SIZE = 100;
+
 export default function TodoTeamTasksV2() {
   const { currentOrg } = useOrg();
   const { showToast } = useToast();
@@ -34,6 +37,12 @@ export default function TodoTeamTasksV2() {
 
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
+  // The list used to stop at 200 with nothing saying so, and a failed load
+  // fell through to "No assigned tasks yet" — the same wrong answer as an
+  // empty list. One assigner is already past the old ceiling.
+  const [pagination, setPagination] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -47,12 +56,43 @@ export default function TodoTeamTasksV2() {
   async function loadTasks() {
     try {
       setLoading(true);
-      const res = await todoApi.getTeamTasks(orgSlug, { status: statusFilter });
-      if (res.success) setTasks(res.tasks || []);
+      setLoadError('');
+      const res = await todoApi.getTeamTasks(orgSlug, { status: statusFilter, page: 1, limit: PAGE_SIZE });
+      if (res.success) {
+        setTasks(res.tasks || []);
+        setPagination(res.pagination || null);
+      } else {
+        setLoadError(res.error || 'Could not load team tasks.');
+      }
     } catch (err) {
       console.error('Team tasks load error:', err);
+      setLoadError(err?.message || 'Could not load team tasks.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    if (!pagination?.hasMore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await todoApi.getTeamTasks(orgSlug, {
+        status: statusFilter, page: pagination.page + 1, limit: pagination.limit || PAGE_SIZE,
+      });
+      if (res.success) {
+        // A task assigned while paging shifts every later row down one, so
+        // dedupe rather than risk showing the same card twice.
+        setTasks((prev) => {
+          const seen = new Set(prev.map((t) => t._id));
+          return [...prev, ...(res.tasks || []).filter((t) => !seen.has(t._id))];
+        });
+        setPagination(res.pagination || null);
+      }
+    } catch (err) {
+      console.error('Team tasks load-more error:', err);
+      showToast(err?.message || 'Could not load more tasks', 'error');
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -163,9 +203,18 @@ export default function TodoTeamTasksV2() {
 
       <Tabs tabs={STATUS_TABS} value={statusFilter} onChange={setStatusFilter} style={{ marginBottom: 14 }} />
 
+      {loadError && (
+        <div style={{ marginBottom: 12 }}>
+          <Callout tone="danger">
+            {loadError}{' '}
+            <Button variant="ghost" size="sm" onClick={loadTasks}>Retry</Button>
+          </Callout>
+        </div>
+      )}
+
       {loading ? (
         <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}><Spinner /></div>
-      ) : tasks.length === 0 ? (
+      ) : loadError ? null : tasks.length === 0 ? (
         canAssign ? (
           <EmptyState icon={<Users size={22} />} title="No assigned tasks yet">
             Use "Assign Task" to delegate work — assignees are notified and you can track progress here.
@@ -192,6 +241,22 @@ export default function TodoTeamTasksV2() {
             </div>
           ))}
         </Panel>
+      )}
+
+      {/* The overdue chip above counts the tasks in memory, so say plainly
+          when that is not all of them rather than quietly understating. */}
+      {pagination && pagination.total > tasks.length && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 12, flexWrap: 'wrap', padding: '14px 12px',
+        }}>
+          <span style={{ font: '400 12px/1.4 var(--font)', color: 'var(--fg-4)' }}>
+            Showing {tasks.length} of {pagination.total} assigned tasks — counts above cover these only
+          </span>
+          <Button variant="secondary" size="sm" onClick={loadMore} disabled={loadingMore || !pagination.hasMore}>
+            {loadingMore ? 'Loading…' : `Load ${Math.min(pagination.limit || PAGE_SIZE, pagination.total - tasks.length)} more`}
+          </Button>
+        </div>
       )}
 
       {/* Modals */}
