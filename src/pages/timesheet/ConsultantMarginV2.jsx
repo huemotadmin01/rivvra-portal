@@ -92,7 +92,9 @@ function RateRow({ orgSlug, month, from, eff, onSaved }) {
   }, [orgSlug, month, from]);
   const n = Number(value);
   const valid = Number.isFinite(n) && n > 0;
-  const dirty = valid && n !== Number(eff?.rate);
+  // Also offer Save when the value is only inherited (default / earlier month),
+  // so a month can be pinned at today's figure and never move later.
+  const dirty = valid && (n !== Number(eff?.rate) || eff?.source !== 'month');
   const save = async () => {
     if (!valid) return;
     setSaving(true);
@@ -213,9 +215,10 @@ export default function ConsultantMarginV2() {
                   style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--r-3, 14px)', cursor: 'pointer',
                     background: active ? 'var(--brand-soft, var(--surface-2))' : 'var(--surface)', border: `1px solid ${active ? 'var(--brand)' : 'var(--line)'}` }}>
                   <div style={{ font: `600 12px/1.3 ${FONT}`, color: 'var(--fg)' }}>{MONTH_LABEL(m)}</div>
-                  <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 4 }}>Invoiced (ex-GST) {money(t.revenue)}</div>
+                  <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 4 }}>Invoiced by this company {money(t.revenue)}</div>
                   <div style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>{noPayroll ? 'No payroll in Rivvra' : `Payroll ${formatCurrency(t.cost, cur)}`}</div>
                   {!noPayroll && <div style={{ font: `600 11.5px/1.5 ${FONT}`, color: t.margin >= 0 ? 'var(--brand-ink, var(--brand))' : 'var(--danger)' }}>Margin {formatCurrency(t.margin, cur)}{t.marginRevenue ? ` (${((t.margin / t.marginRevenue) * 100).toFixed(1)}%)` : ''}</div>}
+                  {!noPayroll && t.marginRevenue > 0 && <div style={{ font: `450 11px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>on {formatCurrency(t.marginRevenue, cur)}, both companies</div>}
                 </button>
               );
             })}
