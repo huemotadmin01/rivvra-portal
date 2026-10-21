@@ -5,9 +5,9 @@
 // Backend: GET /invoicing/consultant-margin (same visibility as Profitability).
 // Revenue = finalized invoice lines that name the consultant, in the invoice's
 // service month (the Profitability rule). Cost = the person's payroll-run line.
-// 2026-10-21: other currencies are converted to rupees at the company's rate for
-// the month (owner-set in the rate bar; falls back to the latest earlier month,
-// then the Incentive app's default). When Huemot Inc invoices someone Pvt Ltd
+// 2026-10-21: other currencies are converted to rupees at ECB daily market rates
+// (payment date for paid invoices, invoice date otherwise — the Profitability
+// rule; owner-set monthly rates are for incentives only). When Huemot Inc invoices someone Pvt Ltd
 // pays, both companies' client revenue and cost are combined into one margin,
 // and invoices between the two companies are left out so nothing counts twice.
 // ============================================================================
@@ -17,8 +17,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { TrendingUp, Link2, Shield } from 'lucide-react';
-import { PageHeader, Panel, Select, Chip, EmptyState, PageSpinner, Callout, Input, Button } from '../../components/ds';
-import { useToast } from '../../context/ToastContext';
+import { PageHeader, Panel, Select, Chip, EmptyState, PageSpinner, Callout } from '../../components/ds';
 
 const FONT = "'Inter', system-ui, sans-serif";
 const MONTH_LABEL = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -42,11 +41,11 @@ const shortCo = (name) => String(name || 'the other company').replace(/^Huemot T
 const rateLabel = (f) => (f ? `₹${Number(f.rate).toLocaleString('en-IN', { maximumFractionDigits: 4 })}` : '');
 
 function noteText(cell, costCurrency) {
-  const at = cell.fx ? Object.entries(cell.fx).map(([k, f]) => `${k} at ${rateLabel(f)}`).join(', ') : '';
+  const at = cell.fx ? Object.entries(cell.fx).map(([k, f]) => (f?.rate ? `${k} at market rate (~${rateLabel(f)})` : `${k} at market rate`)).join(', ') : '';
   switch (cell.note) {
     case 'combined': return `Includes ${shortCo(cell.sister?.companyName)}: ${money(cell.sister?.external)} invoiced${cell.sister?.cost ? `, ${formatCurrency(cell.sister.cost, costCurrency)} paid` : ''}${at ? ` · ${at}` : ''}${cell.interCompany ? ` · inter-company ${money(cell.interCompany)} left out` : ''}`;
     case 'converted': return `Converted: ${at}${cell.interCompany ? ` · includes ${money(cell.interCompany)} billed to a Huemot company` : ''}`;
-    case 'no_rate': return `No exchange rate set for ${(cell.missingRates || []).join(', ')} — set one above`;
+    case 'no_rate': return `No market exchange rate available for ${(cell.missingRates || []).join(', ')}`;
     case 'other_currency': return 'Billed in another currency — no margin without conversion';
     case 'not_invoiced': return 'Paid, but no invoice names this person this month';
     case 'no_client_project': return 'No client project this month';
@@ -64,61 +63,16 @@ const td = { padding: '10px 12px', font: `450 13px/1.45 ${FONT}`, color: 'var(--
 const num = { ...td, textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' };
 const sub = { font: `450 11.5px/1.45 ${FONT}`, color: 'var(--fg-4)', marginTop: 2 };
 
-const SOURCE_TEXT = { month: (m) => `set for ${MONTH_LABEL(m)}`, earlier_month: (m) => `carried from ${MONTH_LABEL(m)}`, default: () => 'Incentive app default' };
-
-// One row per foreign currency seen this month: the rate in use, where it
-// comes from, the ECB market average for reference, and an edit box.
-function RateBar({ orgSlug, month, rates, onSaved }) {
+// Read-only: which market rate converted this month's foreign-currency invoices.
+function RateBar({ month, rates }) {
   return (
-    <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
-      {Object.entries(rates).map(([from, eff]) => (
-        <RateRow key={`${month}-${from}-${eff?.rate ?? 'none'}`} orgSlug={orgSlug} month={month} from={from} eff={eff} onSaved={onSaved} />
-      ))}
-    </div>
-  );
-}
-
-function RateRow({ orgSlug, month, from, eff, onSaved }) {
-  const { showToast } = useToast();
-  const [value, setValue] = useState(eff?.rate != null ? String(eff.rate) : '');
-  const [market, setMarket] = useState(null);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    invoicingApi.getMarginFxRate(orgSlug, { month, from, to: 'INR' })
-      .then((r) => { if (!cancelled && r?.success) setMarket(r.marketAverage); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [orgSlug, month, from]);
-  const n = Number(value);
-  const valid = Number.isFinite(n) && n > 0;
-  // Also offer Save when the value is only inherited (default / earlier month),
-  // so a month can be pinned at today's figure and never move later.
-  const dirty = valid && (n !== Number(eff?.rate) || eff?.source !== 'month');
-  const save = async () => {
-    if (!valid) return;
-    setSaving(true);
-    try {
-      const r = await invoicingApi.setMarginFxRate(orgSlug, { month, from, to: 'INR', rate: n });
-      if (!r?.success) throw new Error(r?.error || 'Failed to save');
-      showToast(`1 ${from} = ₹${n} saved for ${MONTH_LABEL(month)}`, 'success');
-      onSaved();
-    } catch (e) {
-      showToast(e?.message || 'Failed to save the rate', 'error');
-    } finally { setSaving(false); }
-  };
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 'var(--r-3, 14px)', background: 'var(--surface)' }}>
-      <div style={{ font: `600 12.5px/1.4 ${FONT}`, color: 'var(--fg)' }}>Exchange rate · {MONTH_LABEL(month)}</div>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, font: `450 13px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>
-        1 {from} = ₹
-        <Input type="number" inputMode="decimal" min="0" step="0.01" value={value} onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && dirty) save(); }} aria-label={`${from} to INR rate for ${MONTH_LABEL(month)}`} style={{ width: 96, height: 30 }} />
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 'var(--r-3, 14px)', background: 'var(--surface)', marginBottom: 14 }}>
+      <div style={{ font: `600 12.5px/1.4 ${FONT}`, color: 'var(--fg)' }}>Exchange rates · {MONTH_LABEL(month)}</div>
+      <div style={{ font: `450 12.5px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>
+        {Object.entries(rates).map(([from, f]) => (f ? `1 ${from} ≈ ${rateLabel(f)} (ECB monthly average)` : `No market rate for ${from}`)).join(' · ')}
       </div>
-      {dirty && <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving…' : `Save for ${MONTH_LABEL(month)}`}</Button>}
       <div style={{ font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-4)' }}>
-        {eff ? `In use: ${rateLabel(eff)}, ${SOURCE_TEXT[eff.source]?.(eff.month) || ''}` : 'No rate set — these people show no margin'}
-        {market != null && ` · ECB market average ${rateLabel({ rate: market })}`}
+        Each invoice converts at the daily rate on its payment date (or invoice date if unpaid) — the same rule as Profitability.
       </div>
     </div>
   );
@@ -135,7 +89,6 @@ export default function ConsultantMarginV2() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(null);
   const [sortBy, setSortBy] = useState('invoiced');
-  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -157,7 +110,7 @@ export default function ConsultantMarginV2() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [orgSlug, span, currentCompany?._id, reloadKey]);
+  }, [orgSlug, span, currentCompany?._id]);
 
   const cur = data?.costCurrency || 'INR';
   const rows = useMemo(() => {
@@ -190,7 +143,7 @@ export default function ConsultantMarginV2() {
     <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1200 }}>
       <PageHeader
         title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><TrendingUp size={18} style={{ color: 'var(--brand)' }} />Consultant Margin</span>}
-        sub={`What we invoiced for each person against what they cost in payroll, in rupees. Dollars are converted at the month’s rate below; people on both Huemot companies’ books are combined. ${data?.companyName ? `Company: ${data.companyName}.` : ''}`}
+        sub={`What we invoiced for each person against what they cost in payroll, in rupees. Dollars are converted at daily market rates; people on both Huemot companies’ books are combined. ${data?.companyName ? `Company: ${data.companyName}.` : ''}`}
         actions={(
           <Select value={span} onChange={(e) => setSpan(Number(e.target.value))} aria-label="Period" style={{ width: 'auto' }}>
             <option value={3}>Last 3 months</option>
@@ -225,7 +178,7 @@ export default function ConsultantMarginV2() {
           </div>
 
           {month && Object.keys(data.monthRates?.[month] || {}).length > 0 && (
-            <RateBar orgSlug={orgSlug} month={month} rates={data.monthRates[month]} onSaved={() => setReloadKey((k) => k + 1)} />
+            <RateBar month={month} rates={data.monthRates[month]} />
           )}
 
           <Panel flush title={`${month ? MONTH_LABEL(month) : ''} — ${rows.length} people`}
@@ -297,7 +250,7 @@ export default function ConsultantMarginV2() {
                         <td style={{ ...num, fontWeight: 650, color: 'var(--fg)' }}>{formatCurrency(totals.cost, cur)}</td>
                         <td style={{ ...num, fontWeight: 650, color: totals.margin < 0 ? 'var(--danger)' : 'var(--fg)' }}>{formatCurrency(totals.margin, cur)}</td>
                         <td style={num}></td>
-                        <td style={{ ...td, font: `450 11.5px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>{totals.marginRevenue ? `Margin on ${formatCurrency(totals.marginRevenue, cur)} invoiced against ${formatCurrency(totals.marginCost, cur)} cost, where both are known — both companies, converted at the month’s rate` : 'Margin total covers people whose invoice and pay are both known'}</td>
+                        <td style={{ ...td, font: `450 11.5px/1.45 ${FONT}`, color: 'var(--fg-4)' }}>{totals.marginRevenue ? `Margin on ${formatCurrency(totals.marginRevenue, cur)} invoiced against ${formatCurrency(totals.marginCost, cur)} cost, where both are known — both companies, converted at market rates` : 'Margin total covers people whose invoice and pay are both known'}</td>
                       </tr>
                     )}
                   </tbody>

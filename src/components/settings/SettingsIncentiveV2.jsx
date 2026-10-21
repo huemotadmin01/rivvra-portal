@@ -61,9 +61,12 @@ const DEFAULTS = {
   defaultRecruiterRate: 0.06,
   defaultAccountManagerRate: 0.06,
   fxRates: [],
+  // Per service-month overrides (2026-10-21): [{ month:'YYYY-MM', from, to, rate }].
+  fxMonthly: [],
 };
 
 const BLANK_FX_ROW = { from: '', to: '', rate: '' };
+const BLANK_FX_MONTH_ROW = { month: '', from: 'USD', to: 'INR', rate: '' };
 
 const CURRENCY_OPTIONS = [
   { code: 'USD', label: 'USD — US Dollar' },
@@ -154,6 +157,7 @@ export default function SettingsIncentiveV2() {
         ...DEFAULTS,
         ...s,
         fxRates: Array.isArray(s.fxRates) ? s.fxRates : [],
+        fxMonthly: Array.isArray(s.fxMonthly) ? s.fxMonthly : [],
       });
       setLoadError(false);
     } catch (e) {
@@ -228,9 +232,27 @@ export default function SettingsIncentiveV2() {
       seen.add(key);
     }
 
+    // ---- Monthly rates ------------------------------------------------------
+    const monthRows = (form.fxMonthly || []).map((r) => ({
+      month: String(r.month || ''), from: String(r.from || '').toUpperCase().trim(),
+      to: String(r.to || '').toUpperCase().trim(), rate: Number(r.rate),
+    }));
+    const badMonth = monthRows.find((r) => (r.month || r.rate) && (!/^\d{4}-\d{2}$/.test(r.month) || !r.from || !r.to || r.from === r.to || !Number.isFinite(r.rate) || r.rate <= 0));
+    if (badMonth) {
+      showToast('Complete every monthly rate row: a month, two different currencies and a positive rate.', 'error');
+      return;
+    }
+    const cleanedMonthly = monthRows.filter((r) => r.month && Number.isFinite(r.rate) && r.rate > 0);
+    const seenM = new Set();
+    for (const r of cleanedMonthly) {
+      const key = `${r.month}:${r.from}->${r.to}`;
+      if (seenM.has(key)) { showToast(`Two monthly rates for ${r.from} → ${r.to} in ${r.month}. Keep one.`, 'error'); return; }
+      seenM.add(key);
+    }
+
     setSaving(true);
     try {
-      await incentiveApi.updateSettings(orgSlug, { ...form, fxRates: cleanedFx });
+      await incentiveApi.updateSettings(orgSlug, { ...form, fxRates: cleanedFx, fxMonthly: cleanedMonthly });
       showToast('Settings saved', 'success');
       await load();
     } catch (e) {
@@ -260,9 +282,24 @@ export default function SettingsIncentiveV2() {
     }));
   }
 
+  function updateMonthRow(idx, patch) {
+    setForm((prev) => {
+      const next = Array.isArray(prev.fxMonthly) ? [...prev.fxMonthly] : [];
+      next[idx] = { ...next[idx], ...patch };
+      return { ...prev, fxMonthly: next };
+    });
+  }
+  function addMonthRow() {
+    setForm((prev) => ({ ...prev, fxMonthly: [{ ...BLANK_FX_MONTH_ROW }, ...(prev.fxMonthly || [])] }));
+  }
+  function removeMonthRow(idx) {
+    setForm((prev) => ({ ...prev, fxMonthly: (prev.fxMonthly || []).filter((_, i) => i !== idx) }));
+  }
+
   if (loading) return <PageSpinner label="Loading incentive settings…" />;
 
   const fxRows = form.fxRates || [];
+  const monthRowsUi = form.fxMonthly || [];
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -342,14 +379,15 @@ export default function SettingsIncentiveV2() {
         </div>
       </Panel>
 
-      <Panel title="FX conversion rates">
+      <Panel title="Default FX rates">
         <div style={{ padding: 6, display: 'grid', gap: 14 }}>
           <p style={{ font: "400 11px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 }}>
             Used when an invoice is in a different currency than the company's
             functional currency. Recruiter / Account Manager commissions are
-            always paid in the functional currency. Approved records lock their
-            snapshot — changes here only affect future drafts and existing
-            drafts (which re-snapshot on save).
+            always paid in the functional currency. A monthly rate below, when
+            set, wins for that service month and later ones. Approved records
+            lock their snapshot — changes here only affect future drafts and
+            existing drafts (which re-snapshot on save).
           </p>
 
           {fxRows.length === 0 && (
@@ -418,6 +456,36 @@ export default function SettingsIncentiveV2() {
                 ).toLocaleString()}
               </span>
             )}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Monthly FX rates">
+        <div style={{ padding: 6, display: 'grid', gap: 14 }}>
+          <p style={{ font: "400 11px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 }}>
+            One rate per currency pair per month. An incentive converts at the rate for its
+            service month; a month with no rate of its own uses the latest earlier month, then
+            the default above. Only incentives use these — Profitability and Consultant Margin
+            use daily market rates.
+          </p>
+          {monthRowsUi.length === 0 && (
+            <p style={{ font: "400 11px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', fontStyle: 'italic', margin: 0 }}>
+              No monthly rates — every month uses the default.
+            </p>
+          )}
+          {monthRowsUi.map((row, idx) => (
+            <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) 1fr auto 1fr minmax(90px, 1fr) auto', gap: 8, alignItems: 'center' }}>
+              <Input type="month" value={row.month || ''} onChange={(e) => updateMonthRow(idx, { month: e.target.value })} aria-label={`Monthly rate ${idx + 1} month`} />
+              <CurrencySelect value={row.from || ''} onChange={(code) => updateMonthRow(idx, { from: code })} placeholder="From" aria-label={`Monthly rate ${idx + 1} from currency`} />
+              <ArrowRight size={14} style={{ color: 'var(--fg-4)' }} />
+              <CurrencySelect value={row.to || ''} onChange={(code) => updateMonthRow(idx, { to: code })} placeholder="To" aria-label={`Monthly rate ${idx + 1} to currency`} />
+              <Input type="number" step="0.0001" min="0" placeholder="Rate" aria-label={`Monthly rate ${idx + 1} rate`} value={row.rate ?? ''}
+                onChange={(e) => updateMonthRow(idx, { rate: e.target.value })} style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} />
+              <Button variant="ghost" size="sm" type="button" onClick={() => removeMonthRow(idx)} title="Remove monthly rate" aria-label={`Remove monthly rate ${idx + 1}`} iconLeft={<Trash2 size={14} />} />
+            </div>
+          ))}
+          <div>
+            <Button variant="ghost" size="sm" type="button" onClick={addMonthRow} iconLeft={<Plus size={12} />}>Add monthly rate</Button>
           </div>
         </div>
       </Panel>

@@ -23,14 +23,6 @@ const invoicingApi = {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/consultant-margin${qs ? '?' + qs : ''}`);
   },
-  // Margin exchange rates (2026-10-21): one owner-set rate per company, month and pair.
-  getMarginFxRate(orgSlug, { month, from = 'USD', to = 'INR' }) {
-    const qs = new URLSearchParams({ month, from, to }).toString();
-    return api.request(`/api/org/${orgSlug}/invoicing/margin-fx-rates?${qs}`);
-  },
-  setMarginFxRate(orgSlug, { month, from = 'USD', to = 'INR', rate }) {
-    return api.request(`/api/org/${orgSlug}/invoicing/margin-fx-rates`, { method: 'PUT', body: JSON.stringify({ month, from, to, rate }) });
-  },
   getProfitabilityRecords(orgSlug, params = {}) {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/profitability/records${qs ? '?' + qs : ''}`);
