@@ -45,8 +45,10 @@ const CONDITION_CONFIG = {
 
 // Statuses that can go back into stock. 'available' is excluded because it is
 // already there, and 'assigned' because the server refuses it — the same guard
-// the single Make Available action uses.
-const RESTOCKABLE = new Set(['returned', 'retired', 'lost']);
+// the single Make Available action uses. 'lost' is excluded too (2026-10-22):
+// a found item needs the condition it was found in, so it goes back one at a
+// time via the asset's "Mark Found" — the bulk route skips it.
+const RESTOCKABLE = new Set(['returned', 'retired']);
 
 const TYPE_ICONS = {
   laptop: Monitor,
@@ -166,7 +168,7 @@ export default function AssetListV2() {
   // Only ever act on rows the operator can currently see. Selecting, then
   // changing a filter, must not quietly restock something off-screen.
   const eligibleIds = useMemo(
-    () => new Set(filtered.filter(a => RESTOCKABLE.has(a.status)).map(a => a._id)),
+    () => new Set(filtered.filter(a => RESTOCKABLE.has(a.status) && a.condition !== 'lost').map(a => a._id)),
     [filtered]
   );
   const activeSelection = useMemo(
@@ -387,7 +389,7 @@ export default function AssetListV2() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                       {/* Checkbox handles its own stopPropagation, so ticking a
                           card does not also open it. */}
-                      {isAdmin && RESTOCKABLE.has(asset.status) && (
+                      {isAdmin && RESTOCKABLE.has(asset.status) && asset.condition !== 'lost' && (
                         <span style={{ flexShrink: 0, display: 'inline-flex' }}>
                           <Checkbox
                             checked={selected.has(asset._id)}
