@@ -121,6 +121,10 @@ export default function AssetDetailV2() {
   const [, setReassignDropdown] = useState(false);
   const [returnForm, setReturnForm] = useState({ condition: 'good', notes: '', deductionAmount: '' });
   const [lostForm, setLostForm] = useState({ notes: '', deductionAmount: '' });
+  // 2026-10-22: a found asset must come back with a real condition — sending
+  // none kept condition 'lost' on an Available asset (the Lost card missed it).
+  const [showFound, setShowFound] = useState(false);
+  const [foundCondition, setFoundCondition] = useState('good');
   const [editForm, setEditForm] = useState({ name: '', modelName: '', condition: '', notes: '', assetTypeId: '' });
 
   useEffect(() => { load(); }, [assetId, orgSlug]);
@@ -227,6 +231,16 @@ export default function AssetDetailV2() {
     finally { setSaving(false); }
   }
 
+  async function handleMarkFound() {
+    setSaving(true); setError('');
+    try {
+      await assetApi.makeAvailable(orgSlug, assetId, { condition: foundCondition });
+      setShowFound(false);
+      await load();
+    } catch (e) { setError(e.message || 'Failed to mark found'); }
+    finally { setSaving(false); }
+  }
+
   async function handleMakeAvailable() {
     setSaving(true); setActionError('');
     try {
@@ -324,10 +338,24 @@ export default function AssetDetailV2() {
           )}
           {/* 'lost' belongs here too: a found asset had no way back into the
               pool, even though the server has always allowed it. */}
-          {(asset.status === 'returned' || asset.status === 'retired' || asset.status === 'lost') && (
+          {(asset.status === 'returned' || asset.status === 'retired') && (
             <Button variant="secondary" size="sm" onClick={handleMakeAvailable} disabled={saving}
               iconLeft={saving ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}>
-              {asset.status === 'lost' ? 'Mark Found — Make Available' : 'Make Available'}
+              Make Available
+            </Button>
+          )}
+          {asset.status === 'lost' && (
+            <Button variant="secondary" size="sm" onClick={() => { setFoundCondition('good'); openModal(setShowFound)(); }} disabled={saving}
+              iconLeft={<RefreshCw size={14} />}>
+              Mark Found — Make Available
+            </Button>
+          )}
+          {/* Unassigned stock can be lost too (2026-10-22) — this used to be
+              possible only by editing the condition, which left it Available. */}
+          {(asset.status === 'available' || asset.status === 'returned' || asset.status === 'retired') && (
+            <Button variant="secondary" size="sm" onClick={openModal(setShowLost)}
+              style={{ color: 'var(--danger)' }} iconLeft={<AlertTriangle size={14} />}>
+              Mark Lost
             </Button>
           )}
           <Button variant="secondary" size="sm" onClick={openModal(setShowEdit)} iconLeft={<Pencil size={14} />}>
@@ -501,9 +529,11 @@ export default function AssetDetailV2() {
         <div style={{ display: 'grid', gap: 12 }}>
           {error && <Callout tone="danger">{error}</Callout>}
           <Callout tone="danger" icon={<AlertTriangle size={16} />}>
-            This will mark the asset as lost and unassign it.
+            {asset.status === 'assigned'
+              ? 'This will mark the asset as lost and unassign it.'
+              : 'This will move the asset out of stock and into Lost. Nobody holds it, so no deduction applies.'}
           </Callout>
-          <Field label="Deduction Amount" htmlFor="as-lost-ded">
+          {asset.status === 'assigned' && <Field label="Deduction Amount" htmlFor="as-lost-ded">
             <div style={{ position: 'relative' }}>
               <span style={{
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
@@ -513,10 +543,26 @@ export default function AssetDetailV2() {
                 onChange={e => setLostForm(f => ({ ...f, deductionAmount: e.target.value }))}
                 style={{ paddingLeft: curPadLeft }} />
             </div>
-          </Field>
+          </Field>}
           <Field label="Notes" htmlFor="as-lost-notes">
             <Textarea id="as-lost-notes" rows={2} value={lostForm.notes}
               onChange={e => setLostForm(f => ({ ...f, notes: e.target.value }))} />
+          </Field>
+        </div>
+      </Modal>
+
+      {/* ── Mark found ─────────────────────────────────────────────────────── */}
+      <Modal open={showFound} size="sm" title="Mark Asset as Found"
+        onClose={() => setShowFound(false)}
+        footer={modalFoot(handleMarkFound, () => { setShowFound(false); setError(''); }, 'Make Available')}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          {error && <Callout tone="danger">{error}</Callout>}
+          <Field label="Condition it was found in" required htmlFor="as-found-cond">
+            <Select id="as-found-cond" value={foundCondition} onChange={e => setFoundCondition(e.target.value)}>
+              <option value="good">Good</option>
+              <option value="fair">Fair</option>
+              <option value="damaged">Damaged</option>
+            </Select>
           </Field>
         </div>
       </Modal>
@@ -556,9 +602,12 @@ export default function AssetDetailV2() {
           {/* `condition` was already in editForm and already sent to the API —
               there was just no control for it, so a wrong grade was permanent. */}
           <Field label="Condition" htmlFor="as-edit-cond">
-            <Select id="as-edit-cond" value={editForm.condition}
+            {/* 'Lost' is a status, not just a grade: use Mark Lost / Mark Found.
+                A lost asset's condition is fixed until it is found. */}
+            <Select id="as-edit-cond" value={editForm.condition} disabled={asset.status === 'lost'}
               onChange={e => setEditForm(f => ({ ...f, condition: e.target.value }))}>
-              {Object.entries(CONDITION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {Object.entries(CONDITION_LABELS).filter(([k]) => k !== 'lost' || asset.status === 'lost')
+                .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
           </Field>
           <Field label="Notes" htmlFor="as-edit-notes">
