@@ -95,7 +95,7 @@ function renderInline(raw, { orgSlug, navigate }) {
   //   [ObjectId]               — legacy plain-id fallback, routes to candidate
   //   bare 24-hex              — defensive: scrub if it slips into prose
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n|e|x|l|s|d):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n|e|x|l|s|d):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)|(\b_[^_\n]+_\b)/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n|e|x|l|s|d):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n|e|x|l|s|d):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)|(\b_[^_\n]+_\b)|(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))/gi;
   let lastIdx = 0;
   let m;
   let k = 0;
@@ -115,6 +115,9 @@ function renderInline(raw, { orgSlug, navigate }) {
       out.push(<strong key={k++}>{renderInline(seg.slice(2, -2), { orgSlug, navigate })}</strong>);
     } else if (m[10]) {
       out.push(<em key={k++}>{seg.slice(1, -1)}</em>);
+    } else if (m[11]) {
+      // Ordinary web link (e.g. a LinkedIn profile) — printed raw before 2026-10-22.
+      out.push(<a key={k++} href={m[13]} target="_blank" rel="noopener noreferrer">{m[12]}</a>);
     } else if (m[2]) {
       const label = m[3];
       const kind = m[4].toLowerCase();
