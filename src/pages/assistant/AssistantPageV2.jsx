@@ -20,6 +20,7 @@ import {
 } from '../../utils/assistantApi';
 import { PREVIEW_KINDS, AssistantMessage } from '../../components/assistant/messageRender';
 import PreviewDrawer from '../../components/assistant/PreviewDrawer';
+import '../../components/assistant/assistant.css';
 import { Button, EmptyState, PageHeader } from '../../components/ds';
 import { MessageSquare, Plus, Trash2, Send, Square } from 'lucide-react';
 

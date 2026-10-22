@@ -1,0 +1,78 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Ask Rivvra — V2 theme (2026-10-22).
+
+   The assistant mounts OUTSIDE the v2 shell (App.jsx renders it next to
+   ShellSwitch), so the legacy palette bridge never reached it and it stayed
+   a fixed dark-navy island on light pages. The panel, preview drawer and
+   support dialog now sit inside `.ds-shell.ra-root`: `display: contents`
+   gives the wrapper no box of its own (the panel and launcher are fixed),
+   while every `.ds-shell …` bridge rule now matches its descendants, so the
+   whole assistant follows the viewer's light / dark theme on V2 tokens.
+   ───────────────────────────────────────────────────────────────────────── */
+.ds-shell.ra-root { display: contents; min-height: 0; background: none; }
+
+.ra-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.08);
+  color: var(--fg-2);
+  font-family: var(--font);
+}
+.ra-head { background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.ra-foot { background: var(--surface-1); border-top: 1px solid var(--line); }
+.ra-input {
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-3);
+}
+.ra-input:focus-within { border-color: var(--brand-line); box-shadow: 0 0 0 3px var(--brand-soft); }
+.ra-input textarea { color: var(--fg); }
+.ra-input textarea::placeholder { color: var(--fg-4); }
+.ra-iconbtn { color: var(--fg-3); border-radius: var(--r-1); }
+.ra-iconbtn:hover { color: var(--fg); background: var(--surface-3); }
+.ra-chip-btn {
+  text-align: left; font-size: 12.5px; line-height: 1.35; padding: 8px 12px;
+  border-radius: var(--r-2); background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--fg-2); transition: border-color .15s, background .15s;
+}
+.ra-chip-btn:hover { border-color: var(--brand-line); background: var(--surface-3); color: var(--fg); }
+.ra-user-bubble {
+  background: var(--brand-soft); border: 1px solid var(--brand-line); color: var(--fg);
+  border-radius: 16px 16px 6px 16px;
+}
+.ra-send { background: var(--brand); color: var(--brand-fg); border-radius: var(--r-2); }
+.ra-send:disabled { background: var(--surface-3); color: var(--fg-4); }
+.ra-launcher {
+  background: var(--surface-1); color: var(--fg); border: 1px solid var(--line-2);
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.35);
+}
+.ra-launcher:hover { border-color: var(--brand-line); }
+.ra-launcher kbd { color: var(--fg-3); border: 1px solid var(--line-2); background: var(--surface-2); }
+
+/* Result cards */
+.ra-card {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px;
+  border-radius: var(--r-2); background: var(--surface-2); border: 1px solid var(--line);
+  transition: border-color .15s, background .15s; text-align: left;
+}
+a.ra-card:hover { border-color: var(--brand-line); background: var(--surface-3); }
+.ra-card-name { color: var(--fg); font-weight: 600; font-size: 13px; line-height: 1.3; }
+.ra-card-meta { color: var(--fg-3); font-size: 11.5px; line-height: 1.35; }
+.ra-tag { font-size: 10.5px; line-height: 1.2; padding: 2px 6px; border-radius: 6px; background: var(--surface-3); color: var(--fg-2); }
+.ra-more { font-size: 11.5px; color: var(--brand-ink); padding: 4px 2px; }
+.ra-more:hover { text-decoration: underline; }
+.ra-status { font-size: 11px; color: var(--fg-3); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2); padding: 4px 8px; }
+
+/* Assistant text */
+.ra-text { color: var(--fg-2); font-size: 13.5px; line-height: 1.5; }
+.ra-text strong { color: var(--fg); font-weight: 600; }
+.ra-text a { color: var(--brand-ink); font-weight: 500; }
+.ra-text a:hover { text-decoration: underline; }
+.ra-li { display: flex; gap: 6px; }
+.ra-li-mark { color: var(--fg-4); flex-shrink: 0; min-width: 12px; }
+
+/* Preview drawer: opens BESIDE the panel, above the app sidebar. */
+.ra-drawer {
+  background: var(--surface-1); border: 1px solid var(--line-2); border-radius: var(--r-4);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.35); color: var(--fg-2);
+}
+.ra-drawer-head { border-bottom: 1px solid var(--line); background: var(--surface-2); }

@@ -1,5 +1,5 @@
 /**
- * PreviewDrawer.jsx — slide-in left panel for previewing a candidate or
+ * PreviewDrawer.jsx — preview panel (beside the assistant) for a candidate or
  * application without leaving the assistant conversation.
  *
  * Shipped 2026-05-28 (Phase 3.3) — the biggest UX upgrade: recruiters can
@@ -43,7 +43,9 @@ function Pill({ children, tone = 'neutral' }) {
   return <span className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded-full ${cls}`}>{children}</span>;
 }
 
-export default function PreviewDrawer({ item, orgSlug, onClose }) {
+// besidePanel: the floating assistant is open at bottom-right, so sit to its
+// left; on the full-page assistant there is no panel, so use the right edge.
+export default function PreviewDrawer({ item, orgSlug, onClose, besidePanel = false }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -119,24 +121,27 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
 
   return (
     <>
-      {/* Click-outside backdrop. Click anywhere outside the drawer closes it. */}
-      <div className="fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden="true" />
+      {/* Click-outside backdrop. Sits BELOW the assistant panel (z 56) so the
+          recruiter can click the next result while a preview is open. */}
+      <div className="fixed inset-0 z-[50]" style={{ background: 'rgba(0,0,0,0.18)' }} onClick={onClose} aria-hidden="true" />
 
-      {/* Drawer slides from LEFT so the assistant panel (bottom-right) stays visible
-          and the recruiter can keep scanning results while previewing. */}
+      {/* 2026-10-22: the drawer used to slide in from the LEFT edge at z 30,
+          UNDER the v2 sidebar (z 40), so its left third was hidden and text
+          was cut off. It now opens BESIDE the assistant panel (420px + gaps),
+          above the sidebar; full width on narrow screens. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${item.kind} preview`}
-        className="fixed left-0 top-0 bottom-0 z-30 w-full sm:w-[520px] max-w-full bg-dark-900 border-r border-dark-700 shadow-2xl shadow-black/40 flex flex-col"
+        className={`ra-drawer fixed z-[55] flex flex-col overflow-hidden inset-2 lg:inset-auto lg:top-[64px] lg:bottom-5 lg:w-[520px] ${besidePanel ? 'lg:right-[460px] lg:max-w-[calc(100vw-500px)]' : 'lg:right-5'}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 px-4 h-12 border-b border-dark-700 bg-dark-900/95 flex-shrink-0">
+        <div className="ra-drawer-head flex items-center justify-between gap-2 px-3 h-12 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={onClose}
-              className="h-7 w-7 rounded text-dark-400 hover:text-white hover:bg-dark-800 flex items-center justify-center flex-shrink-0"
+              className="ra-iconbtn h-7 w-7 flex items-center justify-center flex-shrink-0"
               aria-label="Close preview"
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M14.3 5.7L10 10l4.3 4.3-1.4 1.4L8.6 11.4l-4.3 4.3L2.9 14.3 7.2 10 2.9 5.7 4.3 4.3l4.3 4.3 4.3-4.3z"/></svg>
@@ -148,10 +153,10 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
           <button
             type="button"
             onClick={() => navigate(fullPath)}
-            className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-md text-dark-300 hover:text-white hover:bg-dark-800"
+            className="ra-iconbtn inline-flex items-center gap-1 text-[12px] px-2 py-1"
           >
             Open in full
-            <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M4 10h10m0 0l-4-4m4 4l-4 4"/></svg>
+            <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 10h10m0 0l-4-4m4 4l-4 4"/></svg>
           </button>
         </div>
 

@@ -32,6 +32,7 @@ import {
 } from '../../utils/assistantApi';
 import PreviewDrawer from './PreviewDrawer';
 import { appFromPath, recordFromPath, PREVIEW_KINDS, AssistantMessage } from './messageRender';
+import './assistant.css';
 
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -251,14 +252,16 @@ export default function AssistantPanel() {
   };
   const emptyState = messages.length === 0 && !pending;
 
+  // `ds-shell ra-root` (assistant.css): the assistant mounts outside the v2
+  // shell, so this wrapper is what makes it follow the V2 light/dark theme.
   return (
-    <>
+    <div className="ds-shell ra-root">
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open Ask Rivvra (⌘K)"
-          className="fixed bottom-6 right-6 z-40 group inline-flex items-center gap-2.5 pl-3 pr-3.5 h-11 rounded-full bg-dark-900/95 backdrop-blur border border-dark-700/80 shadow-[0_8px_24px_-6px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)_inset] hover:border-rivvra-500/40 hover:bg-dark-800/95 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ease-out text-sm font-medium text-white tracking-tight focus:outline-none focus-visible:ring-2 focus-visible:ring-rivvra-500/40"
+          className="ra-launcher fixed bottom-6 right-6 z-40 group inline-flex items-center gap-2.5 pl-3 pr-3.5 h-11 rounded-full hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ease-out text-sm font-medium tracking-tight focus:outline-none"
         >
           <span className="relative inline-flex items-center justify-center w-5 h-5">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-rivvra-300 transition-transform duration-300 group-hover:rotate-[15deg]">
@@ -269,50 +272,56 @@ export default function AssistantPanel() {
               </defs>
               <path d="M12 3.5c.6 4.2 2.3 5.9 6.5 6.5-4.2.6-5.9 2.3-6.5 6.5-.6-4.2-2.3-5.9-6.5-6.5 4.2-.6 5.9-2.3 6.5-6.5z" stroke="url(#aiStarGrad)" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
-            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400 ring-2 ring-dark-900 shadow-[0_0_6px_rgba(52,211,153,0.5)]" aria-hidden="true" />
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full" style={{ background: 'var(--brand)', boxShadow: '0 0 0 2px var(--surface-1)' }} aria-hidden="true" />
           </span>
           <span className="leading-none">Ask Rivvra</span>
-          {/* dark-300 on purpose: this launcher renders OUTSIDE .ds-shell, so the
-              palette bridge never reaches it (see 2026-08 contrast note). */}
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-0.5 text-[10px] font-mono text-dark-300 group-hover:text-dark-100 px-1.5 py-0.5 rounded border border-dark-700 bg-dark-950/40 leading-none transition-colors">⌘K</kbd>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded leading-none">⌘K</kbd>
         </button>
       )}
 
-      {previewItem && <PreviewDrawer item={previewItem} orgSlug={orgSlug} onClose={() => setPreviewItem(null)} />}
+      {previewItem && <PreviewDrawer item={previewItem} orgSlug={orgSlug} besidePanel onClose={() => setPreviewItem(null)} />}
       <SupportDialog key="support" open={supportOpen} onClose={() => setSupportOpen(false)} prefill={(() => { const q = [...messages].reverse().find((m) => m.role === 'user')?.content || ''; return { subject: q ? `Help with: ${q.slice(0, 80)}` : '', threadId: threadId || undefined, lastQuestion: q || undefined }; })()} />
 
       {open && (
-        <div className="fixed bottom-5 right-5 z-40 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-dark-900 border border-dark-700 shadow-2xl shadow-black/40 overflow-hidden">
+        // z-[56]: above the v2 sidebar (z 40) so the preview drawer (z 55,
+        // beside the panel) never slides under it. Height stops below the
+        // 56px top bar so the page header stays reachable.
+        <div className="ra-panel fixed bottom-5 right-5 z-[56] w-[420px] max-w-[calc(100vw-2rem)] h-[620px] max-h-[calc(100vh-84px)] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-gradient-to-r from-dark-800 to-dark-900">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="h-7 w-7 rounded-md bg-rivvra-500/15 text-rivvra-300 flex items-center justify-center flex-shrink-0">
+          <div className="ra-head flex items-center justify-between gap-2 pl-4 pr-2 py-2.5">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-soft)', color: 'var(--brand-ink)' }}>
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5L10 2z" /></svg>
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-white">Ask Rivvra</div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Ask Rivvra</div>
                 {/* Scope chip — the company every answer is bound to, from the server. */}
-                <div className="text-[10px] text-dark-400 flex items-center gap-1" title="Answers are limited to this company">
+                <div className="text-[11px] flex items-center gap-1 min-w-0" style={{ color: 'var(--fg-3)' }} title={`Answers are limited to ${scopeName}`}>
                   <svg width="9" height="9" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 18V4a1 1 0 011-1h7a1 1 0 011 1v4h4a1 1 0 011 1v9h1v1H2v-1h1zm2-1h5V5H5v12zm7 0h4v-8h-4v8zM6 6h3v2H6V6zm0 3h3v2H6V9zm0 3h3v2H6v-2zm7 0h2v2h-2v-2zm0-3h2v2h-2V9z" /></svg>
-                  <span className="truncate max-w-[220px]">{scopeName}</span>
+                  <span className="truncate">{scopeName}</span>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => setSupportOpen(true)} className="text-[11px] text-dark-400 hover:text-dark-200 px-2 py-1 rounded hover:bg-dark-800" aria-label="Talk to a human" title="Talk to a human — email support with this conversation attached">Human</button>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              {/* Icon buttons with tooltips: the text buttons ate the company name. */}
               {(messages.length > 0 || threadId) && (
-                <button type="button" onClick={resetConversation} className="text-[11px] text-dark-400 hover:text-dark-200 px-2 py-1 rounded hover:bg-dark-800" aria-label="Start a new conversation">New</button>
+                <button type="button" onClick={resetConversation} className="ra-iconbtn h-7 w-7 flex items-center justify-center" aria-label="New conversation" title="New conversation">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4h2v5h5v2h-5v5H9v-5H4V9h5z" /></svg>
+                </button>
               )}
+              <button type="button" onClick={() => setSupportOpen(true)} className="ra-iconbtn h-7 w-7 flex items-center justify-center" aria-label="Talk to a person" title="Talk to a person — emails support with this conversation attached">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3a2 2 0 002 2h1V8H6a4 4 0 018 0h-1v5h1a2 2 0 01-1.7 2H10v2h2.3A4 4 0 0016 13V8a6 6 0 00-6-6z" /></svg>
+              </button>
               <button
                 type="button"
                 onClick={() => { setOpen(false); navigate(`/org/${orgSlug}/assistant${threadId ? `?thread=${threadId}` : ''}`); }}
-                className="h-7 w-7 rounded text-dark-400 hover:text-white hover:bg-dark-800 flex items-center justify-center"
+                className="ra-iconbtn h-7 w-7 flex items-center justify-center"
                 aria-label="Open full view"
                 title="Open full view"
               >
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M3 3h6v2H5v4H3V3zm8 0h6v6h-2V5h-4V3zM3 11h2v4h4v2H3v-6zm12 0h2v6h-6v-2h4v-4z" /></svg>
               </button>
-              <button type="button" onClick={closePanel} className="h-7 w-7 rounded text-dark-400 hover:text-white hover:bg-dark-800 flex items-center justify-center" aria-label="Close">
+              <button type="button" onClick={closePanel} className="ra-iconbtn h-7 w-7 flex items-center justify-center" aria-label="Close" title="Close (Esc)">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M14.3 5.7L10 10l4.3 4.3-1.4 1.4L8.6 11.4l-4.3 4.3L2.9 14.3 7.2 10 2.9 5.7 4.3 4.3l4.3 4.3 4.3-4.3z" /></svg>
               </button>
             </div>
@@ -322,10 +331,10 @@ export default function AssistantPanel() {
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
             {emptyState && (
               <div className="space-y-3 pt-2">
-                <div className="text-xs text-dark-400 px-1">Ask about your data in {scopeName} — I search your real records, and only this company's.</div>
+                <div className="text-[12.5px] px-1" style={{ color: 'var(--fg-3)' }}>Ask about your data in {scopeName} — I search your real records, and only this company's.</div>
                 <div className="flex flex-col gap-1.5">
                   {suggestions.map((q) => (
-                    <button key={q} type="button" onClick={() => send(q)} className="text-left text-xs px-3 py-2 rounded-lg bg-dark-800/60 border border-dark-700 text-dark-200 hover:bg-dark-800 hover:border-rivvra-500/40 transition-colors">{q}</button>
+                    <button key={q} type="button" onClick={() => send(q)} className="ra-chip-btn">{q}</button>
                   ))}
                 </div>
                 {threads.length > 0 && (
@@ -350,7 +359,7 @@ export default function AssistantPanel() {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role === 'user' ? (
-                  <div className="max-w-[85%] bg-rivvra-500/20 border border-rivvra-500/30 text-white text-sm rounded-2xl rounded-br-md px-3 py-2">{m.content}</div>
+                  <div className="ra-user-bubble max-w-[85%] text-[13.5px] px-3 py-2 whitespace-pre-wrap break-words">{m.content}</div>
                 ) : (
                   <AssistantMessage m={m} orgSlug={orgSlug} navigate={navigate} onItemClick={onItemClick} threadId={threadId} />
                 )}
@@ -387,8 +396,8 @@ export default function AssistantPanel() {
           </div>
 
           {/* Input */}
-          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="border-t border-dark-700 p-2 bg-dark-900">
-            <div className="flex items-end gap-2 rounded-lg bg-dark-800 border border-dark-700 focus-within:border-rivvra-500/50 px-2 py-1.5">
+          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="ra-foot p-2.5">
+            <div className="ra-input flex items-end gap-2 px-2.5 py-1.5">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -396,7 +405,7 @@ export default function AssistantPanel() {
                 placeholder="Ask about your data…"
                 rows={1}
                 disabled={streaming}
-                className="flex-1 bg-transparent text-sm text-white placeholder:text-dark-500 resize-none focus:outline-none disabled:opacity-50 py-1 max-h-32"
+                className="flex-1 bg-transparent text-[13.5px] resize-none focus:outline-none disabled:opacity-50 py-1 max-h-32"
                 style={{ minHeight: '24px' }}
               />
               {streaming ? (
@@ -404,17 +413,17 @@ export default function AssistantPanel() {
                   <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
                 </button>
               ) : (
-                <button type="submit" disabled={!input.trim()} className="h-8 w-8 rounded-md bg-rivvra-500 hover:bg-rivvra-400 disabled:bg-dark-700 disabled:text-dark-500 text-white flex items-center justify-center transition-colors" aria-label="Send">
+                <button type="submit" disabled={!input.trim()} className="ra-send h-8 w-8 flex items-center justify-center transition-colors" aria-label="Send">
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10l16-8-7 16-2-6-7-2z" /></svg>
                 </button>
               )}
             </div>
-            <div className="text-[10px] text-dark-400 px-1 pt-1">
-              Press Enter to send · Shift+Enter for newline · Answers limited to {scopeName}
+            <div className="text-[10.5px] px-1 pt-1.5 truncate" style={{ color: 'var(--fg-4)' }} title={`Answers limited to ${scopeName}`}>
+              Enter to send · Shift+Enter for a new line
             </div>
           </form>
         </div>
       )}
-    </>
+    </div>
   );
 }

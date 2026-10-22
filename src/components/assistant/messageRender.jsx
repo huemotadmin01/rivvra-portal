@@ -58,14 +58,31 @@ function entityPath(orgSlug, kind, id) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-// Lightweight markdown for assistant text: **bold**, lists, entity links.
+// Lightweight markdown for assistant text: **bold**, _italic_, headings,
+// bullet / numbered lists (nested by indent), entity links. 2026-10-22:
+// list markers used to print as a literal "- " with no indent.
+const LIST_RE = /^(\s*)([-*•]|\d+[.)])\s+(.*)$/;
 function renderAssistantText(text, { orgSlug, navigate }) {
   if (!text) return null;
   const parts = [];
   let lineKey = 0;
   for (const raw of text.split('\n')) {
     if (!raw.trim()) { parts.push(<div key={lineKey++} className="h-1.5" />); continue; }
-    parts.push(<div key={lineKey++} className="leading-snug">{renderInline(raw, { orgSlug, navigate })}</div>);
+    const head = /^\s*#{1,4}\s+(.*)$/.exec(raw);
+    if (head) { parts.push(<div key={lineKey++} className="mt-1" style={{ fontWeight: 600, color: 'var(--fg)' }}>{renderInline(head[1], { orgSlug, navigate })}</div>); continue; }
+    const li = LIST_RE.exec(raw);
+    if (li) {
+      const depth = Math.min(3, Math.floor(li[1].replace(/\t/g, '  ').length / 2));
+      const mark = /\d/.test(li[2]) ? li[2].replace(')', '.') : (depth ? '◦' : '•');
+      parts.push(
+        <div key={lineKey++} className="ra-li" style={{ paddingLeft: depth * 14 }}>
+          <span className="ra-li-mark">{mark}</span>
+          <span className="min-w-0">{renderInline(li[3], { orgSlug, navigate })}</span>
+        </div>,
+      );
+      continue;
+    }
+    parts.push(<div key={lineKey++}>{renderInline(raw, { orgSlug, navigate })}</div>);
   }
   return parts;
 }
@@ -78,7 +95,7 @@ function renderInline(raw, { orgSlug, navigate }) {
   //   [ObjectId]               — legacy plain-id fallback, routes to candidate
   //   bare 24-hex              — defensive: scrub if it slips into prose
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n|e|x|l|s|d):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n|e|x|l|s|d):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j|o|k|i|n|e|x|l|s|d):([a-f0-9]{24})\))|(\[(c|a|j|o|k|i|n|e|x|l|s|d):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)|(\b_[^_\n]+_\b)/gi;
   let lastIdx = 0;
   let m;
   let k = 0;
@@ -95,27 +112,29 @@ function renderInline(raw, { orgSlug, navigate }) {
       continue;
     }
     if (seg.startsWith('**')) {
-      out.push(<strong key={k++} className="text-white">{renderInline(seg.slice(2, -2), { orgSlug, navigate })}</strong>);
+      out.push(<strong key={k++}>{renderInline(seg.slice(2, -2), { orgSlug, navigate })}</strong>);
+    } else if (m[10]) {
+      out.push(<em key={k++}>{seg.slice(1, -1)}</em>);
     } else if (m[2]) {
       const label = m[3];
       const kind = m[4].toLowerCase();
       const href = entityPath(orgSlug, kind, m[5]);
       out.push(
         <a key={k++} href={href} onClick={(e) => { e.preventDefault(); navigate(href); }}
-          className="text-rivvra-300 hover:underline decoration-rivvra-500/40 underline-offset-2 font-medium">{label}</a>,
+          >{label}</a>,
       );
     } else if (/^\[[cajokinexlsd]:/i.test(seg)) {
       const kind = seg[1].toLowerCase();
       const href = entityPath(orgSlug, kind, seg.slice(3, -1));
       out.push(
         <a key={k++} href={href} onClick={(e) => { e.preventDefault(); navigate(href); }}
-          className="text-rivvra-300 hover:underline decoration-rivvra-500/40 underline-offset-2" title={KIND_TITLE[kind]}>→</a>,
+          title={KIND_TITLE[kind]}>→</a>,
       );
     } else {
       const id = seg.slice(1, -1);
       const href = entityPath(orgSlug, 'c', id);
       out.push(
-        <a key={k++} href={href} onClick={(e) => { e.preventDefault(); navigate(href); }} className="text-rivvra-300 hover:underline">#{id.slice(-6)}</a>,
+        <a key={k++} href={href} onClick={(e) => { e.preventDefault(); navigate(href); }} >#{id.slice(-6)}</a>,
       );
     }
     lastIdx = m.index + seg.length;
@@ -156,7 +175,8 @@ const TOOL_LABEL = {
 };
 
 function KindIcon({ kind }) {
-  const cls = 'text-rivvra-300/80';
+  // Coloured by token (was a fixed light green that vanished on light theme).
+  const cls = '';
   switch (kind) {
     case 'application':
       return <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className={cls}><path d="M4 3h10l2 2v12H4V3z" fillOpacity="0.4" /><path d="M4 3h10l2 2H4z" /></svg>;
@@ -179,78 +199,91 @@ function KindIcon({ kind }) {
   }
 }
 
-function ToolCallPill({ name, args, summary, navigate, onItemClick }) {
+function toolArgSummary(args) {
+  if (!args) return '';
+  const parts = [];
+  if (Array.isArray(args.skills) && args.skills.length) parts.push(args.skills.join(' + '));
+  if (typeof args.minYears === 'number') parts.push(`${args.minYears}+ yrs`);
+  if (args.status) parts.push(args.status);
+  if (args.stageName || args.stageNameContains) parts.push(args.stageName || args.stageNameContains);
+  if (args.jobNameContains) parts.push(`"${args.jobNameContains}"`);
+  if (args.search) parts.push(`"${args.search}"`);
+  if (args.engagement) parts.push(String(args.engagement).replace('_', ' '));
+  if (typeof args.days === 'number') parts.push(`${args.days} days`);
+  if (args.mineOnly) parts.push('mine');
+  if (typeof args.minFitScore === 'number') parts.push(`fit ≥ ${args.minFitScore}`);
+  return parts.join(' · ');
+}
+
+// One-line status for a tool call ("Searching candidates · Apex · 12 matches").
+function ToolCallPill({ name, args, summary }) {
   const label = TOOL_LABEL[name] || name;
-  const argSummary = useMemo(() => {
-    if (!args) return '';
-    const parts = [];
-    if (Array.isArray(args.skills) && args.skills.length) parts.push(args.skills.join(' + '));
-    if (typeof args.minYears === 'number') parts.push(`${args.minYears}+ yrs`);
-    if (args.status) parts.push(args.status);
-    if (args.stageName || args.stageNameContains) parts.push(args.stageName || args.stageNameContains);
-    if (args.jobNameContains) parts.push(`"${args.jobNameContains}"`);
-    if (args.search) parts.push(`"${args.search}"`);
-    if (args.engagement) parts.push(args.engagement.replace('_', ' '));
-    if (typeof args.days === 'number') parts.push(`${args.days} days`);
-    if (args.mineOnly) parts.push('mine');
-    if (typeof args.minFitScore === 'number') parts.push(`fit ≥ ${args.minFitScore}`);
-    return parts.join(' · ');
-  }, [args]);
-
-  const items = summary?.items || [];
+  const argSummary = useMemo(() => toolArgSummary(args), [args]);
   return (
-    <div className="space-y-1.5 my-1">
-      <div className="inline-flex items-start gap-2 text-[11px] rounded-md bg-dark-800/60 border border-dark-700 px-2 py-1.5 max-w-full">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-rivvra-300 mt-0.5 flex-shrink-0">
-          {summary
-            ? <path d="M16.7 5.3l-7.4 7.4-4-4-1.4 1.4 5.4 5.4 8.8-8.8z" />
-            : <circle cx="10" cy="10" r="3"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite" /></circle>}
-        </svg>
-        <div className="min-w-0">
-          <div className="text-dark-300 font-medium">{label}{summary ? '' : '…'}</div>
-          {argSummary && <div className="text-dark-500 truncate">{argSummary}</div>}
-          {summary && typeof summary.matchCount === 'number' && (
-            <div className="text-emerald-400 text-[10px]">{summary.matchCount} {summary.matchCount === 1 ? 'match' : 'matches'}</div>
-          )}
-          {summary && summary.error && <div className="text-rose-400 text-[10px]">Error: {summary.error}</div>}
-        </div>
-      </div>
+    <div className="ra-status inline-flex items-center gap-1.5 max-w-full">
+      <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" style={{ color: summary?.error ? 'var(--danger)' : 'var(--brand)', flexShrink: 0 }}>
+        {summary
+          ? <path d="M16.7 5.3l-7.4 7.4-4-4-1.4 1.4 5.4 5.4 8.8-8.8z" />
+          : <circle cx="10" cy="10" r="3"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite" /></circle>}
+      </svg>
+      <span style={{ color: 'var(--fg-2)', fontWeight: 500 }}>{label}{summary ? '' : '…'}</span>
+      {argSummary && <span className="truncate">· {argSummary}</span>}
+      {summary && typeof summary.matchCount === 'number' && (
+        <span style={{ color: 'var(--brand-ink)', flexShrink: 0 }}>· {summary.matchCount} {summary.matchCount === 1 ? 'match' : 'matches'}</span>
+      )}
+      {summary?.error && <span style={{ color: 'var(--danger)' }}>· {summary.error}</span>}
+    </div>
+  );
+}
 
-      {items.length > 0 && (
-        <div className="flex flex-col gap-1 pl-1">
-          {items.map((it, i) => {
-            const clickable = !!it._viewUrl;
-            const content = (
-              <>
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="flex-shrink-0"><KindIcon kind={it._kind} /></span>
-                  <span className="text-sm text-dark-100 truncate font-medium">{it.name}</span>
-                  {it.meta && <span className="text-[11px] text-dark-500 truncate">· {it.meta}</span>}
-                  {clickable && (
-                    <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" className="ml-auto text-dark-500 group-hover:text-rivvra-300 transition-colors flex-shrink-0"><path d="M4 10h10m0 0l-4-4m4 4l-4 4" /></svg>
-                  )}
-                </div>
-                {Array.isArray(it.skills) && it.skills.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1 pl-[18px]">
-                    {it.skills.map((s) => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-dark-700/60 text-dark-300 leading-tight">{s}</span>)}
-                  </div>
-                )}
-              </>
-            );
-            return clickable ? (
-              <a key={`${it._id}-${i}`} href={it._viewUrl}
-                onClick={(e) => {
-                  // Cmd/Ctrl-click = full detail page; plain click = preview drawer.
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                  e.preventDefault();
-                  if (onItemClick) onItemClick(it); else navigate(it._viewUrl);
-                }}
-                className="group flex flex-col px-2 py-1.5 rounded-md bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-all">{content}</a>
-            ) : (
-              <div key={`${it._id}-${i}`} className="flex flex-col px-2 py-1.5 rounded-md bg-dark-800/30 border border-dark-700/50">{content}</div>
-            );
-          })}
-        </div>
+// Result cards for one tool call. Name on its own line (it used to share a
+// line with the meta and was cut to "Sunk…"), first 5 shown, rest behind
+// "Show all N". 2026-10-22.
+const CARD_LIMIT = 5;
+const TAG_LIMIT = 4;
+function ResultCards({ items, navigate, onItemClick }) {
+  const [all, setAll] = useState(false);
+  if (!items?.length) return null;
+  const shown = all ? items : items.slice(0, CARD_LIMIT);
+  return (
+    <div className="flex flex-col gap-1.5">
+      {shown.map((it, i) => {
+        const clickable = !!it._viewUrl;
+        const skills = Array.isArray(it.skills) ? it.skills : [];
+        const content = (
+          <>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="flex-shrink-0" style={{ color: 'var(--brand-ink)' }}><KindIcon kind={it._kind} /></span>
+              <span className="ra-card-name truncate" title={it.name}>{it.name}</span>
+              {clickable && (
+                <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="ml-auto flex-shrink-0" style={{ color: 'var(--fg-4)' }}><path d="M4 10h10m0 0l-4-4m4 4l-4 4" /></svg>
+              )}
+            </div>
+            {it.meta && <div className="ra-card-meta truncate pl-[18px]" title={it.meta}>{it.meta}</div>}
+            {skills.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1 pl-[18px]">
+                {skills.slice(0, TAG_LIMIT).map((sk) => <span key={sk} className="ra-tag">{sk}</span>)}
+                {skills.length > TAG_LIMIT && <span className="ra-tag" style={{ background: 'transparent', color: 'var(--fg-4)' }}>+{skills.length - TAG_LIMIT}</span>}
+              </div>
+            )}
+          </>
+        );
+        return clickable ? (
+          <a key={`${it._id}-${i}`} href={it._viewUrl} className="ra-card"
+            onClick={(e) => {
+              // Cmd/Ctrl-click = full detail page; plain click = preview drawer.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+              e.preventDefault();
+              if (onItemClick) onItemClick(it); else navigate(it._viewUrl);
+            }}>{content}</a>
+        ) : (
+          <div key={`${it._id}-${i}`} className="ra-card">{content}</div>
+        );
+      })}
+      {items.length > CARD_LIMIT && (
+        <button type="button" className="ra-more self-start" onClick={() => setAll((v) => !v)}>
+          {all ? 'Show fewer' : `Show all ${items.length}`}
+        </button>
       )}
     </div>
   );
@@ -356,7 +389,7 @@ function ListLinks({ links, navigate }) {
         <a key={l.url} href={l.url} onClick={(e) => { e.preventDefault(); navigate(l.url); }}
           className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-rivvra-500/10 border border-rivvra-500/30 text-rivvra-200 hover:bg-rivvra-500/20 hover:border-rivvra-500/50 transition-colors">
           {l.label}
-          <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path d="M4 10h10m0 0l-4-4m4 4l-4 4" /></svg>
+          <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 10h10m0 0l-4-4m4 4l-4 4" /></svg>
         </a>
       ))}
     </div>
@@ -365,16 +398,23 @@ function ListLinks({ links, navigate }) {
 
 function AssistantMessage({ m, orgSlug, navigate, onItemClick, streamingCursor = false, threadId = null }) {
   return (
-    <div className="max-w-[92%] text-sm text-dark-200 space-y-1">
-      {m.toolCalls?.map((tc, i) => (
-        <ToolCallPill key={tc.id || i} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} onItemClick={onItemClick} />
-      ))}
-      {m.content && (
-        <div className="whitespace-pre-wrap break-words">
-          {renderAssistantText(m.content, { orgSlug, navigate })}
-          {streamingCursor && <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-rivvra-400 animate-pulse rounded-sm align-middle" />}
+    // Order (2026-10-22): what was looked up → the answer → the records.
+    // Cards used to come first, so "Here are the top 5…" landed BELOW them.
+    <div className="w-full max-w-[96%] space-y-2">
+      {m.toolCalls?.length > 0 && (
+        <div className="flex flex-col items-start gap-1">
+          {m.toolCalls.map((tc, i) => <ToolCallPill key={tc.id || i} name={tc.name} args={tc.args} summary={tc.summary} />)}
         </div>
       )}
+      {m.content && (
+        <div className="ra-text break-words">
+          {renderAssistantText(m.content, { orgSlug, navigate })}
+          {streamingCursor && <span className="inline-block w-1.5 h-3.5 ml-0.5 animate-pulse rounded-sm align-middle" style={{ background: 'var(--brand)' }} />}
+        </div>
+      )}
+      {m.toolCalls?.map((tc, i) => (
+        <ResultCards key={`r-${tc.id || i}`} items={tc.summary?.items} navigate={navigate} onItemClick={onItemClick} />
+      ))}
       {m.drafts?.map((d, i) => <DraftCard key={d.id || i} draft={d} navigate={navigate} orgSlug={orgSlug} threadId={threadId} />)}
       <ListLinks links={m.listLinks} navigate={navigate} />
     </div>
@@ -384,5 +424,5 @@ function AssistantMessage({ m, orgSlug, navigate, onItemClick, streamingCursor =
 export {
   appFromPath, recordFromPath, entityPath, renderAssistantText,
   KIND_PATH, KIND_TITLE, PREVIEW_KINDS, TOOL_LABEL,
-  KindIcon, ToolCallPill, DraftCard, ListLinks, AssistantMessage,
+  KindIcon, ToolCallPill, ResultCards, DraftCard, ListLinks, AssistantMessage,
 };
