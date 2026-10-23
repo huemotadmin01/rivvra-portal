@@ -3819,29 +3819,62 @@ function FixableConsultantCell({ orgSlug, invoice, line, index, onChanged, showT
 
 // Record / edit / clear the vendor's GST invoice behind one Employee Bill line.
 // Matching data for the GSTR-2B recon only — never changes the bill amount.
+const itcPickedStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 6px 6px 10px', border: '1px solid var(--line)', borderRadius: 8 };
+const itcListStyle = { border: '1px solid var(--line)', borderRadius: 8, maxHeight: 200, overflowY: 'auto' };
+const itcOptionStyle = { display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', background: 'none', border: 0, cursor: 'pointer', font: "450 13px/1.5 'Inter', system-ui, sans-serif" };
+const itcLinkStyle = { background: 'none', border: 0, padding: 0, color: 'var(--brand-ink)', cursor: 'pointer', font: 'inherit' };
+
 function ItcDetailsModal({ orgSlug, invoiceId, line, index, defaultDate, onClose, onSaved, showToast }) {
   const lineTotal = Number(line.subtotal ?? line.amount ?? 0) || 0;
   const iso = (d) => { try { return new Date(d).toISOString().slice(0, 10); } catch { return ''; } };
   const [form, setForm] = useState(() => ({
-    vendorGstin: line.itc?.vendorGstin || '',
     vendorInvoiceNumber: line.itc?.vendorInvoiceNumber || '',
     invoiceDate: iso(line.itc?.invoiceDate || defaultDate),
     taxableValue: line.itc?.taxableValue != null ? String(line.itc.taxableValue) : (lineTotal ? String(lineTotal) : ''),
     taxAmount: line.itc?.taxAmount != null ? String(line.itc.taxAmount) : '',
   }));
+  // Vendor: an existing GST-registered contact in this company's books, or a
+  // new one (name + GSTIN) that the server saves as a supplier contact so it
+  // is picked, not retyped, next time.
+  const [vendor, setVendor] = useState(() => (line.itc?.vendorContactId
+    ? { _id: line.itc.vendorContactId, name: line.itc.vendorName || '', gstin: line.itc.vendorGstin || '' }
+    : null));
+  const [newVendor, setNewVendor] = useState(() => (!line.itc?.vendorContactId && line.itc?.vendorGstin
+    ? { name: line.itc.vendorName || '', gstin: line.itc.vendorGstin } : null));
+  const [query, setQuery] = useState(() => (line.itc ? '' : (line.merchant || '')));
+  const [options, setOptions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const picking = !vendor && !newVendor;
+  useEffect(() => {
+    if (!picking) return undefined;
+    let cancelled = false;
+    setSearching(true); setSearchFailed(false);
+    const t = setTimeout(() => {
+      invoicingApi.listItcVendors(orgSlug, query.trim())
+        .then((r) => { if (!cancelled) { if (!r?.success) throw new Error(); setOptions(r.vendors || []); } })
+        .catch(() => { if (!cancelled) { setOptions([]); setSearchFailed(true); } })
+        .finally(() => { if (!cancelled) setSearching(false); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [picking, query, orgSlug]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const save = async (clear = false) => {
+    if (!clear && !vendor && !newVendor) { setError('Pick the vendor, or add a new one'); return; }
     setSaving(true); setError('');
     try {
-      const body = clear ? { clear: true } : { ...form, vendorGstin: form.vendorGstin.trim().toUpperCase(), taxableValue: Number(form.taxableValue), taxAmount: Number(form.taxAmount || 0) };
+      const vendorPart = vendor
+        ? { vendorContactId: vendor._id }
+        : { vendorName: (newVendor?.name || '').trim(), vendorGstin: (newVendor?.gstin || '').trim().toUpperCase() };
+      const body = clear ? { clear: true } : { ...form, ...vendorPart, taxableValue: Number(form.taxableValue), taxAmount: Number(form.taxAmount || 0) };
       // EMPBI lines (copied from expense claims) usually have no _id — the
       // server then addresses the line by its position.
       const r = await invoicingApi.setEmployeeBillLineItc(orgSlug, invoiceId, line._id || String(index), body);
       if (!r?.success) throw new Error(r?.error || 'Could not save');
       const rec = (r.reconciled || []).map((x) => `${x.period.slice(0, 2)}/${x.period.slice(2)}: ${x.match ? x.match.replace(/_/g, ' ') : 'not in 2B'}`).join(' · ');
-      onSaved(clear ? 'GST invoice details removed' : `GST invoice saved${rec ? ` — 2B ${rec}` : ' — no GSTR-2B uploaded for that month yet'}`);
+      onSaved(clear ? 'GST invoice details removed' : `GST invoice saved${r.vendorCreated ? ` · ${r.itc?.vendorName} added to contacts` : ''}${rec ? ` — 2B ${rec}` : ' — no GSTR-2B uploaded for that month yet'}`);
     } catch (e) { setError(e?.message || 'Could not save'); showToast?.(e?.message || 'Could not save', 'error'); }
     finally { setSaving(false); }
   };
@@ -3859,7 +3892,40 @@ function ItcDetailsModal({ orgSlug, invoiceId, line, index, defaultDate, onClose
           From the vendor's tax invoice for this purchase ({line.merchant || line.description || 'this line'}). Used only to match GSTR-2B and confirm input credit — the bill amount and the employee's reimbursement don't change.
         </p>
         {error && <Callout tone="danger">{error}</Callout>}
-        <Field label="Vendor GSTIN" required htmlFor="itc-gstin"><Input id="itc-gstin" value={form.vendorGstin} onChange={set('vendorGstin')} placeholder="e.g. 27AAECL2013N1ZQ" style={{ textTransform: 'uppercase' }} /></Field>
+        <Field label="Vendor" required htmlFor="itc-vendor">
+          {vendor ? (
+            <div style={itcPickedStyle}>
+              <span style={{ minWidth: 0 }}><span style={valueStyle}>{vendor.name || 'Vendor'}</span> <span style={mutedStyle}>· {vendor.gstin}</span></span>
+              <Button variant="ghost" size="sm" onClick={() => { setVendor(null); setQuery(''); }}>Change</Button>
+            </div>
+          ) : newVendor ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Input id="itc-vendor" value={newVendor.name} onChange={(e) => setNewVendor((v) => ({ ...v, name: e.target.value }))} placeholder="Vendor name as on the invoice" />
+              <Input id="itc-gstin" value={newVendor.gstin} onChange={(e) => setNewVendor((v) => ({ ...v, gstin: e.target.value }))} placeholder="GSTIN, e.g. 27AAECL2013N1ZQ" style={{ textTransform: 'uppercase' }} />
+              <span style={mutedStyle}>Saved to this company's contacts as a supplier.{' '}
+                <button type="button" style={itcLinkStyle} onClick={() => { setNewVendor(null); setQuery(newVendor.name); }}>Pick an existing vendor instead</button>
+              </span>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <Input id="itc-vendor" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search vendor name or GSTIN" autoFocus />
+              <div style={itcListStyle} role="listbox" aria-label="Vendors">
+                {searching ? <div style={{ ...mutedStyle, padding: '8px 10px' }}>Searching…</div>
+                  : searchFailed ? <div style={{ ...mutedStyle, padding: '8px 10px', color: 'var(--danger)' }}>Couldn't load vendors — retype to retry, or add a new one</div>
+                  : options.length === 0 ? <div style={{ ...mutedStyle, padding: '8px 10px' }}>{query.trim() ? `No vendor with a GSTIN matches “${query.trim()}”` : 'No GST-registered vendors yet'}</div>
+                  : options.map((o) => (
+                    <button key={o._id} type="button" role="option" aria-selected="false" className="ds-editable" style={itcOptionStyle} onClick={() => setVendor(o)}>
+                      <span style={valueStyle}>{o.name}</span> <span style={mutedStyle}>{o.gstin}</span>
+                    </button>
+                  ))}
+                <button type="button" className="ds-editable" style={{ ...itcOptionStyle, borderTop: '1px solid var(--line)', color: 'var(--brand-ink)' }}
+                  onClick={() => setNewVendor({ name: query.trim(), gstin: /^[0-9]{2}[A-Z0-9]{13}$/i.test(query.trim()) ? query.trim() : '' })}>
+                  <Plus size={13} style={{ verticalAlign: '-2px' }} /> New vendor{query.trim() ? ` “${query.trim()}”` : ''}
+                </button>
+              </div>
+            </div>
+          )}
+        </Field>
         <Field label="Vendor invoice number" required htmlFor="itc-inv"><Input id="itc-inv" value={form.vendorInvoiceNumber} onChange={set('vendorInvoiceNumber')} /></Field>
         <Field label="Invoice date" required htmlFor="itc-date"><Input id="itc-date" type="date" value={form.invoiceDate} onChange={set('invoiceDate')} /></Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

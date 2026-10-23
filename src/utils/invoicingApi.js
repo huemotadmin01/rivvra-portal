@@ -28,6 +28,9 @@ const invoicingApi = {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/lines/${lineId}/consultant`, { method: 'PATCH', body: JSON.stringify({ consultantId, reason }) });
   },
   // Vendor GST invoice behind an Employee Bill line — 2B matching only (2026-10-23).
+  listItcVendors(orgSlug, search = '') {
+    return api.request(`/api/org/${orgSlug}/invoicing/itc-vendors${search ? `?search=${encodeURIComponent(search)}` : ''}`);
+  },
   setEmployeeBillLineItc(orgSlug, invoiceId, lineId, data) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/lines/${lineId}/itc`, { method: 'PATCH', body: JSON.stringify(data) });
   },
