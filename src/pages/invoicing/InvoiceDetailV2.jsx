@@ -3060,7 +3060,7 @@ export default function InvoiceDetailV2() {
                                         <button type="button" onClick={() => setItcEdit({ line: li, index: i })} style={{ marginLeft: 6, color: 'var(--brand-ink)', font: 'inherit', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>Edit</button>
                                       )}
                                     </div>
-                                  ) : (invoice.status !== 'draft' && invoice.status !== 'cancelled' && li._id) ? (
+                                  ) : (invoice.status !== 'draft' && invoice.status !== 'cancelled') ? (
                                     <button type="button" onClick={() => setItcEdit({ line: li, index: i })}
                                       title="Record the vendor's GST invoice so this purchase can match GSTR-2B"
                                       style={{ display: 'block', marginTop: 3, color: 'var(--brand-ink)', font: "500 11px/1.45 'Inter', system-ui, sans-serif", background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>
@@ -3836,7 +3836,9 @@ function ItcDetailsModal({ orgSlug, invoiceId, line, index, defaultDate, onClose
     setSaving(true); setError('');
     try {
       const body = clear ? { clear: true } : { ...form, vendorGstin: form.vendorGstin.trim().toUpperCase(), taxableValue: Number(form.taxableValue), taxAmount: Number(form.taxAmount || 0) };
-      const r = await invoicingApi.setEmployeeBillLineItc(orgSlug, invoiceId, line._id, body);
+      // EMPBI lines (copied from expense claims) usually have no _id — the
+      // server then addresses the line by its position.
+      const r = await invoicingApi.setEmployeeBillLineItc(orgSlug, invoiceId, line._id || String(index), body);
       if (!r?.success) throw new Error(r?.error || 'Could not save');
       const rec = (r.reconciled || []).map((x) => `${x.period.slice(0, 2)}/${x.period.slice(2)}: ${x.match ? x.match.replace(/_/g, ' ') : 'not in 2B'}`).join(' · ');
       onSaved(clear ? 'GST invoice details removed' : `GST invoice saved${rec ? ` — 2B ${rec}` : ' — no GSTR-2B uploaded for that month yet'}`);
