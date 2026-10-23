@@ -3895,7 +3895,7 @@ function ItcDetailsModal({ orgSlug, invoiceId, line, index, defaultDate, onClose
         <Field label="Vendor" required htmlFor="itc-vendor">
           {vendor ? (
             <div style={itcPickedStyle}>
-              <span style={{ minWidth: 0 }}><span style={valueStyle}>{vendor.name || 'Vendor'}</span> <span style={mutedStyle}>· {vendor.gstin}</span></span>
+              <span style={{ minWidth: 0, display: 'grid' }}><span style={valueStyle}>{vendor.name || 'Vendor'}</span><span style={mutedStyle}>GSTIN {vendor.gstin}</span></span>
               <Button variant="ghost" size="sm" onClick={() => { setVendor(null); setQuery(''); }}>Change</Button>
             </div>
           ) : newVendor ? (
@@ -3918,9 +3918,9 @@ function ItcDetailsModal({ orgSlug, invoiceId, line, index, defaultDate, onClose
                       <span style={valueStyle}>{o.name}</span> <span style={mutedStyle}>{o.gstin}</span>
                     </button>
                   ))}
-                <button type="button" className="ds-editable" style={{ ...itcOptionStyle, borderTop: '1px solid var(--line)', color: 'var(--brand-ink)' }}
+                <button type="button" className="ds-editable" style={{ ...itcOptionStyle, display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid var(--line)', color: 'var(--brand-ink)' }}
                   onClick={() => setNewVendor({ name: query.trim(), gstin: /^[0-9]{2}[A-Z0-9]{13}$/i.test(query.trim()) ? query.trim() : '' })}>
-                  <Plus size={13} style={{ verticalAlign: '-2px' }} /> New vendor{query.trim() ? ` “${query.trim()}”` : ''}
+                  <Plus size={13} style={{ flexShrink: 0 }} />New vendor{query.trim() ? ` “${query.trim()}”` : ''}
                 </button>
               </div>
             </div>
