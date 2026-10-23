@@ -855,6 +855,8 @@ export default function InvoiceDetailV2() {
   }, [searchParams, invoiceId]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
+  // Employee Bill line whose vendor GST invoice is being recorded (2B matching).
+  const [itcEdit, setItcEdit] = useState(null);
 
   // E-Invoice
   const [eInvoiceStep, setEInvoiceStep] = useState(null); // null | 'validating' | 'submitting' | 'done' | 'error'
@@ -3047,7 +3049,25 @@ export default function InvoiceDetailV2() {
                                       : dash}
                                 </td>
                                 <td style={tdStyle}>{li.expenseCategoryName || li.expenseCategory || dash}</td>
-                                <td style={{ ...tdMuted, maxWidth: 320 }}>{li.description || dash}</td>
+                                <td style={{ ...tdMuted, maxWidth: 320 }}>
+                                  {li.description || dash}
+                                  {/* Vendor GST invoice behind this purchase — lets the line
+                                      clear its GSTR-2B row (2026-10-23). Matching data only. */}
+                                  {li.itc ? (
+                                    <div style={{ font: "400 11px/1.45 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', marginTop: 3 }}>
+                                      GST inv {li.itc.vendorInvoiceNumber} · {li.itc.vendorGstin} · {formatCurrency(li.itc.taxAmount, 'INR')} GST
+                                      {invoice.status !== 'cancelled' && (
+                                        <button type="button" onClick={() => setItcEdit({ line: li, index: i })} style={{ marginLeft: 6, color: 'var(--brand-ink)', font: 'inherit', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>Edit</button>
+                                      )}
+                                    </div>
+                                  ) : (invoice.status !== 'draft' && invoice.status !== 'cancelled' && li._id) ? (
+                                    <button type="button" onClick={() => setItcEdit({ line: li, index: i })}
+                                      title="Record the vendor's GST invoice so this purchase can match GSTR-2B"
+                                      style={{ display: 'block', marginTop: 3, color: 'var(--brand-ink)', font: "500 11px/1.45 'Inter', system-ui, sans-serif", background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>
+                                      + GST invoice (for 2B)
+                                    </button>
+                                  ) : null}
+                                </td>
                                 <td style={tdStyle}>{li.merchant || dash}</td>
                                 <td style={tdStyle}>{paymentLabel || dash}</td>
                                 <td style={{ ...tdRight, paddingRight: 24 }}>
@@ -3603,6 +3623,15 @@ export default function InvoiceDetailV2() {
         />
       )}
 
+      {itcEdit && (
+        <ItcDetailsModal
+          orgSlug={orgSlug} invoiceId={invoiceId} line={itcEdit.line} index={itcEdit.index}
+          defaultDate={itcEdit.line.expenseDate || invoice.date}
+          onClose={() => setItcEdit(null)}
+          onSaved={(msg) => { setItcEdit(null); showToast(msg, 'success'); fetchInvoice(); }}
+          showToast={showToast}
+        />
+      )}
       {showCreditNoteModal && (
         <CreditNoteModal
           orgSlug={orgSlug}
@@ -3785,6 +3814,58 @@ function FixableConsultantCell({ orgSlug, invoice, line, index, onChanged, showT
           onSelect={pick} onClose={() => setOpen(false)} />
       )}
     </td>
+  );
+}
+
+// Record / edit / clear the vendor's GST invoice behind one Employee Bill line.
+// Matching data for the GSTR-2B recon only — never changes the bill amount.
+function ItcDetailsModal({ orgSlug, invoiceId, line, index, defaultDate, onClose, onSaved, showToast }) {
+  const lineTotal = Number(line.subtotal ?? line.amount ?? 0) || 0;
+  const iso = (d) => { try { return new Date(d).toISOString().slice(0, 10); } catch { return ''; } };
+  const [form, setForm] = useState(() => ({
+    vendorGstin: line.itc?.vendorGstin || '',
+    vendorInvoiceNumber: line.itc?.vendorInvoiceNumber || '',
+    invoiceDate: iso(line.itc?.invoiceDate || defaultDate),
+    taxableValue: line.itc?.taxableValue != null ? String(line.itc.taxableValue) : (lineTotal ? String(lineTotal) : ''),
+    taxAmount: line.itc?.taxAmount != null ? String(line.itc.taxAmount) : '',
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const save = async (clear = false) => {
+    setSaving(true); setError('');
+    try {
+      const body = clear ? { clear: true } : { ...form, vendorGstin: form.vendorGstin.trim().toUpperCase(), taxableValue: Number(form.taxableValue), taxAmount: Number(form.taxAmount || 0) };
+      const r = await invoicingApi.setEmployeeBillLineItc(orgSlug, invoiceId, line._id, body);
+      if (!r?.success) throw new Error(r?.error || 'Could not save');
+      const rec = (r.reconciled || []).map((x) => `${x.period.slice(0, 2)}/${x.period.slice(2)}: ${x.match ? x.match.replace(/_/g, ' ') : 'not in 2B'}`).join(' · ');
+      onSaved(clear ? 'GST invoice details removed' : `GST invoice saved${rec ? ` — 2B ${rec}` : ' — no GSTR-2B uploaded for that month yet'}`);
+    } catch (e) { setError(e?.message || 'Could not save'); showToast?.(e?.message || 'Could not save', 'error'); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Modal open size="sm" title={`GST invoice · line ${index + 1}`} onClose={onClose}
+      footer={(
+        <>
+          {line.itc && <Button variant="ghost" size="sm" onClick={() => save(true)} disabled={saving} style={{ marginRight: 'auto', color: 'var(--danger)' }}>Remove</Button>}
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => save(false)} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        </>
+      )}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <p style={{ margin: 0, font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
+          From the vendor's tax invoice for this purchase ({line.merchant || line.description || 'this line'}). Used only to match GSTR-2B and confirm input credit — the bill amount and the employee's reimbursement don't change.
+        </p>
+        {error && <Callout tone="danger">{error}</Callout>}
+        <Field label="Vendor GSTIN" required htmlFor="itc-gstin"><Input id="itc-gstin" value={form.vendorGstin} onChange={set('vendorGstin')} placeholder="e.g. 27AAECL2013N1ZQ" style={{ textTransform: 'uppercase' }} /></Field>
+        <Field label="Vendor invoice number" required htmlFor="itc-inv"><Input id="itc-inv" value={form.vendorInvoiceNumber} onChange={set('vendorInvoiceNumber')} /></Field>
+        <Field label="Invoice date" required htmlFor="itc-date"><Input id="itc-date" type="date" value={form.invoiceDate} onChange={set('invoiceDate')} /></Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Taxable value (₹)" required htmlFor="itc-taxable"><Input id="itc-taxable" type="number" min="0" step="0.01" value={form.taxableValue} onChange={set('taxableValue')} /></Field>
+          <Field label="GST amount (₹)" required htmlFor="itc-tax"><Input id="itc-tax" type="number" min="0" step="0.01" value={form.taxAmount} onChange={set('taxAmount')} /></Field>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

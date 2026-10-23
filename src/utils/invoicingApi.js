@@ -27,6 +27,10 @@ const invoicingApi = {
   changeLineConsultant(orgSlug, invoiceId, lineId, consultantId, reason) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/lines/${lineId}/consultant`, { method: 'PATCH', body: JSON.stringify({ consultantId, reason }) });
   },
+  // Vendor GST invoice behind an Employee Bill line — 2B matching only (2026-10-23).
+  setEmployeeBillLineItc(orgSlug, invoiceId, lineId, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/lines/${lineId}/itc`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
   getProfitabilityRecords(orgSlug, params = {}) {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/profitability/records${qs ? '?' + qs : ''}`);

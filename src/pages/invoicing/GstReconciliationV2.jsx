@@ -442,7 +442,8 @@ export default function GstReconciliationV2() {
                             <div className="text-white">{r.number || '—'}</div>
                             <div className="text-dark-400 text-xs flex items-center gap-1">
                               {r.contactName} · inv {r.vendorInvoiceNumber || '—'}
-                              {isAdmin && r.billId && (r.match === 'mismatch' || r.match === 'missing_in_2b') && (
+                              {/* Employee-bill lines (id "bill:line") are edited on the bill's GST invoice form. */}
+                              {isAdmin && r.billId && !String(r.billId).includes(':') && (r.match === 'mismatch' || r.match === 'missing_in_2b') && (
                                 <button onClick={() => setEditRef(r)}
                                   title="Edit the vendor invoice number (2B matching key)"
                                   className="p-0.5 rounded text-dark-500 hover:text-white hover:bg-dark-700 transition-colors">
