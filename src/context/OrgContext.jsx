@@ -263,8 +263,13 @@ export function OrgProvider({ children }) {
     if (!access?.enabled) return null;
     const orgRole = membership.orgRole;
     if (orgRole === 'owner' || orgRole === 'admin') return 'admin';
-    // Return per-app role if set (e.g. 'team_lead', 'salesperson'), otherwise 'member'
-    return access.role || 'member';
+    // Per-app admin for the finance apps (2026-10-26) — the SAME rule as the
+    // API's helpers/appRole.js. `access.role` is NOT a grant: it defaults to
+    // 'admin' for payroll/invoicing on every enable, which showed members admin
+    // screens the server then refused ("Failed to load run").
+    if (['payroll', 'incentive', 'invoicing'].includes(appId) && access.admin === true) return 'admin';
+    // Other per-app roles (e.g. 'team_lead') pass through; 'admin' never does.
+    return access.role && access.role !== 'admin' ? access.role : 'member';
   }, [membership]);
 
   // Alumni state helpers (read-only post-separation access window)

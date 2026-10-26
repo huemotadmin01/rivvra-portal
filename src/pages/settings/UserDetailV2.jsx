@@ -21,6 +21,10 @@ import {
 import api from '../../utils/api';
 import employeeApi from '../../utils/employeeApi';
 import { APP_REGISTRY } from '../../config/apps';
+
+// Apps a Member can be made admin of without org-wide admin (2026-10-26).
+// Mirrors APP_ADMIN_GRANTABLE in the API's helpers/appRole.js.
+const APP_ADMIN_GRANTABLE = ['payroll', 'incentive', 'invoicing'];
 import ReassignDataModal from '../../components/settings/ReassignDataModal';
 import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../../utils/sendLimits';
 
@@ -201,7 +205,7 @@ export default function UserDetail() {
         [appId]: {
           ...prev.appAccess[appId],
           [field]: value,
-          ...(field === 'enabled' && !value ? { role: null } : {}),
+          ...(field === 'enabled' && !value ? { role: null, admin: false } : {}),
           ...(field === 'enabled' && value && !prev.appAccess[appId]?.role
             ? { role: 'member' }
             : {}),
@@ -670,6 +674,18 @@ export default function UserDetail() {
                         <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
                         <span className="text-sm text-white font-medium">{app.name}</span>
                       </div>
+                      <div className="flex items-center gap-3">
+                      {access.enabled && APP_ADMIN_GRANTABLE.includes(app.id) && editData.orgRole === 'member' && (
+                        <label className="flex items-center gap-1.5 text-xs text-dark-300 cursor-pointer select-none" title={`Full ${app.name} admin rights without making them an organization admin`}>
+                          <input
+                            type="checkbox"
+                            checked={access.admin === true}
+                            onChange={(e) => updateAppAccess(app.id, 'admin', e.target.checked)}
+                            className="accent-rivvra-500"
+                          />
+                          {app.name} admin
+                        </label>
+                      )}
                       <button
                         onClick={() => updateAppAccess(app.id, 'enabled', !access.enabled)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
@@ -680,6 +696,7 @@ export default function UserDetail() {
                           access.enabled ? 'translate-x-6' : 'translate-x-1'
                         }`} />
                       </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -702,12 +719,17 @@ export default function UserDetail() {
                         <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
                         <span className="text-sm text-white font-medium">{app.name}</span>
                       </div>
+                      <div className="flex items-center gap-3">
+                      {isEnabled && access?.admin === true && member.orgRole === 'member' && APP_ADMIN_GRANTABLE.includes(app.id) && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20">Admin</span>
+                      )}
                       <div className={`relative inline-flex h-6 w-11 items-center rounded-full ${
                         isEnabled ? 'bg-rivvra-500' : 'bg-dark-600'
                       }`}>
                         <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                           isEnabled ? 'translate-x-6' : 'translate-x-1'
                         }`} />
+                      </div>
                       </div>
                     </div>
                   );

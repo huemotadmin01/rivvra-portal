@@ -247,7 +247,7 @@ export default function PayrollRunPageV2() {
     try {
       const res = await getPayrollRun(orgSlug, id);
       setSelectedRun(res.run);
-    } catch (err) { showToast(err.response?.data?.message || 'Failed to load run', 'error'); }
+    } catch (err) { showToast(err?.message || 'Failed to load run', 'error'); }
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
