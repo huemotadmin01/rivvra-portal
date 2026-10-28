@@ -52,6 +52,10 @@ const SYSTEM_ACTION_LABELS = {
   rate_confirmation_sent: 'Rate Confirmation',
   team_notice_fanout: 'Team announcement',
   interview_invite_sent: 'Interview invite',
+  // 2026-10-28: employee PAN / bank change history + document fixes.
+  bank_details_changed: 'Bank details',
+  document_moved: 'Document',
+  document_relabelled: 'Document',
 };
 
 // Timestamps and recipient lines are text, not decoration: --fg-faint is
