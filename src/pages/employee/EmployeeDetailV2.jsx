@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -190,6 +190,9 @@ function statusBadge(status) {
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
+
+// 'PAN Card' is the stored label for every existing upload = the payee's card.
+const docSubLabel = (sub) => (sub === 'PAN Card' ? 'PAN Card – Payee' : sub);
 
 export default function EmployeeDetail() {
   const { employeeId } = useParams();
@@ -434,6 +437,23 @@ export default function EmployeeDetail() {
   }, [currentOrg?.slug, isAdmin, appRole]);
 
   // Inline save handler
+  // 2026-10-28: changing a consultant's PAN / bank account (e.g. salary to a
+  // relative's account) needs a reason — the API refuses without one and
+  // keeps it in the change history. Promise-based prompt so InlineField's
+  // async onSave can await it (cancel = throw → field reverts).
+  const [reasonAsk, setReasonAsk] = useState(null); // { label, resolve }
+  const [reasonText, setReasonText] = useState('');
+  const lastReasonRef = useRef('');
+  const askChangeReason = useCallback((label) => new Promise((resolve) => {
+    setReasonText(lastReasonRef.current);
+    setReasonAsk({ label, resolve });
+  }), []);
+  const closeReason = (value) => {
+    const r = reasonAsk; setReasonAsk(null);
+    if (value) lastReasonRef.current = value;
+    r?.resolve(value || null);
+  };
+
   const handleFieldSave = useCallback(async (field, value) => {
     const slug = currentOrg?.slug;
     if (!slug || !employee) throw new Error('Missing context');
@@ -441,6 +461,14 @@ export default function EmployeeDetail() {
     // Build payload — use dot-notation for nested fields so the backend
     // can $set only the changed sub-field without replacing the entire object.
     const payload = { [field]: value };
+    const REASON_FIELDS = { 'bankDetails.pan': 'PAN', 'bankDetails.accountNumber': 'bank account number' };
+    if (REASON_FIELDS[field] && !(isSelf && !isAdmin)
+        && ['internal_consultant', 'external_consultant'].includes(employee.employmentType)
+        && String(value || '').trim().toUpperCase() !== String(employee.bankDetails?.[field.split('.')[1]] || '').trim().toUpperCase()) {
+      const reason = await askChangeReason(REASON_FIELDS[field]);
+      if (!reason) throw new Error('Change cancelled — a reason is needed for a consultant’s PAN / bank account');
+      payload.changeReason = reason;
+    }
 
     let res;
     if (isSelf && !isAdmin) {
@@ -478,7 +506,7 @@ export default function EmployeeDetail() {
       }
       return updated;
     });
-  }, [currentOrg?.slug, employee, isSelf, isAdmin, departments, managerOptions]);
+  }, [currentOrg?.slug, employee, isSelf, isAdmin, departments, managerOptions, askChangeReason]);
 
   // Helper to get permission for a field
   const fp = useCallback((fieldKey) => {
@@ -1628,7 +1656,10 @@ export default function EmployeeDetail() {
       {/* ── Documents ────────────────────────────────────────────────────── */}
       {(() => {
         const DOCUMENT_CATEGORIES = [
-          { key: 'id_document', label: 'ID Documents', subcategories: ['Aadhaar Card', 'PAN Card', 'Passport', 'Voter ID', 'Driving License'] },
+          // 2026-10-28: a consultant's pay can go to a relative, so two PAN
+          // cards may be on file. 'PAN Card' (all existing uploads) = the
+          // PAYEE's — the one that must match the PAN on the record.
+          { key: 'id_document', label: 'ID Documents', subcategories: ['Aadhaar Card', 'PAN Card', 'PAN Card – Consultant', 'Passport', 'Voter ID', 'Driving License'] },
           { key: 'bank_proof', label: 'Bank Proof', subcategories: ['Cancelled Cheque', 'Digital Passbook', 'Bank Statement'] },
           { key: 'education_certificate', label: 'Education Certificates', subcategories: ['10th Marksheet', '12th Marksheet', 'Degree Certificate', 'Diploma', 'Post Graduation'] },
           { key: 'employment', label: 'Employment Documents', subcategories: ['Offer Letter', 'Appointment Letter', 'Relieving Letter', 'Experience Certificate', 'Salary Slip'] },
@@ -1744,7 +1775,7 @@ export default function EmployeeDetail() {
                                   {subcategories.length > 0 && subcategories.map(sub => (
                                     <button key={sub} onClick={() => handleDocUpload(key, sub)}
                                       className="block w-full text-left px-3 py-2 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors">
-                                      {sub}
+                                      {docSubLabel(sub)}
                                     </button>
                                   ))}
                                   <button onClick={() => {
@@ -1773,7 +1804,7 @@ export default function EmployeeDetail() {
                                     className="text-sm text-blue-400 hover:underline truncate block text-left w-full">
                                     {doc.filename}
                                   </button>
-                                  {doc.subcategory && <span className="text-[10px] text-dark-500">{doc.subcategory}</span>}
+                                  {doc.subcategory && <span className="text-[10px] text-dark-500">{docSubLabel(doc.subcategory)}</span>}
                                 </div>
                                 <span className="text-xs text-dark-500 flex-shrink-0">
                                   {doc.size < 1024 * 1024 ? `${(doc.size / 1024).toFixed(0)}KB` : `${(doc.size / (1024 * 1024)).toFixed(1)}MB`}
@@ -2167,6 +2198,35 @@ export default function EmployeeDetail() {
       <div className="mt-5">
         <ActivityPanelV2 orgSlug={currentOrg?.slug} entityType="employee" entityId={employeeId} />
       </div>
+
+      {/* ── Change-reason prompt (consultant PAN / bank account) ──────── */}
+      {reasonAsk && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => closeReason(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="reason-title" className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-dark-600 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 id="reason-title" className="text-white font-semibold text-lg mb-1">Why is the {reasonAsk.label} changing?</h3>
+            <p className="text-dark-400 text-xs mb-3">
+              {emp?.fullName} is a consultant. The reason is saved in the change history (for your CA / TDS records).
+            </p>
+            <textarea
+              autoFocus
+              rows={3}
+              value={reasonText}
+              onChange={(e) => setReasonText(e.target.value)}
+              placeholder="e.g. Salary to be credited to his relative's account at the consultant's request"
+              className="w-full rounded-lg bg-dark-900 border border-dark-600 px-3 py-2 text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-rivvra-500"
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button type="button" onClick={() => closeReason(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white">Cancel</button>
+              <button
+                type="button"
+                disabled={reasonText.trim().length < 3}
+                onClick={() => closeReason(reasonText.trim())}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 disabled:opacity-40"
+              >Save change</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Separation Confirm Modal (audit M1) ──────────────────────── */}
       {showSeparationConfirm && (
