@@ -18,6 +18,7 @@ import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
+import { buildJobApplicationsParams, hasActiveJobAppFilters, RATE_CONF_FILTER_OPTIONS, APP_STATUS_FILTER_OPTIONS } from '../../utils/jobApplicationsQuery';
 import SourcingStrings from '../../components/ats/SourcingStrings';
 import { AiScoreBadge, StaleFitMarker, isFitScoreStale } from '../../components/ats/AiResumeInsights';
 import RateConfirmationChip from '../../components/ats/RateConfirmationChip';
@@ -29,7 +30,7 @@ import {
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
   CheckCircle2, Clock, XCircle, AlertTriangle,
-  Globe, Copy, ExternalLink, Check, Share2, Sparkles, RefreshCw,
+  Globe, Copy, ExternalLink, Check, Share2, Sparkles, RefreshCw, Search, X,
 } from 'lucide-react';
 import api from '../../utils/api';
 import DOMPurify from 'dompurify';
@@ -477,6 +478,14 @@ export default function AtsJobDetail() {
   // null/missing lowest, so unscored rows naturally fall to the end);
   // 'newest' = the pre-existing appliedOn desc order.
   const [appsSort, setAppsSort] = useState('fit');
+  // 2026-10-28: search + Stage / Signature / Status filters, applied
+  // server-side (the table is paged). Sorting stays exactly as before.
+  const [appsSearchInput, setAppsSearchInput] = useState('');
+  const [appsSearch, setAppsSearch] = useState('');
+  const [appsStage, setAppsStage] = useState('');
+  const [appsRc, setAppsRc] = useState('');
+  const [appsStatus, setAppsStatus] = useState('');
+  const [jobStages, setJobStages] = useState([]);
   const [rescoringAppId, setRescoringAppId] = useState(null);
   const [appsLoading, setAppsLoading] = useState(false);
   // Bumped to force the Suggested Candidates card to re-fetch (e.g. after
@@ -703,16 +712,12 @@ export default function AtsJobDetail() {
     if (!orgSlug || !jobId) return null;
     if (!silent) setAppsLoading(true);
     try {
-      const res = await atsApi.listApplications(orgSlug, {
-        jobId,
-        page: appsPage,
-        limit: 15,
-        sort: appsSort === 'fit' ? 'aiJobFitScore' : 'appliedOn',
-        dir: 'desc',
-        // Ask the list endpoint to keep aiJobFitReasoning (stripped by
-        // default) — shown as the hover title on the AI Fit badge.
-        withFit: 1,
-      });
+      // withFit=1 asks the list endpoint to keep aiJobFitReasoning (stripped
+      // by default) — shown as the hover title on the AI Fit badge.
+      const res = await atsApi.listApplications(orgSlug, buildJobApplicationsParams({
+        jobId, page: appsPage, limit: 15, sort: appsSort,
+        search: appsSearch, stageId: appsStage, rateConfirmation: appsRc, status: appsStatus,
+      }));
       if (res.success) {
         setApplications(res.applications || []);
         setAppsTotal(res.total || 0);
@@ -725,7 +730,7 @@ export default function AtsJobDetail() {
       if (!silent) setAppsLoading(false);
     }
     return null;
-  }, [orgSlug, jobId, appsPage, appsSort]);
+  }, [orgSlug, jobId, appsPage, appsSort, appsSearch, appsStage, appsRc, appsStatus]);
 
   // 2026-09-23: editing the JD (name / description / experience / skills)
   // bumps job.aiJobStamp and the API re-scores every ongoing application in
@@ -818,7 +823,32 @@ export default function AtsJobDetail() {
   // 2026-07-18 audit D4: reset applications pagination when navigating to a
   // different job — the old page index used to survive the jobId change and
   // could land past the new job's last page (blank table).
-  useEffect(() => { setAppsPage(1); }, [jobId]);
+  useEffect(() => {
+    setAppsPage(1);
+    setAppsSearchInput(''); setAppsSearch(''); setAppsStage(''); setAppsRc(''); setAppsStatus('');
+  }, [jobId]);
+
+  // Debounce the search box; any filter change goes back to page 1.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = appsSearchInput.trim();
+      setAppsSearch((prev) => (prev === q ? prev : q));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [appsSearchInput]);
+  useEffect(() => { setAppsPage(1); }, [appsSearch, appsStage, appsRc, appsStatus]);
+
+  // Stage options for the filter — this job's resolved pipeline.
+  useEffect(() => {
+    if (!orgSlug || !jobId) return undefined;
+    let alive = true;
+    atsApi.listStages(orgSlug, jobId)
+      .then((res) => { if (alive && res?.success) setJobStages(res.stages || []); })
+      .catch(() => { if (alive) setJobStages([]); });
+    return () => { alive = false; };
+  }, [orgSlug, jobId]);
+  const appsFiltered = hasActiveJobAppFilters({ search: appsSearch, stageId: appsStage, rateConfirmation: appsRc, status: appsStatus });
+  const clearAppFilters = () => { setAppsSearchInput(''); setAppsSearch(''); setAppsStage(''); setAppsRc(''); setAppsStatus(''); };
 
   // 2026-07-18 audit D12: Escape dismisses the Archive/Delete confirmation
   // modals (backdrop click added on the overlays below). Blocked while the
@@ -1638,288 +1668,7 @@ export default function AtsJobDetail() {
             />
           )}
 
-          {/* Applications */}
-          <div>
-            {/* 2026-05-12 audit dedupe: header already has "+ New
-                Application" as the primary CTA — removed the duplicate
-                inline link here. Empty-state button below still renders
-                when applications.length === 0 because at that point the
-                header CTA needs reinforcing as the next action. */}
-            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-              <h2 className="text-lg font-semibold text-white">
-                Applications
-                <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
-              </h2>
-              {appsTotal > 0 && (
-                <div className="flex items-center gap-1 text-xs" role="group" aria-label="Sort applications">
-                  <span className="text-dark-500 mr-1">Sort</span>
-                  {[
-                    { key: 'fit', label: 'AI fit rank' },
-                    { key: 'newest', label: 'Newest first' },
-                  ].map(({ key, label }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => { if (appsSort !== key) { setAppsSort(key); setAppsPage(1); } }}
-                      aria-pressed={appsSort === key}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border transition-colors ${
-                        appsSort === key
-                          ? 'bg-rivvra-500/15 border-rivvra-500/40 text-rivvra-300'
-                          : 'border-dark-700 text-dark-400 hover:text-dark-200 hover:border-dark-600'
-                      }`}
-                    >
-                      {key === 'fit' ? <Sparkles size={12} /> : <Clock size={12} />} {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            {appsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
-              </div>
-            ) : applications.length === 0 ? (
-              <div className="card p-8 flex flex-col items-center justify-center">
-                <Users className="w-8 h-8 text-dark-500 mb-2" />
-                <p className="text-dark-400 text-sm mb-3">No applications for this position yet.</p>
-                {canCreateApplication && (
-                  <button
-                    onClick={() => navigate(orgPath(`/ats/jobs/${jobId}/applications/new`))}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400"
-                  >
-                    <Plus size={12} /> New Application
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-dark-700">
-                          {appsSort === 'fit' && (
-                            <th className="text-right pl-4 pr-2 py-3 text-dark-400 font-medium w-10">#</th>
-                          )}
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
-                          <th className="text-center px-4 py-3 text-dark-400 font-medium" title="AI job-fit score (0–100): this application's résumé scored against this job's description">
-                            <span className="inline-flex items-center gap-1"><Sparkles size={12} className="text-amber-400" /> AI Fit</span>
-                          </th>
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium whitespace-nowrap" title="Rate & terms confirmation — signed by both parties, awaiting signature, or not sent">Rate Conf.</th>
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
-                          <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
-                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {applications.map((app, idx) => {
-                          // 2026-09-16 ranked view: rank counts only SCORED
-                          // rows, continuing across pages. Unscored rows
-                          // (no résumé, parse failure, still processing)
-                          // group under a divider at the first such row
-                          // on the page and can be re-scored inline.
-                          const isScored = typeof app.aiJobFitScore === 'number';
-                          const prevScored = idx === 0 ? null : typeof applications[idx - 1].aiJobFitScore === 'number';
-                          const showUnscoredDivider = appsSort === 'fit' && !isScored && (idx === 0 || prevScored);
-                          const rank = isScored ? (appsPage - 1) * 15 + idx + 1 : null;
-                          const fitStatus = app.aiJobFitStatus;
-                          const fitLabel = isScored ? null
-                            : fitStatus === 'pending' ? 'Scoring…'
-                            : fitStatus === 'failed' ? 'Failed'
-                            : fitStatus === 'quota_exceeded' ? 'AI quota hit'
-                            : fitStatus === 'skipped' ? 'No résumé'
-                            : 'Not scored';
-                          const canRescore = (isAdmin || isAccountOwner || isAssignedApprover) && !job?.archived && fitStatus !== 'pending';
-                          const isRescoring = rescoringAppId === app._id;
-                          // recruiterId on applications now stores the
-                          // employee _id (semantic shifted with the People
-                          // field migration). Older rows may still hold a
-                          // portal_user id — the link will 404 until the
-                          // backfill (or a re-save) runs.
-                          const recId = app.recruiter || app.recruiterId;
-                          // 2026-05-18 PM: surface lifecycle Status (Active /
-                          // Hired / Refused) as its own column + tint the
-                          // candidate name red for refused rows, matching the
-                          // Applications list view.
-                          const appStatus = app.applicationStatus || app.status;
-                          const isRefused = appStatus === 'refused' || !!app.refused;
-                          const isHired = appStatus === 'hired' || !!app.hireDate;
-                          return (
-                            <Fragment key={app._id}>
-                            {showUnscoredDivider && (
-                              <tr className="bg-dark-800/40">
-                                <td colSpan={99} className="px-4 py-2 text-[11px] uppercase tracking-wider text-dark-500 font-semibold">
-                                  Not ranked — no AI fit score yet
-                                  <span className="normal-case tracking-normal font-normal ml-2 text-dark-500">
-                                    (no résumé on the application, a parse failure, or still processing)
-                                  </span>
-                                </td>
-                              </tr>
-                            )}
-                            <tr
-                              onClick={() => openApp(app._id)}
-                              className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
-                            >
-                              {appsSort === 'fit' && (
-                                <td className="pl-4 pr-2 py-3 text-right tabular-nums text-dark-400 text-xs">
-                                  {rank ?? '—'}
-                                </td>
-                              )}
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
-                                  {app.candidateId ? (
-                                    <Link
-                                      to={withFromContext(orgPath(`/ats/candidates/${app.candidateId}`), 'ats_job', jobId)}
-                                      onClick={(e) => e.stopPropagation()}
-                                      title="Open candidate profile"
-                                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isRefused ? 'bg-red-500/10 hover:bg-red-500/20' : 'bg-rivvra-500/10 hover:bg-rivvra-500/20'}`}
-                                    >
-                                      <span className={`text-xs font-semibold ${isRefused ? 'text-red-400' : 'text-rivvra-400'}`}>
-                                        {(app.candidateName || '?')[0].toUpperCase()}
-                                      </span>
-                                    </Link>
-                                  ) : (
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isRefused ? 'bg-red-500/10' : 'bg-rivvra-500/10'}`}>
-                                      <span className={`text-xs font-semibold ${isRefused ? 'text-red-400' : 'text-rivvra-400'}`}>
-                                        {(app.candidateName || '?')[0].toUpperCase()}
-                                      </span>
-                                    </div>
-                                  )}
-                                  <Link
-                                    to={withFromContext(orgPath(`/ats/applications/${app._id}`), 'ats_job', jobId)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className={`font-medium truncate hover:underline ${isRefused ? 'text-red-400 hover:text-red-300' : 'text-white hover:text-rivvra-300'}`}
-                                  >
-                                    {app.candidateName || 'Unnamed'}
-                                  </Link>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center justify-center gap-2">
-                                  {isScored ? (
-                                    <span title={app.aiJobFitReasoning || 'AI job-fit score'} className="cursor-help inline-flex items-center gap-1.5">
-                                      <AiScoreBadge score={app.aiJobFitScore} size="sm" />
-                                      {isFitScoreStale(app.aiJobFitJobStamp, job?.aiJobStamp) && <StaleFitMarker compact />}
-                                    </span>
-                                  ) : (
-                                    <span className={`text-[11px] ${fitStatus === 'failed' || fitStatus === 'quota_exceeded' ? 'text-red-400' : 'text-dark-500'}`}>
-                                      {fitLabel}
-                                    </span>
-                                  )}
-                                  {(!isScored || isFitScoreStale(app.aiJobFitJobStamp, job?.aiJobStamp)) && canRescore && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => handleRescoreApp(e, app._id)}
-                                      disabled={isRescoring || !!rescoringAppId}
-                                      title="Run AI scoring for this application now"
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dark-700 text-[11px] text-dark-300 hover:text-white hover:border-dark-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      <RefreshCw size={11} className={isRescoring ? 'animate-spin' : ''} />
-                                      {isRescoring ? 'Scoring' : 'Score'}
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
-                                <span className="truncate block max-w-[180px]">{app.candidateEmail || '—'}</span>
-                              </td>
-                              <td className="px-4 py-3"><RateConfirmationChip app={app} /></td>
-                              <td className="px-4 py-3">
-                                <StageBadge stageName={app.stageName || app.stageId?.name} />
-                              </td>
-                              <td className="px-4 py-3">
-                                {isRefused ? (
-                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Refused</span>
-                                ) : isHired ? (
-                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Hired</span>
-                                ) : (
-                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-rivvra-500/10 text-rivvra-300 border border-rivvra-500/20">Active</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                                {recId && app.recruiterName ? (
-                                  <Link
-                                    to={withFromContext(orgPath(`/employee/${recId}`), 'ats_job', jobId)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="hover:text-rivvra-300 hover:underline"
-                                  >
-                                    {app.recruiterName}
-                                  </Link>
-                                ) : (
-                                  app.recruiterName || '—'
-                                )}
-                              </td>
-                              <td className="px-4 py-3 hidden lg:table-cell">
-                                <div className="flex justify-center">
-                                  <EvalStars value={app.evaluation || 0} />
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                                {formatDate(app.appliedOn)}
-                              </td>
-                            </tr>
-                            </Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {appsTotalPages > 1 && (
-                  <div className="flex items-center justify-between mt-4">
-                    <p className="text-dark-400 text-sm">
-                      Showing {appsTotal === 0 ? 0 : (appsPage - 1) * 15 + 1}–{Math.min(appsPage * 15, appsTotal)} of {appsTotal}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setAppsPage((p) => Math.max(1, p - 1))}
-                        disabled={appsPage === 1}
-                        className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronDown size={16} className="rotate-90" />
-                      </button>
-                      {Array.from({ length: appsTotalPages }, (_, i) => i + 1)
-                        .filter((p) => p === 1 || p === appsTotalPages || Math.abs(p - appsPage) <= 1)
-                        .reduce((acc, p, i, arr) => {
-                          if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
-                          acc.push(p);
-                          return acc;
-                        }, [])
-                        .map((p, i) =>
-                          p === '...' ? (
-                            <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
-                          ) : (
-                            <button
-                              key={p}
-                              onClick={() => setAppsPage(p)}
-                              className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                                p === appsPage
-                                  ? 'bg-rivvra-500 text-dark-950'
-                                  : 'text-dark-400 hover:text-white hover:bg-dark-800'
-                              }`}
-                            >
-                              {p}
-                            </button>
-                          )
-                        )}
-                      <button
-                        onClick={() => setAppsPage((p) => Math.min(appsTotalPages, p + 1))}
-                        disabled={appsPage === appsTotalPages}
-                        className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronDown size={16} className="-rotate-90" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
 
         </div>
 
@@ -2152,6 +1901,362 @@ export default function AtsJobDetail() {
               feed can grow vertically without bounding the main flow. */}
           <ActivityPanelV2 orgSlug={orgSlug} entityType="ats_job" entityId={jobId} refreshKey={activityRefreshKey} />
         </div>
+      </div>
+
+      {/* 2026-10-28: Applications moved OUT of the 2/3 column to span the
+          full page width (owner: "make this table long in width"). */}
+      <div className="mt-5">
+        {/* 2026-05-12 audit dedupe: header already has "+ New
+            Application" as the primary CTA — removed the duplicate
+            inline link here. Empty-state button below still renders
+            when applications.length === 0 because at that point the
+            header CTA needs reinforcing as the next action. */}
+        <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="text-lg font-semibold text-white">
+            Applications
+            <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal}{appsFiltered ? ' matching' : ''})</span>
+          </h2>
+          {(appsTotal > 0 || appsFiltered) && (
+            <div className="flex items-center gap-1 text-xs" role="group" aria-label="Sort applications">
+              <span className="text-dark-500 mr-1">Sort</span>
+              {[
+                { key: 'fit', label: 'AI fit rank' },
+                { key: 'newest', label: 'Newest first' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { if (appsSort !== key) { setAppsSort(key); setAppsPage(1); } }}
+                  aria-pressed={appsSort === key}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border transition-colors ${
+                    appsSort === key
+                      ? 'bg-rivvra-500/15 border-rivvra-500/40 text-rivvra-300'
+                      : 'border-dark-700 text-dark-400 hover:text-dark-200 hover:border-dark-600'
+                  }`}
+                >
+                  {key === 'fit' ? <Sparkles size={12} /> : <Clock size={12} />} {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Search + filters (server-side; never change the sort order). */}
+        {(appsTotal > 0 || appsFiltered) && (
+          <div className="mb-3 flex items-center gap-2 flex-wrap" role="search" aria-label="Filter applications">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
+              <input
+                type="search"
+                value={appsSearchInput}
+                onChange={(e) => setAppsSearchInput(e.target.value)}
+                placeholder="Search candidate name or email"
+                aria-label="Search applications by candidate name or email"
+                className="w-full pl-8 pr-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-rivvra-500"
+              />
+            </div>
+            <select
+              value={appsStage}
+              onChange={(e) => setAppsStage(e.target.value)}
+              aria-label="Filter by stage"
+              className={`py-2 pl-3 pr-8 rounded-lg bg-dark-800 border text-sm focus:outline-none focus:border-rivvra-500 ${appsStage ? 'border-rivvra-500/60 text-rivvra-300' : 'border-dark-700 text-dark-300'}`}
+            >
+              <option value="">All stages</option>
+              {jobStages.map((st) => (
+                <option key={st._id} value={st._id}>{st.name}</option>
+              ))}
+            </select>
+            <select
+              value={appsRc}
+              onChange={(e) => setAppsRc(e.target.value)}
+              aria-label="Filter by signature status"
+              title="Rate & terms confirmation signature status"
+              className={`py-2 pl-3 pr-8 rounded-lg bg-dark-800 border text-sm focus:outline-none focus:border-rivvra-500 ${appsRc ? 'border-rivvra-500/60 text-rivvra-300' : 'border-dark-700 text-dark-300'}`}
+            >
+              <option value="">All signature status</option>
+              {RATE_CONF_FILTER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <select
+              value={appsStatus}
+              onChange={(e) => setAppsStatus(e.target.value)}
+              aria-label="Filter by status"
+              className={`py-2 pl-3 pr-8 rounded-lg bg-dark-800 border text-sm focus:outline-none focus:border-rivvra-500 ${appsStatus ? 'border-rivvra-500/60 text-rivvra-300' : 'border-dark-700 text-dark-300'}`}
+            >
+              <option value="">All status</option>
+              {APP_STATUS_FILTER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {(appsFiltered || appsSearchInput) && (
+              <button
+                type="button"
+                onClick={clearAppFilters}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs text-dark-400 hover:text-white hover:bg-dark-800"
+              >
+                <X size={12} /> Clear
+              </button>
+            )}
+          </div>
+        )}
+
+        {appsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
+          </div>
+        ) : applications.length === 0 && appsFiltered ? (
+          <div className="card p-8 flex flex-col items-center justify-center">
+            <Search className="w-8 h-8 text-dark-500 mb-2" />
+            <p className="text-dark-400 text-sm mb-3">No applications match these filters.</p>
+            <button
+              type="button"
+              onClick={clearAppFilters}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dark-600 text-dark-200 hover:bg-dark-800"
+            >
+              <X size={12} /> Clear filters
+            </button>
+          </div>
+        ) : applications.length === 0 ? (
+          <div className="card p-8 flex flex-col items-center justify-center">
+            <Users className="w-8 h-8 text-dark-500 mb-2" />
+            <p className="text-dark-400 text-sm mb-3">No applications for this position yet.</p>
+            {canCreateApplication && (
+              <button
+                onClick={() => navigate(orgPath(`/ats/jobs/${jobId}/applications/new`))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400"
+              >
+                <Plus size={12} /> New Application
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-dark-700">
+                      {appsSort === 'fit' && (
+                        <th className="text-right pl-4 pr-2 py-3 text-dark-400 font-medium w-10">#</th>
+                      )}
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
+                      <th className="text-center px-4 py-3 text-dark-400 font-medium" title="AI job-fit score (0–100): this application's résumé scored against this job's description">
+                        <span className="inline-flex items-center gap-1"><Sparkles size={12} className="text-amber-400" /> AI Fit</span>
+                      </th>
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium whitespace-nowrap" title="Rate & terms confirmation — signed by both parties, awaiting signature, or not sent">Rate Conf.</th>
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
+                      <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applications.map((app, idx) => {
+                      // 2026-09-16 ranked view: rank counts only SCORED
+                      // rows, continuing across pages. Unscored rows
+                      // (no résumé, parse failure, still processing)
+                      // group under a divider at the first such row
+                      // on the page and can be re-scored inline.
+                      const isScored = typeof app.aiJobFitScore === 'number';
+                      const prevScored = idx === 0 ? null : typeof applications[idx - 1].aiJobFitScore === 'number';
+                      const showUnscoredDivider = appsSort === 'fit' && !isScored && (idx === 0 || prevScored);
+                      const rank = isScored ? (appsPage - 1) * 15 + idx + 1 : null;
+                      const fitStatus = app.aiJobFitStatus;
+                      const fitLabel = isScored ? null
+                        : fitStatus === 'pending' ? 'Scoring…'
+                        : fitStatus === 'failed' ? 'Failed'
+                        : fitStatus === 'quota_exceeded' ? 'AI quota hit'
+                        : fitStatus === 'skipped' ? 'No résumé'
+                        : 'Not scored';
+                      const canRescore = (isAdmin || isAccountOwner || isAssignedApprover) && !job?.archived && fitStatus !== 'pending';
+                      const isRescoring = rescoringAppId === app._id;
+                      // recruiterId on applications now stores the
+                      // employee _id (semantic shifted with the People
+                      // field migration). Older rows may still hold a
+                      // portal_user id — the link will 404 until the
+                      // backfill (or a re-save) runs.
+                      const recId = app.recruiter || app.recruiterId;
+                      // 2026-05-18 PM: surface lifecycle Status (Active /
+                      // Hired / Refused) as its own column + tint the
+                      // candidate name red for refused rows, matching the
+                      // Applications list view.
+                      const appStatus = app.applicationStatus || app.status;
+                      const isRefused = appStatus === 'refused' || !!app.refused;
+                      const isHired = appStatus === 'hired' || !!app.hireDate;
+                      return (
+                        <Fragment key={app._id}>
+                        {showUnscoredDivider && (
+                          <tr className="bg-dark-800/40">
+                            <td colSpan={99} className="px-4 py-2 text-[11px] uppercase tracking-wider text-dark-500 font-semibold">
+                              Not ranked — no AI fit score yet
+                              <span className="normal-case tracking-normal font-normal ml-2 text-dark-500">
+                                (no résumé on the application, a parse failure, or still processing)
+                              </span>
+                            </td>
+                          </tr>
+                        )}
+                        <tr
+                          onClick={() => openApp(app._id)}
+                          className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                        >
+                          {appsSort === 'fit' && (
+                            <td className="pl-4 pr-2 py-3 text-right tabular-nums text-dark-400 text-xs">
+                              {rank ?? '—'}
+                            </td>
+                          )}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {app.candidateId ? (
+                                <Link
+                                  to={withFromContext(orgPath(`/ats/candidates/${app.candidateId}`), 'ats_job', jobId)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Open candidate profile"
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isRefused ? 'bg-red-500/10 hover:bg-red-500/20' : 'bg-rivvra-500/10 hover:bg-rivvra-500/20'}`}
+                                >
+                                  <span className={`text-xs font-semibold ${isRefused ? 'text-red-400' : 'text-rivvra-400'}`}>
+                                    {(app.candidateName || '?')[0].toUpperCase()}
+                                  </span>
+                                </Link>
+                              ) : (
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isRefused ? 'bg-red-500/10' : 'bg-rivvra-500/10'}`}>
+                                  <span className={`text-xs font-semibold ${isRefused ? 'text-red-400' : 'text-rivvra-400'}`}>
+                                    {(app.candidateName || '?')[0].toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                              <Link
+                                to={withFromContext(orgPath(`/ats/applications/${app._id}`), 'ats_job', jobId)}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`font-medium truncate hover:underline ${isRefused ? 'text-red-400 hover:text-red-300' : 'text-white hover:text-rivvra-300'}`}
+                              >
+                                {app.candidateName || 'Unnamed'}
+                              </Link>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-2">
+                              {isScored ? (
+                                <span title={app.aiJobFitReasoning || 'AI job-fit score'} className="cursor-help inline-flex items-center gap-1.5">
+                                  <AiScoreBadge score={app.aiJobFitScore} size="sm" />
+                                  {isFitScoreStale(app.aiJobFitJobStamp, job?.aiJobStamp) && <StaleFitMarker compact />}
+                                </span>
+                              ) : (
+                                <span className={`text-[11px] ${fitStatus === 'failed' || fitStatus === 'quota_exceeded' ? 'text-red-400' : 'text-dark-500'}`}>
+                                  {fitLabel}
+                                </span>
+                              )}
+                              {(!isScored || isFitScoreStale(app.aiJobFitJobStamp, job?.aiJobStamp)) && canRescore && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleRescoreApp(e, app._id)}
+                                  disabled={isRescoring || !!rescoringAppId}
+                                  title="Run AI scoring for this application now"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dark-700 text-[11px] text-dark-300 hover:text-white hover:border-dark-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <RefreshCw size={11} className={isRescoring ? 'animate-spin' : ''} />
+                                  {isRescoring ? 'Scoring' : 'Score'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
+                            <span className="truncate block max-w-[180px]">{app.candidateEmail || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3"><RateConfirmationChip app={app} /></td>
+                          <td className="px-4 py-3">
+                            <StageBadge stageName={app.stageName || app.stageId?.name} />
+                          </td>
+                          <td className="px-4 py-3">
+                            {isRefused ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Refused</span>
+                            ) : isHired ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Hired</span>
+                            ) : (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-rivvra-500/10 text-rivvra-300 border border-rivvra-500/20">Active</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
+                            {recId && app.recruiterName ? (
+                              <Link
+                                to={withFromContext(orgPath(`/employee/${recId}`), 'ats_job', jobId)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-rivvra-300 hover:underline"
+                              >
+                                {app.recruiterName}
+                              </Link>
+                            ) : (
+                              app.recruiterName || '—'
+                            )}
+                          </td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            <div className="flex justify-center">
+                              <EvalStars value={app.evaluation || 0} />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
+                            {formatDate(app.appliedOn)}
+                          </td>
+                        </tr>
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {appsTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-dark-400 text-sm">
+                  Showing {appsTotal === 0 ? 0 : (appsPage - 1) * 15 + 1}–{Math.min(appsPage * 15, appsTotal)} of {appsTotal}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setAppsPage((p) => Math.max(1, p - 1))}
+                    disabled={appsPage === 1}
+                    className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronDown size={16} className="rotate-90" />
+                  </button>
+                  {Array.from({ length: appsTotalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === appsTotalPages || Math.abs(p - appsPage) <= 1)
+                    .reduce((acc, p, i, arr) => {
+                      if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      p === '...' ? (
+                        <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setAppsPage(p)}
+                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                            p === appsPage
+                              ? 'bg-rivvra-500 text-dark-950'
+                              : 'text-dark-400 hover:text-white hover:bg-dark-800'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setAppsPage((p) => Math.min(appsTotalPages, p + 1))}
+                    disabled={appsPage === appsTotalPages}
+                    className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronDown size={16} className="-rotate-90" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Archive Confirmation Modal */}
