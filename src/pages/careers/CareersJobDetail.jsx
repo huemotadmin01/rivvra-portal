@@ -357,6 +357,11 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
   // we must actually load the widget and send the solved token.
   const turnstileActive = !!(turnstile?.enabled && turnstile?.siteKey);
   const [turnstileToken, setTurnstileToken] = useState('');
+  // 2026-10-28: a failed challenge used to leave only Cloudflare's tiny
+  // "Verification failed" box and a dead Submit button — a candidate on
+  // Firefox strict tracking protection / a VPN (Srinivas M) just gave up.
+  // Track the failure so the form can explain it and offer a retry.
+  const [turnstileError, setTurnstileError] = useState(null); // null | error code string
   const turnstileRef = useRef(null);
   const turnstileWidgetId = useRef(null);
 
@@ -369,12 +374,13 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
         if (turnstileWidgetId.current != null) return; // guard double-render
         turnstileWidgetId.current = ts.render(turnstileRef.current, {
           sitekey: turnstile.siteKey,
-          callback: (token) => setTurnstileToken(token),
+          callback: (token) => { setTurnstileToken(token); setTurnstileError(null); },
           'expired-callback': () => setTurnstileToken(''),
-          'error-callback': () => setTurnstileToken(''),
+          'refresh-expired': 'auto',
+          'error-callback': (code) => { setTurnstileToken(''); setTurnstileError(String(code || 'unknown')); },
         });
       })
-      .catch(() => { /* script blocked — submit stays disabled, fail closed */ });
+      .catch(() => { setTurnstileError('script-blocked'); /* submit stays disabled, fail closed */ });
     return () => {
       cancelled = true;
       try {
@@ -390,6 +396,7 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
   // single-use, so a failed submit needs a fresh challenge to retry.
   const resetTurnstile = () => {
     setTurnstileToken('');
+    setTurnstileError(null);
     try {
       if (window.turnstile && turnstileWidgetId.current != null) {
         window.turnstile.reset(turnstileWidgetId.current);
@@ -615,7 +622,27 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
             {/* Explicit-render Turnstile widget mounts here once the script
                 loads. Submit stays disabled until it produces a token. */}
             <div ref={turnstileRef} />
-            <p className="mt-1.5 text-[11px] text-zinc-400">Protected by Cloudflare Turnstile.</p>
+            {turnstileError ? (
+              <div role="alert" className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
+                <p className="font-medium">We couldn't confirm you're not a bot.</p>
+                <p className="mt-1">
+                  {turnstileError === 'script-blocked'
+                    ? 'The security check was blocked from loading. '
+                    : 'This usually happens with a VPN, an ad or tracker blocker, or strict browser privacy settings. '}
+                  Turn those off for this page, or open this link in Chrome or Edge, then try again.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => (turnstileError === 'script-blocked' ? window.location.reload() : resetTurnstile())}
+                  className="mt-2 inline-flex items-center rounded-full border border-amber-400 bg-white px-3 py-1 font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  Try again
+                </button>
+                <p className="mt-1.5 text-[10px] text-amber-700/80">Error code: {turnstileError}</p>
+              </div>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-zinc-400">Protected by Cloudflare Turnstile.</p>
+            )}
           </div>
         )}
 
