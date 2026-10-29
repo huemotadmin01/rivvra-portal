@@ -441,17 +441,19 @@ export default function EmployeeDetail() {
   // relative's account) needs a reason — the API refuses without one and
   // keeps it in the change history. Promise-based prompt so InlineField's
   // async onSave can await it (cancel = throw → field reverts).
-  const [reasonAsk, setReasonAsk] = useState(null); // { label, resolve }
+  const [reasonAsk, setReasonAsk] = useState(null); // { label, isPan, resolve }
   const [reasonText, setReasonText] = useState('');
+  const [payeeChoice, setPayeeChoice] = useState(''); // '' | 'switch' | 'correct' (PAN only)
   const lastReasonRef = useRef('');
-  const askChangeReason = useCallback((label) => new Promise((resolve) => {
+  const askChangeReason = useCallback((label, isPan = false) => new Promise((resolve) => {
     setReasonText(lastReasonRef.current);
-    setReasonAsk({ label, resolve });
+    setPayeeChoice('');
+    setReasonAsk({ label, isPan, resolve });
   }), []);
   const closeReason = (value) => {
     const r = reasonAsk; setReasonAsk(null);
     if (value) lastReasonRef.current = value;
-    r?.resolve(value || null);
+    r?.resolve(value ? { reason: value, payeeChanged: payeeChoice === 'switch' } : null);
   };
 
   const handleFieldSave = useCallback(async (field, value) => {
@@ -465,9 +467,10 @@ export default function EmployeeDetail() {
     if (REASON_FIELDS[field] && !(isSelf && !isAdmin)
         && ['internal_consultant', 'external_consultant'].includes(employee.employmentType)
         && String(value || '').trim().toUpperCase() !== String(employee.bankDetails?.[field.split('.')[1]] || '').trim().toUpperCase()) {
-      const reason = await askChangeReason(REASON_FIELDS[field]);
-      if (!reason) throw new Error('Change cancelled — a reason is needed for a consultant’s PAN / bank account');
-      payload.changeReason = reason;
+      const answer = await askChangeReason(REASON_FIELDS[field], field === 'bankDetails.pan');
+      if (!answer) throw new Error('Change cancelled — a reason is needed for a consultant’s PAN / bank account');
+      payload.changeReason = answer.reason;
+      if (field === 'bankDetails.pan') payload.payeeChanged = answer.payeeChanged;
     }
 
     let res;
@@ -478,6 +481,12 @@ export default function EmployeeDetail() {
     }
 
     if (!res.success) throw new Error(res.error || 'Update failed');
+    if (res.payeeCardsRelabelled > 0) {
+      showToast('The old PAN card is now filed as "PAN Card – Consultant". Upload the new payee\'s PAN card under ID Documents → PAN Card – Payee.', 'info');
+      employeeApi.listEmployeeDocs(slug, employee._id)
+        .then((fresh) => { if (fresh?.success) setEmployeeDocs(fresh.documents || []); })
+        .catch(() => {});
+    }
 
     // Update local state
     setEmployee(prev => {
@@ -506,7 +515,7 @@ export default function EmployeeDetail() {
       }
       return updated;
     });
-  }, [currentOrg?.slug, employee, isSelf, isAdmin, departments, managerOptions, askChangeReason]);
+  }, [currentOrg?.slug, employee, isSelf, isAdmin, departments, managerOptions, askChangeReason, showToast]);
 
   // Helper to get permission for a field
   const fp = useCallback((fieldKey) => {
@@ -2207,6 +2216,19 @@ export default function EmployeeDetail() {
             <p className="text-dark-400 text-xs mb-3">
               {emp?.fullName} is a consultant. The reason is saved in the change history (for your CA / TDS records).
             </p>
+            {reasonAsk.isPan && (
+              <div className="mb-3 space-y-1.5" role="radiogroup" aria-label="What kind of PAN change">
+                {[
+                  ['switch', 'Payment now goes to a different person (e.g. a relative)', 'The current PAN card is moved to “PAN Card – Consultant”; upload the new payee’s card after saving.'],
+                  ['correct', 'Correcting a wrong PAN for the same person', 'The PAN card on file stays as the payee’s.'],
+                ].map(([v, t, sub]) => (
+                  <label key={v} className={`flex gap-2 items-start rounded-lg border px-3 py-2 cursor-pointer ${payeeChoice === v ? 'border-rivvra-500 bg-rivvra-500/10' : 'border-dark-600'}`}>
+                    <input type="radio" name="payee-choice" value={v} checked={payeeChoice === v} onChange={() => setPayeeChoice(v)} className="mt-1 accent-rivvra-500" />
+                    <span><span className="block text-sm text-white">{t}</span><span className="block text-[11px] text-dark-400">{sub}</span></span>
+                  </label>
+                ))}
+              </div>
+            )}
             <textarea
               autoFocus
               rows={3}
@@ -2219,7 +2241,7 @@ export default function EmployeeDetail() {
               <button type="button" onClick={() => closeReason(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white">Cancel</button>
               <button
                 type="button"
-                disabled={reasonText.trim().length < 3}
+                disabled={reasonText.trim().length < 3 || (reasonAsk.isPan && !payeeChoice)}
                 onClick={() => closeReason(reasonText.trim())}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 disabled:opacity-40"
               >Save change</button>
