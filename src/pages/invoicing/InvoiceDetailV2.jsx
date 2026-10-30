@@ -4248,7 +4248,15 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
     method: 'bank_transfer',
     date: new Date().toISOString().slice(0, 10),
     memo: '',
+    // Optional ₹ per 1 unit of a foreign currency. Blank → the server uses
+    // the ECB reference rate on the payment date.
+    exchangeRate: '',
   });
+  // An Indian company keeps its books in INR, so a payment in any other
+  // currency needs a rate to show its rupee value.
+  const isForeignForBooks = !!isIndia && !!currency && String(currency).toUpperCase() !== 'INR';
+  const enteredRate = Number(form.exchangeRate);
+  const rateToSend = isForeignForBooks && Number.isFinite(enteredRate) && enteredRate > 0 ? enteredRate : undefined;
   const [tdsEnabled, setTdsEnabled] = useState(false);
   const [tdsConfigId, setTdsConfigId] = useState('');
   const [tdsBase, setTdsBase] = useState(subtotal || 0);
@@ -4374,6 +4382,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             baseAmount: Number(tdsBase) || 0,
             deductedAt: form.date,
           },
+          exchangeRate: rateToSend,
         });
         tdsPaymentId = tdsRes?.payment?._id || null;
       }
@@ -4387,6 +4396,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
           date: form.date,
           reference: form.memo || invoiceNumber || '',
           notes: '',
+          exchangeRate: rateToSend,
         });
       } catch (netErr) {
         if (tdsPaymentId) {
@@ -4517,6 +4527,25 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
           <Field label="Payment Date" htmlFor="rpm-date">
             <Input id="rpm-date" type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} />
           </Field>
+
+          {/* Exchange rate — foreign-currency payment in INR books */}
+          {isForeignForBooks && (
+            <Field
+              label={`Exchange rate (₹ per 1 ${String(currency).toUpperCase()}) — optional`}
+              htmlFor="rpm-fx"
+              hint="Leave blank to use the ECB reference rate on the payment date. Enter the bank's rate if you have it."
+            >
+              <Input
+                id="rpm-fx"
+                type="number"
+                step="any"
+                min="0"
+                value={form.exchangeRate}
+                onChange={(e) => setForm(f => ({ ...f, exchangeRate: e.target.value }))}
+                placeholder="Auto (ECB rate)"
+              />
+            </Field>
+          )}
 
           {/* TDS Toggle */}
           {tdsApplicable && (
