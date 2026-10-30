@@ -143,6 +143,9 @@ export default function RecordDetailV2() {
 
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState(null);
+  // Server says whether the payout month's payroll is already released
+  // (approving then moves the record to the next open month).
+  const [payoutMonthState, setPayoutMonthState] = useState(null);
   const [busy, setBusy] = useState(false);
 
   // Lookups for entity pickers (loaded lazily once we know the user is admin).
@@ -167,6 +170,7 @@ export default function RecordDetailV2() {
     try {
       const resp = await incentiveApi.getRecord(orgSlug, recordId);
       setRecord(resp?.record || resp);
+      setPayoutMonthState(resp?.payoutMonthState || null);
     } catch (e) {
       if (handleScoped404(e)) return;
       showToast('Failed to load record', 'error');
@@ -231,8 +235,11 @@ export default function RecordDetailV2() {
     setConfirmModal((c) => ({ ...c, busy: true }));
     setBusy(true);
     try {
-      await confirmModal.action();
-      showToast(confirmModal.successMsg || 'Done', 'success');
+      const out = await confirmModal.action();
+      const msg = typeof confirmModal.successMsg === 'function'
+        ? confirmModal.successMsg(out)
+        : confirmModal.successMsg;
+      showToast(msg || 'Done', 'success');
       setConfirmModal(null);
       if (confirmModal.afterAction) {
         await confirmModal.afterAction();
@@ -335,19 +342,32 @@ export default function RecordDetailV2() {
         confirmLabel: 'Approve anyway',
         primary: true,
         action: () => incentiveApi.approve(orgSlug, recordId),
-        successMsg: 'Record approved',
+        successMsg: approvedMsg,
       });
       return;
     }
     openConfirm({
       title: 'Approve this record?',
       message:
-        'The FX rate and incentive amounts will be snapshotted and locked. The record will be folded into the next payroll re-process for its payout month.',
+        'The FX rate and incentive amounts will be snapshotted and locked. The record will be folded into the next payroll re-process for its payout month.'
+        + (payoutMonthState?.closed
+          ? ` ${payoutMonthState.payoutMonthLabel} payroll is already released, so it will be paid in ${payoutMonthState.nextOpenLabel} payroll instead.`
+          : ''),
       confirmLabel: 'Approve',
       primary: true,
       action: () => incentiveApi.approve(orgSlug, recordId),
-      successMsg: 'Record approved',
+      successMsg: approvedMsg,
     });
+  }
+
+  // "Approved — will be paid in October 2026 payroll", saying so when the
+  // server moved it off an already-released payout month.
+  function approvedMsg(out) {
+    const label = out?.paidInLabel;
+    if (out?.payoutMonthRolled && label) {
+      return `Approved — ${payoutMonthState?.payoutMonthLabel || out.payoutMonthRolled.from} payroll was already released, so this will be paid in ${label} payroll`;
+    }
+    return label ? `Approved — will be paid in ${label} payroll` : 'Record approved';
   }
 
   function onUnapproveClick() {
@@ -433,7 +453,8 @@ export default function RecordDetailV2() {
       confirmLabel: 'Restore',
       primary: true,
       action: () => incentiveApi.restoreParty(orgSlug, recordId, party),
-      successMsg: `${label} share restored`,
+      successMsg: `${label} share restored`
+        + (payoutMonthState?.closed ? ` — if approved, it will be paid in ${payoutMonthState.nextOpenLabel} payroll` : ''),
     });
   }
 
@@ -478,6 +499,20 @@ export default function RecordDetailV2() {
               cannot be approved. Add a rate under{' '}
               <strong>Incentive Settings → FX conversion rates</strong> —
               drafts will refresh automatically.
+            </div>
+          </Callout>
+        )}
+
+        {/* ----- Payout month already paid out ----- */}
+        {isAdmin && payoutMonthState?.closed && (
+          <Callout tone="warn" icon={<AlertTriangle size={16} />}>
+            <div style={{ font: "600 12.5px/1.4 'Inter', system-ui, sans-serif" }}>
+              {payoutMonthState.payoutMonthLabel} payroll is already released
+            </div>
+            <div style={{ font: "400 11.5px/1.6 'Inter', system-ui, sans-serif", marginTop: 3 }}>
+              {status === 'draft'
+                ? <>Approving will move this record to <strong>{payoutMonthState.nextOpenLabel}</strong> payroll so it gets paid.</>
+                : <>This record is approved for {payoutMonthState.payoutMonthLabel}, but that payroll has already gone out, so it will not be paid as it stands. <strong>Unapprove and approve again</strong> to move it to {payoutMonthState.nextOpenLabel} payroll.</>}
             </div>
           </Callout>
         )}
