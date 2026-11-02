@@ -262,9 +262,15 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
   const [reminderDays, setReminderDays] = useState(7);
   const [ccEmails, setCcEmails] = useState('');
   const [parallelSign, setParallelSign] = useState(false);
+  // Values the SENDER types for a template that asks for them
+  // (template.sendPrefill, e.g. the vendor PO's "Vendor legal name"). Sent as
+  // `prefill`, so the signer sees them filled and read-only.
+  const [sendValues, setSendValues] = useState({});
   const [saving, setSaving] = useState(false);
 
   const isEnvelope = envelopeDocs.length > 1;
+  const sendFields = (!isEnvelope && Array.isArray(selectedTemplate?.sendPrefill)) ? selectedTemplate.sendPrefill.filter((f) => f && f.key) : [];
+  const autoNumber = !isEnvelope && selectedTemplate?.autoNumber?.key ? selectedTemplate.autoNumber : null;
 
   // Extracted so Retry can re-run just the fetch without resetting the form
   // the operator may already have filled in on a later step.
@@ -327,6 +333,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
       setReminderDays(7);
       setCcEmails('');
       setParallelSign(false);
+      setSendValues({});
       loadTemplatesAndRoles();
     }
   }, [show, orgSlug, loadTemplatesAndRoles]);
@@ -414,7 +421,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
         (!requireRole || !!s.roleId),
       );
     }
-    if (step === 3) return true;
+    if (step === 3) return sendFields.every((f) => !f.required || String(sendValues[f.key] || '').trim());
     return true;
   };
 
@@ -456,10 +463,16 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
           reference: envelopeDocs.map(d => d.name).join(' + '),
         });
       } else {
+        const prefill = {};
+        for (const f of sendFields) {
+          const v = String(sendValues[f.key] || '').trim();
+          if (v) prefill[f.key] = v;
+        }
         res = await signApi.createRequest(orgSlug, {
           ...commonData,
           templateId: selectedTemplate._id,
           signers: signerData,
+          ...(Object.keys(prefill).length ? { prefill } : {}),
         });
       }
 
@@ -722,6 +735,28 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
       {/* Step 3: Options */}
       {step === 3 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {(sendFields.length > 0 || autoNumber) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, borderRadius: 'var(--r-2)', background: 'var(--surface-2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}>
+              <div style={{ font: "600 12.5px/1.4 'Inter', system-ui, sans-serif" }}>Document details</div>
+              {autoNumber && (
+                <div style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
+                  {autoNumber.label || 'Document number'}: generated automatically when you send
+                  {autoNumber.example ? <> (e.g. <strong>{autoNumber.example}</strong>)</> : null}.
+                </div>
+              )}
+              {sendFields.map((f) => (
+                <Field key={f.key} label={f.label || f.key} required={!!f.required} htmlFor={`srq-send-${f.key}`} hint={f.hint || undefined}>
+                  <Input
+                    id={`srq-send-${f.key}`}
+                    type="text"
+                    value={sendValues[f.key] || ''}
+                    onChange={(e) => setSendValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder || ''}
+                  />
+                </Field>
+              ))}
+            </div>
+          )}
           <Field label="Subject" htmlFor="srq-subject">
             <Input
               id="srq-subject"
@@ -787,6 +822,13 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
           <ReviewRow icon={FileText} label="Template" accent>
             {selectedTemplate?.name || 'None'}
           </ReviewRow>
+
+          {autoNumber && (
+            <ReviewRow icon={FileText} label={autoNumber.label || 'Document number'}>Generated on send</ReviewRow>
+          )}
+          {sendFields.filter((f) => String(sendValues[f.key] || '').trim()).map((f) => (
+            <ReviewRow key={f.key} icon={FileText} label={f.label || f.key}>{String(sendValues[f.key]).trim()}</ReviewRow>
+          ))}
 
           {subject && <ReviewRow icon={Mail} label="Subject">{subject}</ReviewRow>}
 
