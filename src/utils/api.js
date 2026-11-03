@@ -494,6 +494,22 @@ class ApiClient {
     });
   }
 
+  // One note operation, applied server-side to the notes as stored — so a
+  // note the Chrome extension wrote meanwhile is not overwritten.
+  async addLeadNote(id, text) {
+    return this.request(`/api/portal/leads/${id}/notes`, {
+      method: 'PUT',
+      body: JSON.stringify({ op: 'add', text }),
+    });
+  }
+
+  async removeLeadNote(id, note, index) {
+    return this.request(`/api/portal/leads/${id}/notes`, {
+      method: 'PUT',
+      body: JSON.stringify({ op: 'remove', index, text: note?.text, date: note?.date }),
+    });
+  }
+
   async bulkDeleteLeads(ids) {
     return this.request('/api/portal/leads/bulk-delete', {
       method: 'POST',
