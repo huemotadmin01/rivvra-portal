@@ -42,6 +42,13 @@ export function DataTable({
   rowHref,
   children,
   style,
+  // 2026-11-03 (opt-in, contacts table): pin the first N columns while the
+  // table scrolls sideways, and give the table its own scroll area so the
+  // horizontal scrollbar sits at the bottom of the SCREEN (not under 25+
+  // rows) and the header stays pinned inside it. Off by default — every
+  // other table renders exactly as before.
+  freezeColumns = 0,
+  maxHeight = null,
   ...rest
 }) {
   const d = DENSITY[density] || DENSITY.comfortable;
@@ -98,6 +105,22 @@ export function DataTable({
 
   const showEmpty = !loading && rows.length === 0 && !children;
 
+  // Frozen columns need real widths for their left offsets, so they use a
+  // fixed layout; a column marked `flex` takes up any spare width instead.
+  const freeze = Math.max(0, Math.min(freezeColumns || 0, columns.length));
+  const numW = (c) => (typeof c.width === 'number' ? c.width : 120);
+  const selW = selectable ? 40 : 0;
+  const leftOf = (ci) => selW + columns.slice(0, ci).reduce((a, c) => a + numW(c), 0);
+  const tableMinWidth = freeze ? selW + columns.reduce((a, c) => a + numW(c), 0) : undefined;
+  const frozenHead = (ci) => (ci < freeze ? {
+    position: 'sticky', left: leftOf(ci), zIndex: 4,
+    ...(ci === freeze - 1 ? { boxShadow: 'inset -1px 0 0 var(--line-2, rgba(255,255,255,.11))' } : {}),
+  } : {});
+  const frozenCell = (ci) => (ci < freeze ? {
+    position: 'sticky', left: leftOf(ci), zIndex: 1, background: 'var(--surface-1, #0e131a)',
+    ...(ci === freeze - 1 ? { boxShadow: 'inset -1px 0 0 var(--line-2, rgba(255,255,255,.11))' } : {}),
+  } : {});
+
   return (
     <div
       style={{
@@ -106,23 +129,32 @@ export function DataTable({
       }}
       {...rest}
     >
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: resizable ? 'fixed' : 'auto' }}>
+      <div style={maxHeight ? { overflow: 'auto', maxHeight } : { overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: resizable || freeze ? 'fixed' : 'auto' }}>
           <colgroup>
             {selectable && <col style={{ width: 40 }} />}
-            {columns.map((c) => <col key={c.key} style={{ width: widths[c.key] ?? c.width ?? 'auto' }} />)}
+            {columns.map((c) => <col key={c.key} style={{ width: freeze && c.flex ? 'auto' : (widths[c.key] ?? c.width ?? 'auto') }} />)}
           </colgroup>
           <thead>
             <tr>
               {selectable && (
-                <th style={{ ...headCell, padding: d.head, width: 40 }}>
+                <th style={{ ...headCell, padding: d.head, width: 40, ...(freeze || maxHeight ? { position: 'sticky', top: stickyTop, left: 0, zIndex: 4 } : {}) }}>
                   <Check checked={allOn} indeterminate={someOn} onChange={toggleAll} label="Select all rows" />
                 </th>
               )}
               {columns.map((c, ci) => {
                 const state = sort?.key === c.key ? sort.dir : null;
                 return (
-                  <th key={c.key} style={{ ...headCell, textAlign: c.align || 'left', position: 'relative' }} ref={undefined} aria-sort={state ? (state === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <th key={c.key} style={{
+                    ...headCell, textAlign: c.align || 'left',
+                    // `relative` (for the resize handle) has always overridden
+                    // headCell's sticky — kept as-is for existing tables. With
+                    // its own scroll area (maxHeight) the header must stay
+                    // pinned, and a frozen header must be sticky to stay put.
+                    position: maxHeight || ci < freeze ? 'sticky' : 'relative',
+                    ...(maxHeight || ci < freeze ? { top: stickyHeader ? stickyTop : 'auto' } : {}),
+                    ...frozenHead(ci),
+                  }} ref={undefined} aria-sort={state ? (state === 'asc' ? 'ascending' : 'descending') : 'none'}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: c.align === 'right' ? 'flex-end' : c.align === 'center' ? 'center' : 'flex-start', width: '100%' }}>
                       {c.sortable ? (
                         <button
@@ -185,10 +217,11 @@ export function DataTable({
                       <Check checked={on} onChange={(v) => toggleRow(k, v)} label="Select row" />
                     </td>
                   )}
-                  {columns.map((c) => (
+                  {columns.map((c, ci) => (
                     <td
                       key={c.key}
                       style={{
+                        ...frozenCell(ci),
                         padding: d.pad, font: d.font, color: c.muted ? 'var(--fg-3, #98a4b2)' : 'var(--fg-2, #bac4d0)',
                         textAlign: c.align || 'left', borderBottom: '1px solid var(--line, rgba(255,255,255,.07))',
                         verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis',

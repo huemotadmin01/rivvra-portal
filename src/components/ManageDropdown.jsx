@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, Upload, ListPlus, Pencil, Tag, Trash2, UserCog, Archive, ArchiveRestore,
+  ChevronDown, Upload, ListPlus, Pencil, Tag, Trash2, UserCog, Archive, ArchiveRestore, MoreHorizontal,
 } from 'lucide-react';
 
 function ManageDropdown({
@@ -9,6 +9,9 @@ function ManageDropdown({
   onExportCRM, onAddToSequence, onAddToList, onEditContact, onTagContact,
   onRemoveContact, onAssignOwner, onArchive, onUnarchive,
   removeLabel = 'Remove contact',
+  // 2026-11-03: a 30px "⋯" trigger instead of the wide "Manage ▾" button, for
+  // the contacts table (same menu, same actions).
+  compact = false,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -126,10 +129,26 @@ function ManageDropdown({
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded-lg text-sm font-medium text-white transition-colors"
+        {...(compact
+          ? {
+            'aria-label': `More actions for ${lead?.name || 'contact'}`,
+            title: 'More actions',
+            'aria-expanded': isOpen,
+            style: {
+              width: 30, height: 30, display: 'grid', placeItems: 'center', borderRadius: 8, cursor: 'pointer',
+              border: '1px solid var(--line-2, rgba(255,255,255,.11))',
+              background: isOpen ? 'var(--surface-3, #1c242f)' : 'var(--surface-2, #141b24)',
+              color: 'var(--fg-2, #bac4d0)',
+            },
+          }
+          : { className: 'flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded-lg text-sm font-medium text-white transition-colors' })}
       >
-        Manage
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        {compact ? <MoreHorizontal size={16} /> : (
+          <>
+            Manage
+            <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </>
+        )}
       </button>
 
       {isOpen && createPortal(

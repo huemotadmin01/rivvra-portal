@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Linkedin, StickyNote, Users } from 'lucide-react';
+import { Linkedin, StickyNote, Users, ListPlus } from 'lucide-react';
 import api from '../../../utils/api';
 import ManageDropdown from '../../ManageDropdown';
 import { DataTable, EmptyState, Chip, Avatar, InlineSelect } from '../../ds';
@@ -256,6 +256,9 @@ export function LeadsTableV2({
   onOpenLead,
   manageProps,
   empty,
+  // 2026-11-03: the table scrolls inside its own area so the horizontal
+  // scrollbar is always on screen; Contact + actions stay frozen on the left.
+  scrollMaxHeight = 'max(360px, calc(100vh - 300px))',
 }) {
   const selSet = new Set(selectedLeads);
   const allOn = leads.length > 0 && leads.every((l) => selSet.has(l._id));
@@ -271,12 +274,12 @@ export function LeadsTableV2({
 
   const columns = [
     { key: '__sel', width: 40, header: <Check checked={allOn} indeterminate={someOn} onChange={toggleAll} label="Select all" /> },
-    { key: 'contact', header: 'Contact', width: 240 },
-    { key: '__manage', header: '', width: 110 },
+    { key: 'contact', header: 'Contact', width: 260 },
+    { key: '__manage', header: '', width: 88 },
     ...(showOwnerCol ? [{ key: 'owner', header: 'Contact Owner', width: 150 }] : []),
     { key: 'profileType', header: 'Profile Type', width: 110 },
     { key: 'status', header: 'Status', width: 150 },
-    { key: 'company', header: 'Company', width: 170 },
+    { key: 'company', header: 'Company', width: 170, flex: true },
     { key: 'location', header: 'Location', width: 150 },
     { key: 'email', header: 'Email', width: 200 },
     { key: 'notes', header: 'Notes', width: 70 },
@@ -287,24 +290,44 @@ export function LeadsTableV2({
     borderBottom: '1px solid var(--line)', verticalAlign: 'middle',
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...extra,
   });
+  // Frozen cells (checkbox, contact, actions): sticky at these offsets — the
+  // same widths as the first three columns above.
+  const FROZEN_LEFT = [0, 40, 300];
+  // Fixed widths: these two cells must not overflow (an overflowing cell
+  // shows an ellipsis), so they get tighter padding than text cells.
+  const CHECK_PAD = { padding: '11px 12px', textOverflow: 'clip' };
+  const ACTIONS_PAD = { padding: '11px 8px', textOverflow: 'clip' };
+  const frz = (i, extra = {}) => ({
+    ...td(extra), position: 'sticky', left: FROZEN_LEFT[i], zIndex: 1,
+    ...(i === FROZEN_LEFT.length - 1 ? { boxShadow: 'inset -1px 0 0 var(--line-2, rgba(255,255,255,.11))' } : {}),
+  });
 
   return (
-    <DataTable columns={columns} rows={[]} loading={loading} resizable={false} empty={empty}>
+    <>
+      {/* Row colours live here, not inline, so frozen cells (which need an
+          opaque background) change with the rest of the row. */}
+      <style>{`
+        .ltv2-row > td { background: var(--surface-1, #0e131a); transition: background 110ms var(--e-out, ease); }
+        .ltv2-row:hover > td { background: var(--surface-2, #141b24); }
+        .ltv2-row.is-on > td { background: linear-gradient(var(--brand-soft, rgba(34,197,94,.13)), var(--brand-soft, rgba(34,197,94,.13))), var(--surface-1, #0e131a); }
+        .ltv2-row .ltv2-quick { opacity: 0; transition: opacity 110ms var(--e-out, ease); }
+        .ltv2-row:hover .ltv2-quick, .ltv2-row .ltv2-quick:focus-visible { opacity: 1; }
+      `}</style>
+    <DataTable columns={columns} rows={[]} loading={loading} resizable={false} empty={empty} freezeColumns={3} maxHeight={scrollMaxHeight}>
       {!loading && leads.length ? leads.map((lead) => {
         const on = selSet.has(lead._id);
         const mp = manageProps ? manageProps(lead) : null;
         return (
           <tr
             key={lead._id}
+            className={`ltv2-row${on ? ' is-on' : ''}`}
             onClick={() => onOpenLead(lead)}
-            style={{ cursor: 'pointer', background: on ? 'var(--brand-soft)' : 'transparent', transition: 'background 110ms var(--e-out)' }}
-            onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = 'var(--surface-2)'; }}
-            onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = 'transparent'; }}
+            style={{ cursor: 'pointer' }}
           >
-            <td style={td()} onClick={(e) => e.stopPropagation()}>
+            <td style={frz(0, CHECK_PAD)} onClick={(e) => e.stopPropagation()}>
               <Check checked={on} onChange={() => toggleOne(lead._id)} label={`Select ${lead.name || 'lead'}`} />
             </td>
-            <td style={td()}>
+            <td style={frz(1)}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 {lead.profilePicture
                   ? <img src={lead.profilePicture} alt="" style={{ width: 28, height: 28, borderRadius: 999, objectFit: 'cover', flexShrink: 0 }} />
@@ -336,8 +359,24 @@ export function LeadsTableV2({
                 </span>
               </span>
             </td>
-            <td style={td()} onClick={(e) => e.stopPropagation()}>
-              {mp ? <ManageDropdown lead={lead} {...mp} /> : null}
+            <td style={frz(2, ACTIONS_PAD)} onClick={(e) => e.stopPropagation()}>
+              {mp ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {mp.onAddToSequence && (
+                    <button
+                      type="button"
+                      className="ltv2-quick"
+                      title="Add to sequence"
+                      aria-label={`Add ${lead.name || 'contact'} to a sequence`}
+                      onClick={(e) => { e.stopPropagation(); mp.onAddToSequence(); }}
+                      style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--line-2, rgba(255,255,255,.11))', background: 'var(--surface-2, #141b24)', color: 'var(--brand, #22c55e)' }}
+                    >
+                      <ListPlus size={15} />
+                    </button>
+                  )}
+                  <ManageDropdown lead={lead} {...mp} compact />
+                </span>
+              ) : null}
             </td>
             {showOwnerCol && (
               <td style={td()}>
@@ -367,6 +406,7 @@ export function LeadsTableV2({
         );
       }) : null}
     </DataTable>
+    </>
   );
 }
 

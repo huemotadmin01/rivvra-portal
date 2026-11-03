@@ -19,6 +19,8 @@ export interface Column<Row = any> {
   wrap?: boolean;
   /** Custom cell renderer. Falls back to `row[key]`, then an em-dash. */
   render?: (row: Row, index: number) => React.ReactNode;
+  /** With `freezeColumns`: this column takes up spare width instead of its own. */
+  flex?: boolean;
 }
 
 export interface DataTableProps<Row = any> extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
@@ -53,6 +55,17 @@ export interface DataTableProps<Row = any> extends Omit<React.HTMLAttributes<HTM
   rowHref?: (row: Row, index: number) => string;
   /** Custom `<tbody>` content — use for grouped tables with `GroupedHeader`. */
   children?: React.ReactNode;
+  /**
+   * Pin the first N columns while the table scrolls sideways (fixed layout;
+   * give those columns numeric widths). Custom `children` rows must apply the
+   * same sticky `left` offsets to their own cells. Default 0.
+   */
+  freezeColumns?: number;
+  /**
+   * Give the table its own scroll area (e.g. `'calc(100vh - 290px)'`) so the
+   * horizontal scrollbar is always on screen and the header stays pinned.
+   */
+  maxHeight?: string | number | null;
 }
 
 /**

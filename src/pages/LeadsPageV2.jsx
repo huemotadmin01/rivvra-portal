@@ -4,7 +4,7 @@ import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useToast } from '../context/ToastContext';
-import { Users, Plus, RefreshCw, Download, Trash2, Upload, AlertTriangle } from 'lucide-react';
+import { Users, Plus, RefreshCw, Download, Trash2, Upload, AlertTriangle, ListPlus, FolderPlus, Tags } from 'lucide-react';
 import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import LeadDetailPanel from '../components/LeadDetailPanel';
@@ -15,6 +15,7 @@ import AddToSequenceModal from '../components/AddToSequenceModal';
 import EditContactModal from '../components/EditContactModal';
 import CreateContactModal from '../components/CreateContactModal';
 import BulkImportModal from '../components/BulkImportModal';
+import { BulkAddToListModal, BulkStatusModal } from '../components/outreach/v2/bulkLeadActions';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import { Button, BulkActionBar } from '../components/ds';
 import { PageHeaderV2 } from '../components/platform/v2/listkit';
@@ -71,6 +72,10 @@ export default function LeadsPageV2() {
   const [showExportCRM, setShowExportCRM] = useState(false);
   const [exportCRMTarget, setExportCRMTarget] = useState(null);
   const [showAddToSequence, setShowAddToSequence] = useState(false);
+  // 2026-11-03: bulk actions — Add to sequence (many), Add to list, Change status
+  const [bulkSequenceIds, setBulkSequenceIds] = useState(null);
+  const [showBulkList, setShowBulkList] = useState(false);
+  const [showBulkStatus, setShowBulkStatus] = useState(false);
   const [sequenceTarget, setSequenceTarget] = useState(null);
   const [showEditContact, setShowEditContact] = useState(false);
   const [editContactTarget, setEditContactTarget] = useState(null);
@@ -285,6 +290,9 @@ export default function LeadsPageV2() {
         noun="contact"
         onClear={() => setSelectedLeads([])}
         actions={[
+          { label: 'Add to sequence', icon: <ListPlus size={13} />, onClick: () => { setSequenceTarget(null); setBulkSequenceIds([...selectedLeads]); setShowAddToSequence(true); } },
+          { label: 'Add to list', icon: <FolderPlus size={13} />, onClick: () => setShowBulkList(true) },
+          { label: 'Change status', icon: <Tags size={13} />, onClick: () => setShowBulkStatus(true) },
           { label: 'Export CSV', icon: <Download size={13} />, onClick: handleExportCSV },
           { label: 'Delete', tone: 'danger', icon: <Trash2 size={13} />, onClick: () => { setDeleteTarget(null); setShowDeleteModal(true); } },
         ]}
@@ -326,15 +334,30 @@ export default function LeadsPageV2() {
       />
       <AddToSequenceModal
         isOpen={showAddToSequence}
-        onClose={() => { setShowAddToSequence(false); setSequenceTarget(null); }}
+        onClose={() => { setShowAddToSequence(false); setSequenceTarget(null); setBulkSequenceIds(null); }}
         onEnrolled={({ leadIds: enrolledIds }) => {
           setLeads((prev) => prev.map((l) => (enrolledIds.includes(l._id) ? { ...l, outreachStatus: 'in_sequence' } : l)));
+          if (bulkSequenceIds) setSelectedLeads([]);
           if (selectedLead && enrolledIds.includes(selectedLead._id)) {
             setSelectedLead((prev) => ({ ...prev, outreachStatus: 'in_sequence' }));
           }
         }}
-        leadIds={sequenceTarget ? [sequenceTarget._id] : []}
-        leadNames={sequenceTarget ? [sequenceTarget.name] : []}
+        leadIds={sequenceTarget ? [sequenceTarget._id] : (bulkSequenceIds || [])}
+        leadNames={sequenceTarget ? [sequenceTarget.name] : (bulkSequenceIds || []).map((id) => leads.find((l) => l._id === id)?.name || '')}
+      />
+      <BulkAddToListModal
+        open={showBulkList}
+        onClose={() => setShowBulkList(false)}
+        leads={leads.filter((l) => selectedLeads.includes(l._id))}
+        showToast={showToast}
+        onDone={() => { setSelectedLeads([]); loadLeads(true); }}
+      />
+      <BulkStatusModal
+        open={showBulkStatus}
+        onClose={() => setShowBulkStatus(false)}
+        leads={leads.filter((l) => selectedLeads.includes(l._id))}
+        showToast={showToast}
+        onDone={() => { setSelectedLeads([]); loadLeads(true); }}
       />
       <EditContactModal
         lead={editContactTarget}
