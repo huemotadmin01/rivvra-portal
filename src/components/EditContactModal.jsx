@@ -28,10 +28,10 @@ function EditContactModal({ lead, isOpen, onClose, onLeadUpdate }) {
     if (lead) {
       setForm({
         name: lead.name || '',
-        title: lead.title || lead.headline || '',
-        email: lead.email === 'noemail@domain.com' ? '' : (lead.email || ''),
+        title: lead.title || lead.currentTitle || lead.headline || '',
+        email: (lead.email === 'noemail@domain.com' || lead.email === 'No email found') ? '' : (lead.email || ''),
         phone: lead.phone || '',
-        company: lead.company || lead.companyName || '',
+        company: lead.companyName || lead.company || '',
         location: lead.location || '',
         outreachStatus: lead.outreachStatus || 'not_contacted',
       });
@@ -56,17 +56,28 @@ function EditContactModal({ lead, isOpen, onClose, onLeadUpdate }) {
     setError('');
 
     try {
+      // 2026-11-04: a blank email is saved blank — it used to be written as
+      // the placeholder "noemail@domain.com". The LinkedIn headline is no
+      // longer overwritten with the job title, and the status is sent only
+      // when it was changed (re-sending it moved lists / stopped sequences).
+      const email = form.email.trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        setError('Enter a valid email, or leave it blank');
+        setSaving(false);
+        return;
+      }
       const updateData = {
         name: form.name.trim(),
         title: form.title.trim(),
-        headline: form.title.trim(),
-        email: form.email.trim() || 'noemail@domain.com',
+        email,
         phone: form.phone.trim(),
         company: form.company.trim(),
         companyName: form.company.trim(),
         location: form.location.trim(),
-        outreachStatus: form.outreachStatus,
       };
+      if (form.outreachStatus !== (lead.outreachStatus || 'not_contacted')) {
+        updateData.outreachStatus = form.outreachStatus;
+      }
 
       await api.updateLead(lead._id, updateData);
 

@@ -1378,3 +1378,12 @@
 .ds-shell [class*="hover:bg-rivvra-500"]:hover { background-color: var(--brand); }
 .ds-shell [class*="hover:bg-rivvra-600"]:hover,
 .ds-shell [class*="hover:bg-rivvra-700"]:hover { background-color: var(--brand-lo); }
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────
+   index.css paints every scrollbar slate-800, so in light theme each inner
+   scroll area (tables with their own height, drawers, popovers) showed a dark
+   bar. Inside the v2 shell the track is transparent and the thumb follows
+   the theme's line colour (2026-11-04). */
+.ds-shell ::-webkit-scrollbar-track { background: transparent; }
+.ds-shell ::-webkit-scrollbar-thumb { background: var(--line-strong, #475569); border-radius: 4px; }
+.ds-shell ::-webkit-scrollbar-thumb:hover { background: var(--fg-4, #64748b); }

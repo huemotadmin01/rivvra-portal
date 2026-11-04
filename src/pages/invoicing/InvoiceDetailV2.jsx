@@ -808,6 +808,19 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
 // Main Component
 // ============================================================================
 
+
+// Consultant products, by the rate basis they bill (internalRef is seeded per
+// company: CONS-HOUR / CONS-DAY / CONS-MONTHLY / CONS-MONTH-WD).
+const BASIS_PRODUCT_REF = { hourly: 'CONS-HOUR', daily: 'CONS-DAY', monthly: 'CONS-MONTHLY' };
+function rateBasisOf(rate) {
+  if (!rate) return null;
+  const set = ['hourly', 'daily', 'monthly'].filter((k) => Number(rate[k]) > 0);
+  return set.length === 1 ? set[0] : null;
+}
+function isConsultantProduct(line) {
+  return /^CONS-/i.test(line?.internalRef || '') || /^consultant\s*[–-]/i.test(line?.productName || '');
+}
+
 export default function InvoiceDetailV2() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
@@ -892,11 +905,23 @@ export default function InvoiceDetailV2() {
   // explicit choice.
   const [vendorBillDefaultProduct, setVendorBillDefaultProduct] = useState(null);
   const [consultantRates, setConsultantRates] = useState({}); // { consultantId: clientBillingRate }
+  const [consultantProducts, setConsultantProducts] = useState([]); // CONS-* products of this company
   const [expenseCategories, setExpenseCategories] = useState([]); // vendor bill line categorization
   const [tdsConfigs, setTdsConfigs] = useState([]); // vendor bill TDS sections
   const [journals, setJournals] = useState([]); // journals of matching type for DRAFT journal change
 
   const isDraft = invoice?.status === 'draft';
+  const isCustomerInvoice = invoice?.type === 'customer_invoice';
+  // Consultant products of the active company, for the hourly/daily/monthly
+  // product switch in handleConsultantSelect.
+  useEffect(() => {
+    if (!orgSlug || !isDraft || !isCustomerInvoice) return undefined;
+    let stale = false;
+    invoicingApi.listProducts(orgSlug, { search: 'Consultant' })
+      .then((res) => { if (!stale) setConsultantProducts((res?.products || []).filter((p) => /^CONS-/i.test(p.internalRef || ''))); })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, [orgSlug, isDraft, isCustomerInvoice]);
   // Real Vendor Bills are identified by type, NOT the journal: a vendor bill
   // created before a BILL/purchase journal was configured has journalCode=null
   // and would otherwise be misclassified as a customer invoice (e.g. wrongly
@@ -1358,25 +1383,6 @@ export default function InvoiceDetailV2() {
     });
   }, [saveLines]);
 
-  const handleProductSelect = useCallback((index, product) => {
-    setEditForm(prev => {
-      const newLines = [...prev.lines];
-      newLines[index] = {
-        ...newLines[index],
-        productId: product._id || product.id,
-        productName: product.name || '',
-        internalRef: product.internalRef || newLines[index].internalRef || '',
-        hsnSacCode: product.hsnSacCode || newLines[index].hsnSacCode || '',
-        unit: product.unit || newLines[index].unit || '',
-        description: product.description || newLines[index].description || '',
-        unitPrice: product.unitPrice ?? product.price ?? newLines[index].unitPrice,
-        taxIds: product.defaultTaxIds || product.taxIds || newLines[index].taxIds || [],
-      };
-      setTimeout(() => saveLines(newLines), 0);
-      return { ...prev, lines: newLines };
-    });
-  }, [saveLines]);
-
   // ── Billing rate calculation based on product + assignment + dates ──
   const calculateBillingRate = useCallback((line) => {
     const rate = line._clientBillingRate;
@@ -1422,6 +1428,35 @@ export default function InvoiceDetailV2() {
     return null;
   }, []);
 
+  const handleProductSelect = useCallback((index, product) => {
+    setEditForm(prev => {
+      const newLines = [...prev.lines];
+      newLines[index] = {
+        ...newLines[index],
+        productId: product._id || product.id,
+        productName: product.name || '',
+        internalRef: product.internalRef || newLines[index].internalRef || '',
+        hsnSacCode: product.hsnSacCode || newLines[index].hsnSacCode || '',
+        unit: product.unit || newLines[index].unit || '',
+        description: product.description || newLines[index].description || '',
+        unitPrice: product.unitPrice ?? product.price ?? newLines[index].unitPrice,
+        taxIds: product.defaultTaxIds || product.taxIds || newLines[index].taxIds || [],
+      };
+      // 2026-11-04: choosing the product AFTER the consultant used to keep
+      // whatever rate was there; recalculate from the consultant's client rate.
+      const rateData = newLines[index].consultantId ? consultantRates[newLines[index].consultantId] : null;
+      if (rateData) {
+        const rate = calculateBillingRate({ ...newLines[index], _clientBillingRate: rateData });
+        if (rate !== null) newLines[index].unitPrice = Math.round(rate * 1000000) / 1000000;
+        else if (rateBasisOf(rateData) && isConsultantProduct(newLines[index])) {
+          showToast(`${newLines[index].consultantName || 'This consultant'} is billed ${rateBasisOf(rateData)} — "${product.name}" has no matching rate`, 'error');
+        }
+      }
+      setTimeout(() => saveLines(newLines), 0);
+      return { ...prev, lines: newLines };
+    });
+  }, [saveLines, consultantRates, calculateBillingRate, showToast]);
+
   const handleConsultantSelect = useCallback((index, emp) => {
     // Store the billing rate in the map (keyed by consultantId) so it survives editForm resets
     if (emp.clientBillingRate && emp._id) {
@@ -1438,7 +1473,23 @@ export default function InvoiceDetailV2() {
       const rateData = emp.clientBillingRate || null;
       if (rateData) {
         const calcLine = { ...line, _clientBillingRate: rateData };
-        const rate = calculateBillingRate(calcLine);
+        let rate = calculateBillingRate(calcLine);
+        // 2026-11-04: an HOURLY consultant on "Consultant – Monthly" got no
+        // rate, the rate was typed by hand and the invoice printed
+        // "102.00 Days @ 1,800/Days" (KS/26-27/10/0002). When the line's
+        // Consultant product has no rate for this consultant but exactly one
+        // basis is set, switch to the matching Consultant product.
+        const basis = rateBasisOf(rateData);
+        const match = basis && consultantProducts.find((p) => (p.internalRef || '').toUpperCase() === BASIS_PRODUCT_REF[basis]);
+        if (rate === null && match && (!line.productId || isConsultantProduct(line))) {
+          Object.assign(line, {
+            productId: match._id, productName: match.name, internalRef: match.internalRef || '',
+            hsnSacCode: match.hsnSacCode || line.hsnSacCode || '', unit: match.unit || line.unit || '',
+            taxIds: (line.taxIds && line.taxIds.length) ? line.taxIds : (match.defaultTaxIds || []),
+          });
+          rate = calculateBillingRate({ ...line, _clientBillingRate: rateData });
+          showToast(`${emp.fullName} is billed ${basis} — product set to "${match.name}"`);
+        }
         if (rate !== null) {
           line.unitPrice = Math.round(rate * 1000000) / 1000000;
         }
@@ -1447,7 +1498,7 @@ export default function InvoiceDetailV2() {
       setTimeout(() => saveLines(newLines), 0);
       return { ...prev, lines: newLines };
     });
-  }, [saveLines, calculateBillingRate]);
+  }, [saveLines, calculateBillingRate, consultantProducts, showToast]);
 
   // Recalculate billing rate when start/end date changes (if consultant has assignment rate)
   const updateLine = useCallback((index, field, value) => {

@@ -90,6 +90,15 @@ export function DataTable({
     document.body.style.cursor = 'col-resize';
   };
 
+  // 2026-11-04: every table gets its own scroll area once it is taller than
+  // the screen, so the header stays pinned. A header cannot stick to the PAGE
+  // here: the horizontal-scroll wrapper is itself the sticky container, so
+  // without a height of its own the header scrolled away on every table.
+  // Short tables are unaffected (no inner scrollbar). Opt out: maxHeight={false}.
+  const scrollH = maxHeight === false || maxHeight === 'none'
+    ? null
+    : (maxHeight ?? (stickyHeader ? 'max(360px, calc(100vh - 220px))' : null));
+
   const headCell = {
     font: "600 10.5px/1 'Inter', system-ui, sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase',
     color: 'var(--fg-4, #828e9f)', padding: d.head, textAlign: 'left', whiteSpace: 'nowrap',
@@ -129,7 +138,7 @@ export function DataTable({
       }}
       {...rest}
     >
-      <div style={maxHeight ? { overflow: 'auto', maxHeight } : { overflowX: 'auto' }}>
+      <div style={scrollH ? { overflow: 'auto', maxHeight: scrollH } : { overflowX: 'auto' }}>
         <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: resizable || freeze ? 'fixed' : 'auto' }}>
           <colgroup>
             {selectable && <col style={{ width: 40 }} />}
@@ -138,7 +147,7 @@ export function DataTable({
           <thead>
             <tr>
               {selectable && (
-                <th style={{ ...headCell, padding: d.head, width: 40, ...(freeze || maxHeight ? { position: 'sticky', top: stickyTop, left: 0, zIndex: 4 } : {}) }}>
+                <th style={{ ...headCell, padding: d.head, width: 40, ...(freeze || scrollH ? { position: 'sticky', top: stickyTop, left: 0, zIndex: 4 } : {}) }}>
                   <Check checked={allOn} indeterminate={someOn} onChange={toggleAll} label="Select all rows" />
                 </th>
               )}
@@ -151,8 +160,8 @@ export function DataTable({
                     // headCell's sticky — kept as-is for existing tables. With
                     // its own scroll area (maxHeight) the header must stay
                     // pinned, and a frozen header must be sticky to stay put.
-                    position: maxHeight || ci < freeze ? 'sticky' : 'relative',
-                    ...(maxHeight || ci < freeze ? { top: stickyHeader ? stickyTop : 'auto' } : {}),
+                    position: scrollH || ci < freeze ? 'sticky' : 'relative',
+                    ...(scrollH || ci < freeze ? { top: stickyHeader ? stickyTop : 'auto' } : {}),
                     ...frozenHead(ci),
                   }} ref={undefined} aria-sort={state ? (state === 'asc' ? 'ascending' : 'descending') : 'none'}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: c.align === 'right' ? 'flex-end' : c.align === 'center' ? 'center' : 'flex-start', width: '100%' }}>
