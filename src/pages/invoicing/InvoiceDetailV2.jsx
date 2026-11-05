@@ -817,8 +817,15 @@ function rateBasisOf(rate) {
   const set = ['hourly', 'daily', 'monthly'].filter((k) => Number(rate[k]) > 0);
   return set.length === 1 ? set[0] : null;
 }
-function isConsultantProduct(line) {
-  return /^CONS-/i.test(line?.internalRef || '') || /^consultant\s*[–-]/i.test(line?.productName || '');
+// The rate basis a Consultant product bills from (Monthly-Working Day is a
+// monthly rate split over working days).
+const PRODUCT_REF_BASIS = { 'CONS-HOUR': 'hourly', 'CONS-DAY': 'daily', 'CONS-MONTHLY': 'monthly', 'CONS-MONTH-WD': 'monthly' };
+// True only when the line's Consultant product needs a rate this consultant
+// does not have (hourly consultant on a Monthly product). Missing dates are
+// NOT a mismatch — the rate fills in once the dates are set.
+function productBasisMismatch(line, rate) {
+  const need = PRODUCT_REF_BASIS[(line?.internalRef || '').toUpperCase()];
+  return !!need && !!rate && !(Number(rate[need]) > 0);
 }
 
 export default function InvoiceDetailV2() {
@@ -1448,7 +1455,7 @@ export default function InvoiceDetailV2() {
       if (rateData) {
         const rate = calculateBillingRate({ ...newLines[index], _clientBillingRate: rateData });
         if (rate !== null) newLines[index].unitPrice = Math.round(rate * 1000000) / 1000000;
-        else if (rateBasisOf(rateData) && isConsultantProduct(newLines[index])) {
+        else if (rateBasisOf(rateData) && productBasisMismatch(newLines[index], rateData)) {
           showToast(`${newLines[index].consultantName || 'This consultant'} is billed ${rateBasisOf(rateData)} — "${product.name}" has no matching rate`, 'error');
         }
       }
@@ -1481,7 +1488,11 @@ export default function InvoiceDetailV2() {
         // basis is set, switch to the matching Consultant product.
         const basis = rateBasisOf(rateData);
         const match = basis && consultantProducts.find((p) => (p.internalRef || '').toUpperCase() === BASIS_PRODUCT_REF[basis]);
-        if (rate === null && match && (!line.productId || isConsultantProduct(line))) {
+        // 2026-11-05: only on a real basis MISMATCH. The first version also
+        // switched when the rate was null only because the dates were not
+        // set yet, turning the customer's default "Monthly-Working Day" into
+        // "Monthly" (SG/26-27/11/0001, Vipul Sharma).
+        if (rate === null && match && productBasisMismatch(line, rateData)) {
           Object.assign(line, {
             productId: match._id, productName: match.name, internalRef: match.internalRef || '',
             hsnSacCode: match.hsnSacCode || line.hsnSacCode || '', unit: match.unit || line.unit || '',
