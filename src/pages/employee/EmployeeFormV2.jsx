@@ -153,7 +153,7 @@ export default function EmployeeFormV2() {
   // owner's own seeded record does not count. Waives Sourced By (2026-10-06).
   const [isFirstHire, setIsFirstHire] = useState(false);
   const [tsClients, setTsClients] = useState([]);
-  const [tsProjects, setTsProjects] = useState([]);
+  const [, setTsProjects] = useState([]); // projects are automatic now; kept for the shared timesheet-options loader
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [savingAssignment, setSavingAssignment] = useState(null);
@@ -476,14 +476,6 @@ export default function EmployeeFormV2() {
     });
   };
 
-  // Combo handler for project: sets both projectId + projectName
-  const setAssignmentProject = (idx, id, name) => {
-    setForm(prev => {
-      const updated = [...prev.assignments];
-      updated[idx] = { ...updated[idx], projectId: id, projectName: name };
-      return { ...prev, assignments: updated };
-    });
-  };
 
   // Update a nested field inside an assignment (e.g. billingRate.daily).
   // For rate groups (billingRate, clientBillingRate) the UI treats "daily
@@ -609,7 +601,6 @@ export default function EmployeeFormV2() {
       const a = form.assignments[i];
       const missing = [];
       if (!a.clientId && !a.clientName?.trim()) missing.push('Client');
-      if (!a.projectId && !a.projectName?.trim()) missing.push('Project');
       if (!a.startDate) missing.push('Start Date');
       if (!a.endDate) missing.push('End Date');
       if (missing.length > 0) {
@@ -719,10 +710,6 @@ export default function EmployeeFormV2() {
     if (!assignment) return;
     if (!assignment.clientName?.trim() && !assignment.clientId) {
       setError(`Assignment ${idx + 1}: Client is required.`);
-      return;
-    }
-    if (!assignment.projectName?.trim() && !assignment.projectId) {
-      setError(`Assignment ${idx + 1}: Project is required.`);
       return;
     }
     if (!assignment.startDate) {
@@ -1219,14 +1206,14 @@ export default function EmployeeFormV2() {
                       placeholder="Search or create client..."
                     />
                   </Field>
-                  <Field label="Project" required>
-                    <ComboSelect
-                      value={assignment.projectId}
-                      displayValue={assignment.projectName}
-                      options={tsProjects}
-                      onChange={(id, name) => setAssignmentProject(idx, id, name)}
-                      placeholder="Search or create project..."
-                    />
+                  {/* 2026-11-05: project is automatic — named after the client, like
+                      the Add Assignment dialog (one project per engagement, 07-17).
+                      This picker let Vipul Sharma's Simpliigence engagement be
+                      filed under "HUEMOT TECHNOLOGY INC". */}
+                  <Field label="Project" hint={assignment.projectId ? 'Fixed — the timesheet anchor. To change it, end this assignment and add a new one.' : 'Set automatically from the client.'}>
+                    <div style={{ font: "450 13px/1.4 'Inter', system-ui, sans-serif", color: assignment.projectId ? 'var(--fg)' : 'var(--fg-3)', padding: '9px 0' }}>
+                      {assignment.projectId ? (assignment.projectName || '—') : (assignment.clientName?.trim() || 'Same as the client')}
+                    </div>
                   </Field>
                 </div>
 
