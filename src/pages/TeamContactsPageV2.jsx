@@ -4,10 +4,11 @@ import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useToast } from '../context/ToastContext';
-import { Users, RefreshCw, Download, Trash2, UserCheck } from 'lucide-react';
+import { Users, RefreshCw, Download, Trash2, UserCheck, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import LeadDetailPanel from '../components/LeadDetailPanel';
+import ComingSoonModal from '../components/ComingSoonModal';
 import AddToListModal from '../components/AddToListModal';
 import ExportToCRMModal from '../components/ExportToCRMModal';
 import AddToSequenceModal from '../components/AddToSequenceModal';
@@ -27,7 +28,7 @@ import {
 export default function TeamContactsPageV2() {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { hasAppAccess } = useOrg();
+  const { hasAppAccess, getAppRole } = useOrg();
   const [searchParams, setSearchParams] = useSearchParams();
   const { leadId } = useParams();
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function TeamContactsPageV2() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -61,10 +63,22 @@ export default function TeamContactsPageV2() {
   const [editContactTarget, setEditContactTarget] = useState(null);
   const [showAssignOwner, setShowAssignOwner] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState('');
 
   const setupComplete = useSetupStatus();
   const canExportCrm = hasAppAccess('crm') || user?.plan === 'pro' || user?.plan === 'premium';
   const leadsPerPage = 50;
+
+  // 2026-11-09: who may edit a contact — mirrors the API (PUT
+  // /api/portal/leads/:id → buildOwnershipQuery): the owner (userId or
+  // visitorId), an outreach admin (all org leads), or a team lead (their own
+  // team's leads — the only ones Team Contacts lists for them). Anyone else
+  // gets the side panel read-only instead of a "Lead not found" on save.
+  const outreachRole = getAppRole('outreach');
+  const myId = String(user?._id || user?.id || '');
+  const canEditLead = (lead) => outreachRole === 'admin' || outreachRole === 'team_lead'
+    || (!!myId && (String(lead?.userId || '') === myId || String(lead?.visitorId || '') === myId));
 
   // ?status= / ?owner= deep-links: adopt once then clear (legacy contract).
   useEffect(() => {
@@ -101,11 +115,14 @@ export default function TeamContactsPageV2() {
         setTotalCount(response.totalCount || 0);
         setTotalPages(response.totalPages || 1);
         if (Array.isArray(response.teamMembers)) setTeamMembers(response.teamMembers);
+        setLoadError(null);
       }
     } catch (err) {
       if (err?.name === 'AbortError') { aborted = true; return; } // superseded — the newer request owns the state
       console.error('Failed to load team leads:', err);
       setLeads([]);
+      // 2026-11-09: a failed load showed "No team contacts yet" — now an error + Retry.
+      setLoadError(err?.message || 'Failed to load team contacts');
     } finally {
       if (!aborted) { setLoading(false); setRefreshing(false); }
     }
@@ -135,11 +152,17 @@ export default function TeamContactsPageV2() {
         setTotalCount((prev) => prev - 1);
         if (selectedLead?._id === deleteTarget._id) closePanel();
       } else {
-        await Promise.all(selectedLeads.map((id) => api.deleteLead(id)));
-        setLeads((prev) => prev.filter((l) => !selectedLeads.includes(l._id)));
-        setTotalCount((prev) => prev - selectedLeads.length);
-        if (selectedLead && selectedLeads.includes(selectedLead._id)) closePanel();
-        setSelectedLeads([]);
+        // 2026-11-09: allSettled — one failure used to report "Delete failed"
+        // and keep every row although the rest were deleted.
+        const ids = [...selectedLeads];
+        const res = await Promise.allSettled(ids.map((id) => api.deleteLead(id)));
+        const done = ids.filter((_, i) => res[i].status === 'fulfilled' && res[i].value?.success !== false);
+        const failed = ids.length - done.length;
+        setLeads((prev) => prev.filter((l) => !done.includes(l._id)));
+        setTotalCount((prev) => prev - done.length);
+        if (selectedLead && done.includes(selectedLead._id)) closePanel();
+        setSelectedLeads(ids.filter((id) => !done.includes(id)));
+        if (failed) { showToast(`${done.length} deleted, ${failed} failed`, 'error'); return; }
       }
       showToast('Deleted', 'success');
     } catch (err) {
@@ -162,10 +185,15 @@ export default function TeamContactsPageV2() {
           showToast('Contact reassigned successfully', 'success');
         }
       } else if (selectedLeads.length > 0) {
-        await Promise.all(selectedLeads.map((id) => api.assignLeadOwner(id, newOwnerId)));
+        // 2026-11-09: allSettled — report partial success instead of a blanket failure.
+        const ids = [...selectedLeads];
+        const res = await Promise.allSettled(ids.map((id) => api.assignLeadOwner(id, newOwnerId)));
+        const done = res.filter((r) => r.status === 'fulfilled' && r.value?.success !== false).length;
+        const failed = ids.length - done;
         loadLeads(); // refresh to get correct owner names (legacy behaviour)
         setSelectedLeads([]);
-        showToast('Contacts reassigned successfully', 'success');
+        if (failed) showToast(`${done} reassigned, ${failed} failed`, 'error');
+        else showToast('Contacts reassigned successfully', 'success');
       }
     } catch (err) {
       showToast(err?.message || 'Failed to reassign', 'error');
@@ -188,7 +216,8 @@ export default function TeamContactsPageV2() {
 
   const manageProps = (lead) => ({
     onExportCRM: () => {
-      if (!canExportCrm) return; // legacy TeamContacts silently no-ops
+      // 2026-11-09: was a silent no-op — same Coming Soon notice as My Contacts.
+      if (!canExportCrm) { setComingSoonFeature('Export to CRM'); setShowComingSoon(true); return; }
       setExportCRMTarget(lead); setShowExportCRM(true);
     },
     onAddToSequence: () => {
@@ -198,7 +227,7 @@ export default function TeamContactsPageV2() {
     },
     onAddToList: () => { setAddToListTarget(lead); setShowAddToList(true); },
     onEditContact: () => { setEditContactTarget(lead); setShowEditContact(true); },
-    onTagContact: () => {},
+    onTagContact: () => { setComingSoonFeature('Tag Contact'); setShowComingSoon(true); }, // 2026-11-09: was empty; matches My Contacts
     onRemoveContact: () => { setDeleteTarget(lead); setShowDeleteModal(true); },
     onAssignOwner: () => { setAssignTarget(lead); setShowAssignOwner(true); },
     onArchive: !lead.archived ? () => handleArchive(lead, true) : undefined,
@@ -219,7 +248,7 @@ export default function TeamContactsPageV2() {
     <div style={{ marginRight: selectedLead ? 420 : 0, transition: 'margin-right var(--d-3) var(--e-out)' }}>
       <PageHeaderV2
         title="Team Contacts"
-        sub={`${totalCount} ${totalCount === 1 ? 'contact' : 'contacts'} across the team`}
+        sub={`${totalCount.toLocaleString()} ${totalCount === 1 ? 'contact' : 'contacts'} across the team`}
         actions={(
           <>
             <Button variant="secondary" size="sm" disabled={refreshing} iconLeft={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />} onClick={() => loadLeads(true)}>
@@ -247,27 +276,39 @@ export default function TeamContactsPageV2() {
         noun="contact"
       />
 
-      <LeadsTableV2
-        leads={leads}
-        loading={loading}
-        selectedLeads={selectedLeads}
-        onSelectionChange={setSelectedLeads}
-        showOwnerCol
-        onOpenLead={openLead}
-        manageProps={manageProps}
-        empty={(
-          <LeadsEmptyState
-            icon={<Users size={22} />}
-            title={filtered ? 'No results found' : 'No team contacts yet'}
-          >
-            {filtered
-              ? 'Try adjusting your search or filters.'
-              : 'Contacts saved by your team will appear here.'}
-          </LeadsEmptyState>
-        )}
-      />
-      {totalCount > 0 && (
-        <Pagination page={currentPage} pageSize={leadsPerPage} total={totalCount} onPageChange={setCurrentPage} noun="contact" />
+      {loadError && !loading && leads.length === 0 ? (
+        <LeadsEmptyState
+          icon={<AlertTriangle size={22} />}
+          title="Couldn't load team contacts"
+          actions={<Button variant="secondary" size="sm" onClick={() => loadLeads()}>Retry</Button>}
+        >
+          {loadError}
+        </LeadsEmptyState>
+      ) : (
+        <>
+          <LeadsTableV2
+            leads={leads}
+            loading={loading}
+            selectedLeads={selectedLeads}
+            onSelectionChange={setSelectedLeads}
+            showOwnerCol
+            onOpenLead={openLead}
+            manageProps={manageProps}
+            empty={(
+              <LeadsEmptyState
+                icon={<Users size={22} />}
+                title={filtered ? 'No results found' : 'No team contacts yet'}
+              >
+                {filtered
+                  ? 'Try adjusting your search or filters.'
+                  : 'Contacts saved by your team will appear here.'}
+              </LeadsEmptyState>
+            )}
+          />
+          {totalCount > 0 && (
+            <Pagination page={currentPage} pageSize={leadsPerPage} total={totalCount} onPageChange={setCurrentPage} noun="contact" />
+          )}
+        </>
       )}
 
       <BulkActionBar
@@ -289,6 +330,7 @@ export default function TeamContactsPageV2() {
           teamMode
           teamMembers={teamMembers}
           onAssign={(lead) => { setAssignTarget(lead); setShowAssignOwner(true); }}
+          readOnly={!canEditLead(selectedLead)}
         />
       )}
 
@@ -305,6 +347,7 @@ export default function TeamContactsPageV2() {
         onConfirm={confirmDelete}
       />
 
+      <ComingSoonModal isOpen={showComingSoon} onClose={() => setShowComingSoon(false)} feature={comingSoonFeature} />
       <AddToListModal
         isOpen={showAddToList}
         onClose={() => { setShowAddToList(false); setAddToListTarget(null); }}

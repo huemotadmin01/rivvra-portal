@@ -80,7 +80,19 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
   const { today, totals, replies = [], sequences = [] } = home;
   const remaining = Math.max(0, (today.limit || 0) - (today.sent || 0));
   const bounceRate = totals.contacted > 0 ? totals.bounced / totals.contacted : 0;
-  const listRows = [...lists].sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 8);
+  // 2026-11-09: the five default lists (Hot Leads, Converted, …) are TEAM
+  // lists — for an admin their counts span the whole team, and My Lists hides
+  // them — so they link to Team Lists and sit apart from the rep's own lists.
+  const byCount = (a, b) => (b.count || 0) - (a.count || 0);
+  const listRows = [
+    ...lists.filter((l) => !l.isDefault).sort(byCount).slice(0, 6).map((l) => ({ ...l, path: `/outreach/lists?list=${encodeURIComponent(l.name)}` })),
+    ...lists.filter((l) => l.isDefault).sort(byCount).map((l) => ({ ...l, path: `/outreach/team-lists?list=${encodeURIComponent(l.name)}`, team: true })),
+  ];
+  const bouncedNow = totals.bouncedContacts ?? totals.bounced;
+  // Workspace plan cap (null limit = no cap). The engine stops at whichever
+  // of the rep's limit and the plan cap runs out first.
+  const orgCap = today.org && today.org.limit != null ? today.org : null;
+  const orgCapHit = !!orgCap && orgCap.sent >= orgCap.limit;
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
@@ -89,13 +101,18 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
         <TodayCard label="Emails sent today" to={orgPath('/outreach/engage')} toLabel="Engage" value={today.sent} suffix={`/ ${fmt(today.limit)} daily limit`}>
           <div style={{ marginTop: 8 }}><Meter value={today.limit ? Math.min(100, (today.sent / today.limit) * 100) : 0} /></div>
           <div style={t.hint}>
-            {fmt(remaining)} left · limit resets 5:30 am IST{home.gmailConnected ? '' : ' · Gmail not connected'}
+            {orgCapHit ? 'Workspace daily cap reached' : `${fmt(remaining)} left`} · limit resets 5:30 am IST{home.gmailConnected ? '' : ' · Gmail not connected'}
           </div>
+          {orgCap && (
+            <div style={{ ...t.hint, color: orgCapHit ? 'var(--danger)' : t.hint.color }}>
+              Workspace plan: {fmt(orgCap.sent)} / {fmt(orgCap.limit)} sent today
+            </div>
+          )}
         </TodayCard>
         <TodayCard label="Enrolled today" to={orgPath('/outreach/leads?status=in_sequence')} toLabel="View" value={today.enrolled}>
           <div style={t.hint}>{fmt(totals.active)} contacts in a sequence right now</div>
         </TodayCard>
-        <TodayCard label="Replies today" to={orgPath('/outreach/leads?status=replied')} toLabel="Interested" value={today.replies}>
+        <TodayCard label="Replies today" to={orgPath('/outreach/my-dashboard')} toLabel="Details" value={today.replies}>
           <div style={t.hint}>
             {totals.lastReplyAt ? `Last reply: ${when(totals.lastReplyAt)}` : 'No replies yet'} · {fmt(totals.repliesWeek)} this week
           </div>
@@ -110,7 +127,7 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
         <Panel>
           <div style={{ padding: 2 }}>
             <h2 style={t.h2}><MessageSquare size={16} style={{ color: 'var(--brand-ink)' }} /> Needs your attention</h2>
-            {replies.length === 0 && totals.bounced === 0 && (
+            {replies.length === 0 && bouncedNow === 0 && (
               <p style={t.muted}>Nothing waiting — no new replies in the last 14 days and no bounced contacts.</p>
             )}
             {replies.map((r, i) => {
@@ -135,14 +152,14 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
                 </div>
               );
             })}
-            {totals.bounced > 0 && (
+            {bouncedNow > 0 && (
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderTop: replies.length ? '1px solid var(--line)' : 0 }}>
                 <span style={{ width: 32, height: 32, borderRadius: 99, display: 'grid', placeItems: 'center', background: 'var(--warn-soft)', color: 'var(--warn-ink)', flexShrink: 0 }}>
                   <AlertTriangle size={15} />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, ...t.body }}>
-                    <b style={{ color: 'var(--fg)' }}>{fmt(totals.bounced)} contacts bounced</b>
+                    <b style={{ color: 'var(--fg)' }}>{fmt(bouncedNow)} contact{bouncedNow === 1 ? '' : 's'} bounced</b>
                     {today.bounced > 0 && <Chip tone="warn">{fmt(today.bounced)} today</Chip>}
                   </div>
                   <div style={{ ...t.body, marginTop: 2 }}>Correct their email and they can be added back to a sequence.</div>
@@ -210,8 +227,8 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
       <Panel>
         <div style={{ padding: 2 }}>
           <h2 style={t.h2}>
-            <ListIcon size={16} style={{ color: 'var(--brand-ink)' }} /> My lists
-            <Link to={orgPath('/outreach/lists')} style={{ ...t.link, marginLeft: 'auto', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}>All lists <ArrowRight size={12} /></Link>
+            <ListIcon size={16} style={{ color: 'var(--brand-ink)' }} /> Lists
+            <Link to={orgPath('/outreach/team-lists')} style={{ ...t.link, marginLeft: 'auto', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}>All lists <ArrowRight size={12} /></Link>
           </h2>
           {listsLoading && listRows.length === 0 ? (
             <p style={t.muted}>Loading lists…</p>
@@ -222,7 +239,8 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
               {listRows.map((l) => (
                 <Link
                   key={l._id || l.name}
-                  to={orgPath(`/outreach/lists?list=${encodeURIComponent(l.name)}`)}
+                  to={orgPath(l.path)}
+                  title={l.team ? 'Team list — fills automatically from outreach status' : 'Your list'}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, border: '1px solid var(--line-2)', background: 'var(--surface-1)', color: 'var(--fg)', textDecoration: 'none', font: "500 13px/1.3 'Inter', system-ui, sans-serif" }}
                 >
                   <Mail size={13} style={{ color: 'var(--fg-4)' }} /> {l.name}

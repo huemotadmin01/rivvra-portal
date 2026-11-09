@@ -261,7 +261,9 @@ export function LeadsTableV2({
   empty,
   // 2026-11-03: the table scrolls inside its own area so the horizontal
   // scrollbar is always on screen; Contact + actions stay frozen on the left.
-  scrollMaxHeight = 'max(360px, calc(100vh - 300px))',
+  // 2026-11-09: −64px more so the pager under the table clears the floating
+  // Ask Rivvra button (bottom-right, 68px tall) without scrolling.
+  scrollMaxHeight = 'max(360px, calc(100vh - 364px))',
 }) {
   const selSet = new Set(selectedLeads);
   const allOn = leads.length > 0 && leads.every((l) => selSet.has(l._id));
@@ -315,6 +317,8 @@ export function LeadsTableV2({
         .ltv2-row.is-on > td { background: linear-gradient(var(--brand-soft, rgba(34,197,94,.13)), var(--brand-soft, rgba(34,197,94,.13))), var(--surface-1, #0e131a); }
         .ltv2-row .ltv2-quick { opacity: 0; transition: opacity 110ms var(--e-out, ease); }
         .ltv2-row:hover .ltv2-quick, .ltv2-row .ltv2-quick:focus-visible { opacity: 1; }
+        /* 2026-11-09: touch screens have no hover — keep the quick action visible. */
+        @media (hover: none) { .ltv2-row .ltv2-quick { opacity: 1; } }
       `}</style>
     <DataTable columns={columns} rows={[]} loading={loading} resizable={false} empty={empty} freezeColumns={3} maxHeight={scrollMaxHeight}>
       {!loading && leads.length ? leads.map((lead) => {
@@ -413,15 +417,35 @@ export function LeadsTableV2({
   );
 }
 
+// 2026-11-09: rail + table side by side on desktop; below 768px (the shell's
+// mobile breakpoint) the rail stacks above the table at full width. Layout
+// lives in classes, not inline styles, so the media query can override it.
+const LISTS_LAYOUT_CSS = `
+  .lrv2-layout { display: flex; gap: 16px; align-items: flex-start; }
+  .lrv2-rail { width: 230px; flex-shrink: 0; align-self: flex-start; position: sticky; top: 70px; }
+  @media (max-width: 767px) {
+    .lrv2-layout { flex-direction: column; align-items: stretch; }
+    .lrv2-rail { width: auto; align-self: stretch; position: static; max-height: 40vh; overflow-y: auto; }
+  }
+`;
+
+/** Rail + content wrapper for MyLists / TeamLists (responsive, see above). */
+export function ListsRailLayout({ children }) {
+  return (
+    <div className="lrv2-layout">
+      <style>{LISTS_LAYOUT_CSS}</style>
+      {children}
+    </div>
+  );
+}
+
 /** Lists rail for MyLists / TeamLists — token-styled vertical list with
  *  counts; per-list trailing action (delete / rename) via `itemAction`. */
 export function ListsRailV2({ title, lists = [], selected, onSelect, headerAction, itemAction }) {
   return (
-    <aside style={{
-      width: 230, flexShrink: 0, alignSelf: 'flex-start',
+    <aside className="lrv2-rail" style={{
       background: 'var(--surface-1)', borderRadius: 'var(--r-3)',
       boxShadow: 'inset 0 0 0 1px var(--line)', padding: 8,
-      position: 'sticky', top: 70,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px 8px' }}>
         <span style={{ font: "600 10.5px/1 'Inter', system-ui, sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-4)' }}>{title}</span>
@@ -446,7 +470,7 @@ export function ListsRailV2({ title, lists = [], selected, onSelect, headerActio
               <span style={{ flex: 1, minWidth: 0, font: `${on ? 600 : 500} 12.5px/1.3 var(--font)`, color: on ? 'var(--fg)' : 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {list.name}
               </span>
-              <span style={{ font: '450 11px/1 var(--font)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{list.count ?? ''}</span>
+              <span style={{ font: '450 11px/1 var(--font)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{list.count != null ? Number(list.count).toLocaleString() : ''}</span>
               {itemAction && itemAction(list, idx)}
             </div>
           );

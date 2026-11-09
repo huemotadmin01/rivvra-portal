@@ -8,6 +8,31 @@ const STATUS_COLORS = {
   paused: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
 };
 
+// 2026-11-09: reasons the enroll endpoint (api sequences.js POST
+// /api/sequences/:id/enroll) returns for contacts it could not enrol that are
+// NOT counted in `skipped` — they used to leave "No contacts enrolled" with no
+// explanation. Anything else not listed in SKIP_REASONS (e.g. a raw error
+// message) is grouped under "could not be enrolled".
+const FAILURE_LABELS = {
+  lead_not_found: 'not found or not yours to enrol',
+  invalid_id: 'had an invalid id',
+  insert_failed: 'could not be saved — try again',
+};
+const SKIP_REASONS = new Set([
+  'no_email', 'already_enrolled', 'recently_contacted', 'in_active_sequence',
+  'suppressed', 'company_needs_confirmation',
+]);
+function failureSummary(errors) {
+  const counts = new Map();
+  for (const e of errors || []) {
+    const r = e?.reason || '';
+    if (SKIP_REASONS.has(r) || r.startsWith('criteria_')) continue;
+    const label = FAILURE_LABELS[r] || 'could not be enrolled';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return [...counts.entries()];
+}
+
 function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNames = [], preSelectedSequenceId = null }) {
   const [sequences, setSequences] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -29,6 +54,14 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
   const searchDebounceRef = useRef(null);
   // Monotonic token so an out-of-order search response can't clobber a newer one.
   const leadReqSeqRef = useRef(0);
+  // 2026-11-09: the post-enrol auto-close timer — cleared on reopen/close and
+  // unmount so a stale timer can't close the next session of the modal.
+  const autoCloseRef = useRef(null);
+  useEffect(() => {
+    clearTimeout(autoCloseRef.current);
+    autoCloseRef.current = null;
+  }, [isOpen]);
+  useEffect(() => () => clearTimeout(autoCloseRef.current), []);
 
   useEffect(() => {
     if (isOpen) {
@@ -165,7 +198,8 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
       // vanish 1.5s after appearing and the rep would be back to forgetting.
       const held = (response.errors || []).some((e) => e.reason === 'company_needs_confirmation');
       if (response.enrolled > 0 && !held) {
-        setTimeout(() => onClose?.(), 1500);
+        clearTimeout(autoCloseRef.current);
+        autoCloseRef.current = setTimeout(() => onClose?.(), 1500);
       }
     } catch (err) {
       setResult({ success: false, error: err.message });
@@ -229,6 +263,12 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
                       : 'No contacts enrolled'
                     }
                   </p>
+                  {failureSummary(result.errors).map(([label, n]) => (
+                    <p key={label} className="text-xs opacity-80 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {n} {label}
+                    </p>
+                  ))}
                   {result.skipped > 0 && (
                     <div className="mt-1 space-y-0.5">
                       <p className="text-xs opacity-80">{result.skipped} skipped:</p>

@@ -4,7 +4,7 @@ import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useToast } from '../context/ToastContext';
-import { Users, RefreshCw, Download, Trash2, Plus, FolderOpen } from 'lucide-react';
+import { Users, RefreshCw, Download, Trash2, Plus, FolderOpen, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import LeadDetailPanel from '../components/LeadDetailPanel';
@@ -17,7 +17,7 @@ import ConfirmDialog from '../components/shared/ConfirmDialog';
 import { Button, BulkActionBar, Pagination, Modal, Input } from '../components/ds';
 import { PageHeaderV2 } from '../components/platform/v2/listkit';
 import {
-  LeadsFilterStrip, LeadsTableV2, LeadsEmptyState, ListsRailV2,
+  LeadsFilterStrip, LeadsTableV2, LeadsEmptyState, ListsRailV2, ListsRailLayout,
   useSetupStatus, useLeadPanelSync, sequenceEmailGuardOk,
 } from '../components/outreach/v2/leadskit';
 
@@ -40,6 +40,8 @@ export default function MyListsPageV2() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [listsError, setListsError] = useState(null);
+  const [leadsError, setLeadsError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -83,6 +85,7 @@ export default function MyListsPageV2() {
     let aborted = false;
     try {
       setLeadsLoading(true);
+      setLeadsError(null);
       const res = await api.getListLeads(listName, {
         page: pageNum,
         limit: leadsPerPage,
@@ -100,6 +103,8 @@ export default function MyListsPageV2() {
       if (err?.name === 'AbortError') { aborted = true; return; } // superseded — the newer request owns the state
       console.error('Failed to load leads:', err);
       setLeads([]);
+      // 2026-11-09: surface the failure — it used to read "No contacts in this list".
+      setLeadsError(err?.message || 'Failed to load contacts');
     } finally {
       if (!aborted) setLeadsLoading(false);
     }
@@ -113,11 +118,13 @@ export default function MyListsPageV2() {
         // Default lists live on the Team Lists page.
         const customLists = (res.lists || []).filter((l) => !l.isDefault);
         setLists(customLists);
+        setListsError(null);
         if (!selectedList && customLists.length > 0) setSelectedList(customLists[0].name);
       }
     } catch (err) {
       console.error('Failed to load lists:', err);
       setLists([]);
+      setListsError(err?.message || 'Failed to load lists');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -286,7 +293,7 @@ export default function MyListsPageV2() {
         )}
       />
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <ListsRailLayout>
         <ListsRailV2
           title="My Lists"
           lists={lists}
@@ -312,7 +319,15 @@ export default function MyListsPageV2() {
         />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          {!loading && lists.length === 0 ? (
+          {!loading && listsError && lists.length === 0 ? (
+            <LeadsEmptyState
+              icon={<AlertTriangle size={22} />}
+              title="Couldn't load your lists"
+              actions={<Button variant="secondary" size="sm" onClick={() => loadLists(true)}>Retry</Button>}
+            >
+              {listsError}
+            </LeadsEmptyState>
+          ) : !loading && lists.length === 0 ? (
             <LeadsEmptyState
               icon={<FolderOpen size={22} />}
               title="No lists yet"
@@ -333,6 +348,15 @@ export default function MyListsPageV2() {
                 resultCount={totalLeads}
                 noun="contact"
               />
+              {leadsError && !leadsLoading ? (
+                <LeadsEmptyState
+                  icon={<AlertTriangle size={22} />}
+                  title="Couldn't load this list"
+                  actions={<Button variant="secondary" size="sm" onClick={() => loadLeads(selectedList, page, debouncedSearch, { profileType: profileTypeFilter, outreachStatus: outreachStatusFilter })}>Retry</Button>}
+                >
+                  {leadsError}
+                </LeadsEmptyState>
+              ) : (
               <LeadsTableV2
                 leads={leads}
                 loading={loading || leadsLoading}
@@ -351,13 +375,14 @@ export default function MyListsPageV2() {
                   </LeadsEmptyState>
                 )}
               />
+              )}
               {totalLeads > 0 && (
                 <Pagination page={page} pageSize={leadsPerPage} total={totalLeads} onPageChange={setPage} noun="contact" />
               )}
             </>
           )}
         </div>
-      </div>
+      </ListsRailLayout>
 
       <BulkActionBar
         count={selectedLeads.length}

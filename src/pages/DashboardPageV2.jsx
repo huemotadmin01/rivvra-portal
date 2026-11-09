@@ -580,6 +580,9 @@ function DashboardPageV2() {
     // one is in flight → skip; only the latest request may write results.
     const key = JSON.stringify(params);
     if (searchSeq.inFlightKey === key) return;
+    // …and the same query just ANSWERED (Enter, then the debounce 400 ms
+    // later) → keep the results instead of flashing the spinner again.
+    if (searchSeq.doneKey === key && Date.now() - (searchSeq.doneAt || 0) < 2000) return;
     const seq = ++searchSeq.current;
     searchSeq.inFlightKey = key;
 
@@ -590,6 +593,7 @@ function DashboardPageV2() {
       const response = await api.searchAllLeads(params);
       if (seq !== searchSeq.current) return;
       if (response.success) {
+        searchSeq.doneKey = key; searchSeq.doneAt = Date.now();
         setSearchResults(response.leads || []);
         setSearchTotal(response.total || 0);
         setSearchPage(response.page || 1);
@@ -872,7 +876,9 @@ function DashboardPageV2() {
               {/* Gmail disconnected while sequences exist: enrollments pause
                   SILENTLY server-side (no Resend fallback for outreach) — this
                   banner is the only user-visible signal that sending stopped. */}
-              {!loading && gmailStatus && !gmailStatus.connected && (sequencesCount || 0) > 0 && (
+              {/* 2026-11-09: also when the rep only works a SHARED sequence — emails
+                  go from the enroller's Gmail, so theirs being off stops them too. */}
+              {!loading && gmailStatus && !gmailStatus.connected && ((sequencesCount || 0) > 0 || (home?.totals?.active || 0) > 0) && (
                 <Callout tone="warn" style={{ marginBottom: 16 }} title="Gmail is not connected — your sequences are paused">
                   <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '0 0 8px' }}>
                     Enrollments won't send any emails until Gmail is reconnected. They resume automatically once connected.

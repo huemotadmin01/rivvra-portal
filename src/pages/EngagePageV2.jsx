@@ -39,7 +39,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SequenceDetailPage from '../components/SequenceDetailPage';
-import EngageSettings from '../components/EngageSettings';
+import EngageSettingsV2 from '../components/EngageSettingsV2';
 import EngageSetupGuide from '../components/EngageSetupGuide';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { useAuth } from '../context/AuthContext';
@@ -81,11 +81,11 @@ const bodyStyle = { font: "450 13px/1.55 'Inter', system-ui, sans-serif", color:
 const metaStyle = { font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 };
 const truncate = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const thStyle = {
-  textAlign: 'left', whiteSpace: 'nowrap', padding: '12px 16px',
+  textAlign: 'left', whiteSpace: 'nowrap', padding: '12px 12px', // 2026-11-09: 16px overflowed the table by ~65px at 1440 wide
   font: "500 10px/1.4 'Inter', system-ui, sans-serif",
   letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--fg-4)',
 };
-const tdStyle = { padding: '12px 16px', ...bodyStyle };
+const tdStyle = { padding: '12px 12px', ...bodyStyle };
 const menuItem = {
   display: 'flex', alignItems: 'center', gap: 8, width: '100%',
   padding: '8px 16px', cursor: 'pointer', background: 'none', border: 0,
@@ -142,15 +142,21 @@ function EngagePageV2() {
     return () => { cancelled = true; };
   }, []);
 
-  // 2026-11-09: ?sequence=<id> opens that sequence's detail (deep link from
-  // the Outreach Home "Your sequences" table).
+  // 2026-11-09: the detail view is driven by ?sequence=<id> — deep links from
+  // the Outreach Home table open it, and a click on "Engage" in the sidebar
+  // (same path, no param) or browser Back returns to the list. Previously the
+  // view lived only in state, so the sidebar link did nothing and a refresh
+  // after Back reopened the old sequence.
   useEffect(() => {
     const id = new URLSearchParams(location.search).get('sequence');
     if (id && /^[a-f0-9]{24}$/i.test(id)) {
       setSelectedSequenceId(id);
       setView('detail');
+    } else {
+      setView((v) => (v === 'detail' ? 'list' : v));
+      setSelectedSequenceId(null);
     }
-  }, [location.search]);
+  }, [location.search, location.key]);
 
   // Handle redirect-back from Gmail OAuth (separate effect to avoid race conditions)
   // After Google callback → backend → /#/engage?gmail_code=xxx → OrgRedirect → here
@@ -418,13 +424,11 @@ function EngagePageV2() {
   }
 
   function handleOpenDetail(seq) {
-    setSelectedSequenceId(seq._id);
-    setView('detail');
+    navigate(`${location.pathname}?sequence=${seq._id}`);
   }
 
   function handleBackToList() {
-    setView('list');
-    setSelectedSequenceId(null);
+    navigate(location.pathname);
     loadSequences(); // Refresh after detail view
   }
 
@@ -570,7 +574,7 @@ function EngagePageV2() {
           onToggleMenu={(id) => setActionMenuId(actionMenuId === id ? null : id)}
         />
       ) : (
-        <EngageSettings gmailStatus={gmailStatus} />
+        <EngageSettingsV2 gmailStatus={gmailStatus} />
       )}
 
       {/* Activation confirmation modal */}
@@ -813,12 +817,17 @@ function SequencesTab({
                   const openRate = stats.sent > 0
                     ? `${Math.min((stats.opened / stats.sent) * 100, 100).toFixed(0)}%`
                     : '0%';
-                  const replyRate = stats.sent > 0
-                    ? `${Math.min(((stats.replied || 0) / stats.sent) * 100, 100).toFixed(0)}%`
-                    : '0%';
-                  const bounceRate = stats.sent > 0
-                    ? `${Math.min(((stats.bounced || 0) / stats.sent) * 100, 100).toFixed(0)}%`
-                    : '0%';
+                  // 2026-11-09: Interested / Bounced are PEOPLE outcomes, so the
+                  // base is people enrolled — dividing by emails sent (5 per
+                  // person) understated both ~5x and disagreed with Home and
+                  // the dashboards for the same sequence.
+                  const pct = (n, d) => {
+                    if (!(d > 0)) return '0%';
+                    const v = Math.min((n / d) * 100, 100);
+                    return `${v > 0 && v < 10 ? v.toFixed(1) : v.toFixed(0)}%`;
+                  };
+                  const replyRate = pct(stats.replied || 0, stats.enrolled || 0);
+                  const bounceRate = pct(stats.bounced || 0, stats.enrolled || 0);
                   const deliveredRate = stats.sent > 0
                     ? `${Math.min(((stats.sent - (stats.bounced || 0)) / stats.sent) * 100, 100).toFixed(0)}%`
                     : '0%';
@@ -842,7 +851,7 @@ function SequencesTab({
                         </div>
                         <div style={metaStyle}>{emailSteps} Email{emailSteps !== 1 ? 's' : ''}</div>
                       </td>
-                      <td style={{ ...tdStyle, fontSize: 12 }}>
+                      <td style={{ ...tdStyle, fontSize: 12, whiteSpace: 'nowrap' }}>
                         {seq.isOwner === false
                           ? <span style={{ color: 'var(--acc-blue, var(--brand-ink))' }}>{seq.ownerName || 'Teammate'}</span>
                           : user?.name ? `${user.name.split(' ')[0]} ${user.name.split(' ')[1]?.charAt(0) || ''}.`.trim() : '—'}

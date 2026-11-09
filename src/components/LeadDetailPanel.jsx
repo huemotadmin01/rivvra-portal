@@ -3,7 +3,7 @@ import {
   X, Linkedin, Mail, Phone, Building2, MapPin, Briefcase,
   Calendar, Globe, StickyNote, Plus, Trash2, ExternalLink,
   Clock, Tag, RefreshCw, Reply, ChevronDown, ChevronUp, MessageSquareText,
-  Copy, Check, Archive, UserRound
+  Copy, Check, Archive, UserRound, Eye
 } from 'lucide-react';
 import api from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -29,6 +29,9 @@ const STATUS_LABELS = {
   replied: 'Interested',
   replied_not_interested: 'Not Interested',
   no_response: 'No Response',
+  // 2026-11-09: system status (set by the sequence engine) — raw key showed.
+  // Same wording as leadskit's STATUS_TONE.
+  lost_no_response: 'Lost - No Response',
   bounced: 'Bounced',
   converted: 'Converted',
 };
@@ -143,7 +146,11 @@ function SectionTitle({ children, saving, right }) {
   );
 }
 
-function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign }) {
+// 2026-11-09: `readOnly` — the page passes it when the viewer cannot edit
+// this contact (the API's PUT /leads/:id only matches the owner, an outreach
+// admin, or a team lead of the owner's team; everyone else got "Lead not
+// found" after editing a teammate's contact). Hides every edit control.
+function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, readOnly = false }) {
   const { showToast } = useToast();
   const [newNote, setNewNote] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -201,7 +208,9 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign }
 
   if (!lead) return null;
 
-  const locked = !!lead.archived;
+  const archived = !!lead.archived;
+  // Every edit control below keys off `locked`: archived OR view-only.
+  const locked = archived || readOnly;
   const company = lead.companyName || lead.company || '';
   const jobTitle = lead.title || lead.currentTitle || '';
   const subtitle = jobTitle || lead.headline || '';
@@ -407,7 +416,13 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign }
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        {locked && (
+        {readOnly && (
+          <div className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-dark-600 bg-dark-800 px-3 py-2 text-xs text-dark-300">
+            <Eye className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            View only{lead.ownerName ? ` — owned by ${lead.ownerName}` : ''}. Only the owner, their team lead or an admin can change it.
+          </div>
+        )}
+        {archived && !readOnly && (
           <div className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
             <Archive className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
             This contact is archived. Unarchive it to change its status, tags or notes.
@@ -597,7 +612,7 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign }
                 <Avatar name={lead.ownerName} size="md" />
                 <span className="text-sm text-white">{lead.ownerName}</span>
               </div>
-              {onAssign && (
+              {onAssign && !readOnly && (
                 <button
                   type="button"
                   onClick={() => onAssign(lead)}

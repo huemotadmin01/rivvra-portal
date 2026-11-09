@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Radar, ExternalLink, X, Check, Loader2, Sparkles } from 'lucide-react';
 import api from '../../utils/api';
+import { useOrg } from '../../context/OrgContext';
 
 /* ── Hiring Signals (2026-08-20, growth-plan A1) ──────────────────────────
  * Fresh job postings harvested daily from watchlisted companies' public
@@ -9,6 +10,9 @@ import api from '../../utils/api';
  * lead there is. Suggested contacts come from the org's own leads DB
  * (matched by email domain), so every row answers "who do I email?". */
 export default function HiringSignalsCard({ orgSlug }) {
+  // Seed / Scan are owner-admin only on the API (requireOrgAdmin) — a rep used
+  // to see both buttons and get "Admin access required" (2026-11-09).
+  const { isOrgAdmin } = useOrg();
   const [loading, setLoading] = useState(true);
   const [signals, setSignals] = useState([]);
   const [watchCount, setWatchCount] = useState(null);
@@ -100,7 +104,7 @@ export default function HiringSignalsCard({ orgSlug }) {
             </p>
           </div>
         </div>
-        {watchCount > 0 && (
+        {watchCount > 0 && isOrgAdmin && (
           <button
             type="button"
             onClick={scan}
@@ -121,6 +125,7 @@ export default function HiringSignalsCard({ orgSlug }) {
           <p className="text-sm text-dark-400 mb-3">
             Build your watchlist from companies you already know — ATS clients and contact domains — then Rivvra checks their public job boards daily.
           </p>
+          {isOrgAdmin ? (
           <button
             type="button"
             onClick={seed}
@@ -130,6 +135,9 @@ export default function HiringSignalsCard({ orgSlug }) {
             {seeding ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
             {seeding ? 'Seeding…' : 'Seed watchlist from my data'}
           </button>
+          ) : (
+            <p className="text-xs text-dark-500">Ask a workspace admin to set up the watchlist.</p>
+          )}
         </div>
       ) : signals.length === 0 ? (
         <p className="text-sm text-dark-500 text-center py-4">

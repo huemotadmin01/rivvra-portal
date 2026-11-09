@@ -433,7 +433,17 @@ function SequenceDetailPage({ sequenceId, onBack }) {
     </PageSkeleton>
   );
 
-  if (!sequence) return null;
+  // 2026-11-09: a deleted / unshared sequence (e.g. opened from a Home link or
+  // a stale ?sequence= URL) used to render a blank page with no way back.
+  if (!sequence) return (
+    <div style={{ padding: '64px 16px', textAlign: 'center' }}>
+      <p style={{ font: "600 15px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>This sequence isn't available</p>
+      <p style={{ font: "400 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '6px 0 16px' }}>It may have been deleted, or it's no longer shared with you.</p>
+      <button type="button" onClick={onBack} style={{ border: '1px solid var(--line-2)', background: 'var(--surface-1)', color: 'var(--fg)', borderRadius: 8, padding: '7px 14px', font: "600 13px/1 'Inter', system-ui, sans-serif", cursor: 'pointer' }}>
+        Back to sequences
+      </button>
+    </div>
+  );
 
   const isActive = sequence.status === 'active';
   const isOwner = sequence.isOwner !== false; // true for owner or legacy sequences without isOwner field

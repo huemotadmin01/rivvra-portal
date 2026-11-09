@@ -4,7 +4,7 @@ import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useToast } from '../context/ToastContext';
-import { Users, RefreshCw, Download, Pencil, Lock, Layers } from 'lucide-react';
+import { Users, RefreshCw, Download, Pencil, Lock, Layers, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import LeadDetailPanel from '../components/LeadDetailPanel';
@@ -17,7 +17,7 @@ import ConfirmDialog from '../components/shared/ConfirmDialog';
 import { Button, BulkActionBar, Pagination, Modal, Input } from '../components/ds';
 import { PageHeaderV2 } from '../components/platform/v2/listkit';
 import {
-  LeadsFilterStrip, LeadsTableV2, LeadsEmptyState, ListsRailV2,
+  LeadsFilterStrip, LeadsTableV2, LeadsEmptyState, ListsRailV2, ListsRailLayout,
   useSetupStatus, useLeadPanelSync, sequenceEmailGuardOk,
 } from '../components/outreach/v2/leadskit';
 
@@ -37,6 +37,9 @@ export default function TeamListsPageV2() {
   const orgRole = currentOrg ? getAppRole('outreach') : null;
   const effectiveRole = orgRole || user?.role || 'member';
   const isAdminOrLead = effectiveRole === 'admin' || effectiveRole === 'team_lead';
+  // 2026-11-09: PUT /api/lists/:id/rename is admin-only — team leads got a
+  // pencil that always 403'd.
+  const canRenameLists = effectiveRole === 'admin';
   const uid = user?._id || user?.id;
   const canEditLead = (lead) => isAdminOrLead || lead.userId === uid || lead.visitorId === uid;
 
@@ -46,6 +49,8 @@ export default function TeamListsPageV2() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [listsError, setListsError] = useState(null);
+  const [leadsError, setLeadsError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -89,13 +94,24 @@ export default function TeamListsPageV2() {
     try {
       const res = await api.getTeamLists();
       if (res.success) {
-        setLists(res.lists || []);
+        const all = res.lists || [];
+        setLists(all);
         setTeamMembers(res.teamMembers || []);
-        if (!selectedList && (res.lists || []).length > 0) setSelectedList(res.lists[0].name);
+        setListsError(null);
+        // 2026-11-09: Home deep-links default lists as ?list=<name>; match the
+        // name case-insensitively and use the list's real name (the leads API
+        // matches it exactly). Unknown name → fall back to the first list.
+        const match = selectedList && all.find((l) => l.name.toLowerCase() === selectedList.toLowerCase());
+        if (match) {
+          if (match.name !== selectedList) setSelectedList(match.name);
+        } else if (all.length > 0) {
+          setSelectedList(all[0].name);
+        }
       }
     } catch (err) {
       console.error('Failed to load team lists:', err);
       setLists([]);
+      setListsError(err?.message || 'Failed to load team lists');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -106,6 +122,7 @@ export default function TeamListsPageV2() {
     if (!listName) return;
     try {
       setLeadsLoading(true);
+      setLeadsError(null);
       const res = await api.getTeamListLeads(listName, {
         page: pageNum,
         limit: leadsPerPage,
@@ -122,6 +139,8 @@ export default function TeamListsPageV2() {
     } catch (err) {
       console.error('Failed to load team list leads:', err);
       setLeads([]);
+      // 2026-11-09: surface the failure — it used to read "No contacts in this list".
+      setLeadsError(err?.message || 'Failed to load contacts');
     } finally {
       setLeadsLoading(false);
     }
@@ -130,14 +149,15 @@ export default function TeamListsPageV2() {
   useEffect(() => { loadLists(); }, [loadLists]);
 
   useEffect(() => {
-    if (!selectedList) return;
+    // Wait for the lists so a ?list= deep-link is resolved to its real name first.
+    if (!selectedList || loading) return;
     setSelectedLeads([]);
     loadLeads(selectedList, page, debouncedSearch, {
       profileType: profileTypeFilter,
       outreachStatus: outreachStatusFilter,
       owner: ownerFilter,
     });
-  }, [selectedList, page, debouncedSearch, profileTypeFilter, outreachStatusFilter, ownerFilter, loadLeads]);
+  }, [selectedList, loading, page, debouncedSearch, profileTypeFilter, outreachStatusFilter, ownerFilter, loadLeads]);
 
   const selectList = (list) => {
     setSelectedList(list.name);
@@ -246,14 +266,14 @@ export default function TeamListsPageV2() {
         )}
       />
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <ListsRailLayout>
         <ListsRailV2
           title="Team Lists"
           lists={lists}
           selected={selectedList}
           onSelect={selectList}
           headerAction={<Layers size={13} style={{ color: 'var(--fg-4)' }} />}
-          itemAction={(list) => isAdminOrLead ? (
+          itemAction={(list) => canRenameLists ? (
             <button type="button" title="Rename list"
               onClick={(e) => { e.stopPropagation(); setRenamingList({ id: list._id, name: list.name }); setRenameValue(list.name); }}
               style={{ display: 'grid', placeItems: 'center', width: 20, height: 20, borderRadius: 'var(--r-1)', color: 'var(--fg-faint)', flexShrink: 0 }}
@@ -267,7 +287,15 @@ export default function TeamListsPageV2() {
         />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          {!loading && lists.length === 0 ? (
+          {!loading && listsError && lists.length === 0 ? (
+            <LeadsEmptyState
+              icon={<AlertTriangle size={22} />}
+              title="Couldn't load team lists"
+              actions={<Button variant="secondary" size="sm" onClick={() => loadLists(true)}>Retry</Button>}
+            >
+              {listsError}
+            </LeadsEmptyState>
+          ) : !loading && lists.length === 0 ? (
             <LeadsEmptyState icon={<Layers size={22} />} title="No team lists found">
               Team lists are created automatically as your team runs outreach.
             </LeadsEmptyState>
@@ -287,6 +315,15 @@ export default function TeamListsPageV2() {
                 resultCount={totalLeads}
                 noun="contact"
               />
+              {leadsError && !leadsLoading ? (
+                <LeadsEmptyState
+                  icon={<AlertTriangle size={22} />}
+                  title="Couldn't load this list"
+                  actions={<Button variant="secondary" size="sm" onClick={() => loadLeads(selectedList, page, debouncedSearch, { profileType: profileTypeFilter, outreachStatus: outreachStatusFilter, owner: ownerFilter })}>Retry</Button>}
+                >
+                  {leadsError}
+                </LeadsEmptyState>
+              ) : (
               <LeadsTableV2
                 leads={leads}
                 loading={loading || leadsLoading}
@@ -306,13 +343,14 @@ export default function TeamListsPageV2() {
                   </LeadsEmptyState>
                 )}
               />
+              )}
               {totalLeads > 0 && (
                 <Pagination page={page} pageSize={leadsPerPage} total={totalLeads} onPageChange={setPage} noun="contact" />
               )}
             </>
           )}
         </div>
-      </div>
+      </ListsRailLayout>
 
       {/* No bulk verbs on team lists (legacy parity) — selection only feeds CSV export. */}
       <BulkActionBar
@@ -327,6 +365,7 @@ export default function TeamListsPageV2() {
       {selectedLead && (
         <LeadDetailPanel
           lead={selectedLead}
+          readOnly={!canEditLead(selectedLead)}
           onClose={closePanel}
           onUpdate={handleLeadUpdate}
           teamMode

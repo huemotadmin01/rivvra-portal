@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Plus, Check, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
+import { useToast } from '../context/ToastContext';
 
 const LIST_COLORS = [
   'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500',
@@ -17,6 +18,7 @@ function getListColor(name) {
 }
 
 function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
+  const { showToast } = useToast();
   const [lists, setLists] = useState([]);
   const [selectedLists, setSelectedLists] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,12 +67,14 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
     if (!trimmed) return;
 
     // Check duplicate
-    if (lists.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
+    const existing = lists.find(l => l.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
       setNewListName('');
       setShowCreateInput(false);
-      // Auto-select the existing list
-      if (!selectedLists.includes(trimmed)) {
-        setSelectedLists(prev => [...prev, trimmed]);
+      // Auto-select the existing list. 2026-11-09: use the list's exact name —
+      // lead.lists is matched case-sensitively, so "hot leads" matched nothing.
+      if (!selectedLists.includes(existing.name)) {
+        setSelectedLists(prev => [...prev, existing.name]);
       }
       return;
     }
@@ -83,9 +87,12 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
         setSelectedLists(prev => [...prev, trimmed]);
         setNewListName('');
         setShowCreateInput(false);
+      } else {
+        showToast(response.error || 'Failed to create list', 'error');
       }
     } catch (err) {
       console.error('Failed to create list:', err);
+      showToast(err?.message || 'Failed to create list', 'error');
     } finally {
       setCreating(false);
     }
@@ -100,6 +107,7 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
       onClose();
     } catch (err) {
       console.error('Failed to update lead lists:', err);
+      showToast(err?.message || 'Failed to update lists', 'error');
     } finally {
       setSaving(false);
     }

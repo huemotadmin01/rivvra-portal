@@ -598,7 +598,9 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
           onClick={() => navigate(orgPath(contactsPath))}
         />
         <Stat
-          label="In Sequence" value={totalInSequenceInRange.toLocaleString()}
+          // 2026-11-09: renamed from "In Sequence" — the funnel below uses that
+          // label for who is in a sequence NOW, a different number.
+          label="Enrolled" value={totalInSequenceInRange.toLocaleString()}
           icon={<Send size={16} />} color="var(--brand)"
           note={`enrolled ${dateLabel.toLowerCase()}`}
           // 2026-11-09: this counts ENROLLMENTS made in the date range; the
@@ -610,6 +612,9 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
           label="Response Rate" value={`${data?.responseRate?.rate || 0}%`}
           icon={<TrendingUp size={16} />} color="var(--brand)"
           note={`${data?.responseRate?.replied || 0} of ${data?.responseRate?.totalContacted || 0}`}
+          // Counts every reply (interested + not interested); opens the
+          // Interested contacts, so say so (2026-11-09).
+          title="Opens your Interested contacts"
           onClick={() => navigate(orgPath(contactsPath) + '?status=replied')}
         />
         <Stat

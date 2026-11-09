@@ -166,11 +166,17 @@ export default function LeadsPageV2() {
         setTotalCount((prev) => prev - 1);
         if (selectedLead?._id === deleteTarget._id) closePanel();
       } else {
-        await Promise.all(selectedLeads.map((id) => api.deleteLead(id)));
-        setLeads((prev) => prev.filter((l) => !selectedLeads.includes(l._id)));
-        setTotalCount((prev) => prev - selectedLeads.length);
-        if (selectedLead && selectedLeads.includes(selectedLead._id)) closePanel();
-        setSelectedLeads([]);
+        // 2026-11-09: allSettled — one failure used to report "Delete failed"
+        // and keep every row although the rest were deleted.
+        const ids = [...selectedLeads];
+        const res = await Promise.allSettled(ids.map((id) => api.deleteLead(id)));
+        const done = ids.filter((_, i) => res[i].status === 'fulfilled' && res[i].value?.success !== false);
+        const failed = ids.length - done.length;
+        setLeads((prev) => prev.filter((l) => !done.includes(l._id)));
+        setTotalCount((prev) => prev - done.length);
+        if (selectedLead && done.includes(selectedLead._id)) closePanel();
+        setSelectedLeads(ids.filter((id) => !done.includes(id)));
+        if (failed) { showToast(`${done.length} deleted, ${failed} failed`, 'error'); return; }
       }
       showToast('Deleted', 'success');
     } catch (err) {
@@ -194,13 +200,20 @@ export default function LeadsPageV2() {
     }
   };
 
+  // Same setup gate the single "Add to sequence" uses (2026-11-09: the bulk
+  // action skipped it and opened the modal with Gmail not connected).
+  const sequenceSetupOk = () => {
+    if (setupComplete === false) { showToast('Connect your email in Settings before adding to a sequence', 'error'); return false; }
+    return true;
+  };
+
   const manageProps = (lead) => ({
     onExportCRM: () => {
       if (!canExportCrm) { setComingSoonFeature('Export to CRM'); setShowComingSoon(true); return; }
       setExportCRMTarget(lead); setShowExportCRM(true);
     },
     onAddToSequence: () => {
-      if (setupComplete === false) { showToast('Connect your email in Settings before adding to a sequence', 'error'); return; }
+      if (!sequenceSetupOk()) return;
       if (!sequenceEmailGuardOk(lead)) { showToast('This contact has no valid email address', 'error'); return; }
       setSequenceTarget(lead); setShowAddToSequence(true);
     },
@@ -223,8 +236,8 @@ export default function LeadsPageV2() {
   return (
     <div style={{ marginRight: selectedLead ? 420 : 0, transition: 'margin-right var(--d-3) var(--e-out)' }}>
       <PageHeaderV2
-        title="Saved Contacts"
-        sub={`${totalCount} ${totalCount === 1 ? 'contact' : 'contacts'} saved`}
+        title="My Contacts"
+        sub={`${totalCount.toLocaleString()} ${totalCount === 1 ? 'contact' : 'contacts'} saved`}
         actions={(
           <>
             <Button variant="secondary" size="sm" disabled={refreshing} iconLeft={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />} onClick={() => loadLeads(true)}>
@@ -290,7 +303,7 @@ export default function LeadsPageV2() {
         noun="contact"
         onClear={() => setSelectedLeads([])}
         actions={[
-          { label: 'Add to sequence', icon: <ListPlus size={13} />, onClick: () => { setSequenceTarget(null); setBulkSequenceIds([...selectedLeads]); setShowAddToSequence(true); } },
+          { label: 'Add to sequence', icon: <ListPlus size={13} />, onClick: () => { if (!sequenceSetupOk()) return; setSequenceTarget(null); setBulkSequenceIds([...selectedLeads]); setShowAddToSequence(true); } },
           { label: 'Add to list', icon: <FolderPlus size={13} />, onClick: () => setShowBulkList(true) },
           { label: 'Change status', icon: <Tags size={13} />, onClick: () => setShowBulkStatus(true) },
           { label: 'Export CSV', icon: <Download size={13} />, onClick: handleExportCSV },
