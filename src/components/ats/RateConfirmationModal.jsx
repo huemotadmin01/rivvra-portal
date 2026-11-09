@@ -48,6 +48,24 @@ function preferredTemplate(templates, application) {
   const hit = re ? templates.find((t) => re.test(t?.name || '')) : null;
   return hit || null;
 }
+// 2026-11-09: what kind of hire a template is for, and the application's
+// own type — shown as a WARNING when they differ (recruiters override on
+// purpose, e.g. a Full-Time candidate on a consultant job, so never blocked).
+function templateHireKind(name) {
+  const n = String(name || '');
+  if (/intern|stipend/i.test(n)) return 'Intern';
+  if (/client.*full\s*time\s*hire/i.test(n)) return 'Full-Time';
+  if (/payroll|ctc|full[-\s]?time/i.test(n)) return 'Full-Time';
+  if (/contractor|consultant/i.test(n)) return 'Consultant';
+  return null;
+}
+function applicationHireKind(application) {
+  const et = String(application?.employmentType || '').toLowerCase();
+  if (/intern/.test(et)) return 'Intern';
+  if (/consultant|contract/.test(et)) return 'Consultant';
+  if (/full/.test(et)) return 'Full-Time';
+  return null;
+}
 const RATE_UNIT_OPTIONS = [
   { value: 'per_day', label: 'per day' },
   { value: 'per_hour', label: 'per hour' },
@@ -726,6 +744,15 @@ export default function RateConfirmationModal({
                   Template <span className="text-dark-100">{selectedTemplate.name}</span>
                 </div>
               )}
+              {selectedTemplate && (() => {
+                const tk = templateHireKind(selectedTemplate.name);
+                const ak = applicationHireKind(application);
+                return tk && ak && tk !== ak ? (
+                  <p className="text-xs text-amber-300">
+                    This template is for a {tk === 'Consultant' ? 'consultant' : tk} hire, but this application is {application?.employmentType}. Check you picked the right template.
+                  </p>
+                ) : null;
+              })()}
               {selectedTemplate && (
                 <TemplatePreviewRow template={selectedTemplate} roles={orderedRoles} />
               )}

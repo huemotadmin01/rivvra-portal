@@ -1172,13 +1172,19 @@ export default function AtsApplicationDetail() {
   // uses — the employment type's own stored meaning, resolved server-side —
   // so a day-rate role says "day rate" here too instead of an unlabelled box.
   const salaryMeaning = application?.employmentMeaning || null;
+  // 2026-11-09: a unit recorded with the figure (from the Rate Confirmation)
+  // wins over the employment type's default — a day-rate RC on a role whose
+  // type says "annual" still reads as a day rate.
+  const compUnit = application?.compensationUnit || salaryMeaning?.salaryUnit || null;
+  const compSource = application?.compensationSource?.type === 'rate_confirmation' ? application.compensationSource : null;
+  const compLocked = compSource?.state === 'signed';
   const SALARY_UNIT_WORDS = {
     per_day: { suffix: ' (day rate)', eg: 'e.g. 4500' },
     per_hour: { suffix: ' (hourly rate)', eg: 'e.g. 600' },
     per_month: { suffix: ' (per month)', eg: 'e.g. 80,000' },
     lpa: { suffix: ' (annual, in lakhs)', eg: 'e.g. 12' },
   };
-  const salaryWords = SALARY_UNIT_WORDS[salaryMeaning?.salaryUnit] || null;
+  const salaryWords = SALARY_UNIT_WORDS[compUnit] || (compUnit === 'per_year' ? { suffix: ' (per year)', eg: 'e.g. 1200000' } : null);
   // No employment type means the unit is genuinely unknown; say so rather than
   // implying a default, which is what the offer screen does for the same reason.
   const salaryUnitSuffix = salaryWords ? salaryWords.suffix : '';
@@ -1785,11 +1791,23 @@ export default function AtsApplicationDetail() {
               label={`Salary Proposed${salaryUnitSuffix}`}
               field="salaryProposed"
               value={application.salaryProposed}
-              editable={canEdit}
+              editable={canEdit && !compLocked}
               onSave={saveField}
               placeholder={salaryPlaceholder}
               displayValue={fmtSalary(application.salaryProposed, application.compensationCurrency) || undefined}
             />
+            {/* 2026-11-09: where Salary Proposed came from. Filled from the
+                Rate Confirmation when it is sent, confirmed when it is signed;
+                a signed figure changes only through a revised RC. */}
+            {compSource && (
+              <p style={{ margin: '4px 0 0', font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: compLocked ? 'var(--brand, #22c55e)' : 'var(--fg-3)' }}>
+                {compLocked
+                  ? `Confirmed by the Rate Confirmation signed ${compSource.signedAt ? new Date(compSource.signedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}. Send a revised Rate Confirmation to change it.`
+                  : compSource.state === 'sent'
+                    ? 'From the Rate Confirmation sent to the candidate — awaiting signature.'
+                    : `From a Rate Confirmation that was ${compSource.state} — send a new one to confirm the rate.`}
+              </p>
+            )}
           </Panel>
 
           <Panel title="Sourcing" icon={<FileText size={14} />}>
