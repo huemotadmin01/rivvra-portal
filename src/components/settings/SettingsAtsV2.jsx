@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import { Save, Loader2, AlertCircle, UserSearch, BarChart3, Globe, Copy, ExternalLink, Check } from 'lucide-react';
+import { Save, Loader2, AlertCircle, UserSearch, BarChart3, Globe, Copy, ExternalLink, Check, BellRing } from 'lucide-react';
 import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
 import { useCompany } from '../../context/CompanyContext';
@@ -625,6 +625,14 @@ export default function SettingsAtsV2() {
         </Panel>
       </div>
 
+      {/* 2026-11-09 weekly open-applications reminder — saved with the
+          other ATS settings (settings.openAppsReminder); OFF by default. */}
+      <OpenAppsReminderCard
+        value={settings?.openAppsReminder}
+        onChange={(patch) => setSettings((prev) => ({ ...prev, openAppsReminder: { ...REMINDER_DEFAULTS, ...(prev?.openAppsReminder || {}), ...patch } }))}
+        orgSlug={currentOrg?.slug}
+      />
+
       {/* Careers Site — full-width card below the two-column grid. */}
       <CareersCard orgSlug={currentOrg?.slug} />
 
@@ -634,5 +642,102 @@ export default function SettingsAtsV2() {
         </Button>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Weekly open-applications reminder (2026-11-09). Mirrors DEFAULTS in the API
+// (cron/atsOpenAppsReminder.js). The email wording is the editable template
+// "ATS — Weekly Open Applications Reminder (internal)".
+const REMINDER_DEFAULTS = { enabled: false, weekday: 1, hour: 9, stuckDays: 14, ccTeamLead: true };
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function OpenAppsReminderCard({ value, onChange, orgSlug }) {
+  const r = { ...REMINDER_DEFAULTS, ...(value || {}) };
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const loadPreview = async () => {
+    setLoading(true); setErr('');
+    try {
+      const res = await atsApi.previewOpenAppsReminder(orgSlug);
+      setPreview(res);
+    } catch (e) {
+      setErr(e?.message || 'Could not load the preview');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const cell = { padding: '6px 8px', borderBottom: '1px solid var(--line)', font: "400 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' };
+  return (
+    <Panel icon={<BellRing size={16} />} title="Weekly open-applications reminder">
+      <div style={{ padding: 6, display: 'grid', gap: 14 }}>
+        <SettingRow
+          label="Send the weekly reminder"
+          description="Each recruiter gets one email listing only what needs action on their open applications: offer signed but not hired, duplicates of a candidate already hired, and applications with no stage move. Applications of recruiters who have left go to their team lead."
+          control={<Switch label="Send the weekly reminder" checked={!!r.enabled} onChange={(v) => onChange({ enabled: v })} />}
+        />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+          <FieldBlock id="ats-rem-day" label="Day">
+            <Select id="ats-rem-day" value={String(r.weekday)} onChange={(e) => onChange({ weekday: Number(e.target.value) })}>
+              {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </Select>
+          </FieldBlock>
+          <FieldBlock id="ats-rem-hour" label="Time (IST)">
+            <Select id="ats-rem-hour" value={String(r.hour)} onChange={(e) => onChange({ hour: Number(e.target.value) })}>
+              {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+            </Select>
+          </FieldBlock>
+          <FieldBlock id="ats-rem-stuck" label="No stage move for" hint="Applications idle longer than this are listed.">
+            <UnitNumber
+              id="ats-rem-stuck" unit="days" min="1" max="180"
+              value={r.stuckDays}
+              aria-label="No stage move for, days"
+              onChange={(e) => onChange({ stuckDays: e.target.value })}
+              onBlur={(e) => onChange({ stuckDays: Math.min(180, Math.max(1, Number(e.target.value) || REMINDER_DEFAULTS.stuckDays)) })}
+            />
+          </FieldBlock>
+        </div>
+        <SettingRow
+          label="Copy the team lead"
+          description="The recruiter's recruitment-team lead gets a blind copy."
+          control={<Switch label="Copy the team lead" checked={!!r.ccTeamLead} onChange={(v) => onChange({ ccTeamLead: v })} />}
+        />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button variant="secondary" onClick={loadPreview} disabled={loading || !orgSlug}>
+            {loading ? 'Building preview…' : 'Preview who would get it'}
+          </Button>
+          <span style={{ font: "400 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+            Sends nothing. Uses the saved settings — save first if you changed them.
+          </span>
+        </div>
+        {err && <Callout tone="danger">{err}</Callout>}
+        {preview && (
+          <div style={{ overflowX: 'auto' }}>
+            <p style={{ font: "500 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '0 0 6px' }}>
+              {preview.recipients.length} recipient{preview.recipients.length === 1 ? '' : 's'} · {preview.totals?.open ?? 0} open applications · idle threshold {preview.stuckDays} days
+            </p>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                {['Recipient', 'Offer signed', 'Duplicates', 'No movement', 'Team lead copy'].map((h) => (
+                  <th key={h} style={{ ...cell, textAlign: 'left', color: 'var(--fg-4)', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {preview.recipients.map((x) => (
+                  <tr key={x.email}>
+                    <td style={cell}>{x.name} <span style={{ color: 'var(--fg-4)' }}>{x.email}</span>{x.forLeavers ? ' · incl. leavers' : ''}</td>
+                    <td style={cell}>{x.offerSigned}</td>
+                    <td style={cell}>{x.duplicates}</td>
+                    <td style={cell}>{x.stuck}</td>
+                    <td style={cell}>{(x.cc || []).join(', ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Panel>
   );
 }

@@ -680,6 +680,11 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/config/settings`);
   },
 
+  // 2026-11-09: weekly open-applications reminder — who would get what (no send).
+  previewOpenAppsReminder(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/ats/open-apps-reminder/preview`);
+  },
+
   updateSettings(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/ats/config/settings`, {
       method: 'PUT',

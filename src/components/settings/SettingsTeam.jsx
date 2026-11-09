@@ -709,6 +709,12 @@ function TeamSection({
   const eligible = members.filter(m =>
     m.status === 'active' && m.orgRole !== 'owner' && !memberIdsInTypeTeams.has(m.userId)
   );
+  // 2026-11-09: the team-LEAD pool also includes workspace owners — they are
+  // kept out of "Add members" (they see everything anyway), but leading a team
+  // is a real role (Priyanshu could not be made lead of Sales Team A).
+  const leadEligible = members.filter(m =>
+    m.status === 'active' && !memberIdsInTypeTeams.has(m.userId)
+  );
 
   return (
     <>
@@ -757,8 +763,8 @@ function TeamSection({
                 <label className="block text-xs font-medium text-dark-400 mb-1.5">Team Lead (optional)</label>
                 <ComboSelect
                   value={newLeader}
-                  displayValue={(eligible.find(m => m.userId === newLeader)?.name) || (eligible.find(m => m.userId === newLeader)?.email) || ''}
-                  options={eligible.map(m => ({ _id: m.userId, name: m.name || m.email }))}
+                  displayValue={(leadEligible.find(m => m.userId === newLeader)?.name) || (leadEligible.find(m => m.userId === newLeader)?.email) || ''}
+                  options={leadEligible.map(m => ({ _id: m.userId, name: m.name || m.email }))}
                   onChange={(id) => setNewLeader(id || '')}
                   placeholder="Search a team lead..."
                   disableCreate
@@ -937,7 +943,7 @@ function TeamSection({
                             options={[
                               NO_LEAD_OPTION,
                               ...team.members.map((m) => ({ _id: m.id, name: m.name || m.email })),
-                              ...eligible.map((m) => ({ _id: m.userId, name: m.name || m.email })),
+                              ...leadEligible.map((m) => ({ _id: m.userId, name: m.name || m.email })),
                             ]}
                             onChange={(id) => handleUpdateTeam(team.id, { leaderId: id || null })}
                             placeholder="Search a team lead..."

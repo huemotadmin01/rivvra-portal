@@ -39,6 +39,11 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(displayValue || '');
   const [highlightIdx, setHighlightIdx] = useState(0);
+  // 2026-11-09: opening the box shows the FULL list (current pick highlighted)
+  // until the user types. It used to filter by the text already in the box —
+  // with a team lead set, the list showed only that one name, so it read as a
+  // fixed list rather than a search.
+  const [showAll, setShowAll] = useState(false);
   const [coords, setCoords] = useState(null); // { left, top, width }
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
@@ -99,7 +104,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   }, [open]);
 
   const trimmed = inputValue.trim().toLowerCase();
-  const filtered = options.filter(o => o.name.toLowerCase().includes(trimmed));
+  const filtered = showAll ? options : options.filter(o => String(o.name || '').toLowerCase().includes(trimmed));
   const exactMatch = options.some(o => o.name.toLowerCase() === trimmed);
 
   function selectOption(o) {
@@ -134,9 +139,16 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   // Show dropdown when open AND there's something to render — either
   // matching options, or a typed string that lets us offer "+ Create"
   // (suppressed when disableCreate is set).
+  const noMatches = open && filtered.length === 0 && !!inputValue.trim() && disableCreate;
   const showDropdown = open && coords && (
-    filtered.length > 0 || (!disableCreate && inputValue.trim())
+    filtered.length > 0 || (!disableCreate && inputValue.trim()) || noMatches
   );
+  const openFull = () => {
+    setShowAll(true);
+    setOpen(true);
+    const cur = options.findIndex((o) => o._id && o._id === value);
+    setHighlightIdx(cur >= 0 ? cur : 0);
+  };
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -147,6 +159,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);
+            setShowAll(false);
             setOpen(true);
             setHighlightIdx(0);
             // Free-text mode: clear the bound value as the user types
@@ -157,7 +170,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
               onChange('', e.target.value.trim());
             }
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={(e) => { openFull(); e.target.select(); }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') {
               e.preventDefault();
@@ -190,7 +203,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
         />
         <button
           type="button"
-          onClick={() => setOpen(!open)}
+          onClick={() => { if (open) setOpen(false); else { openFull(); inputRef.current?.focus(); } }}
           disabled={disabled}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300"
         >
@@ -208,8 +221,15 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
             top: coords.top,
             minWidth: coords.width,
             maxWidth: Math.max(coords.width, 360),
+            background: 'var(--surface-1, #1e293b)',
+            border: '1px solid var(--line-2, #475569)',
+            color: 'var(--fg, #fff)',
           }}
-          className="z-[60] bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+          // Theme tokens (with the old colours as fallback): the list is
+          // portalled to <body>, outside the V2 shell, so the legacy dark
+          // classes never followed the light theme.
+          className="z-[60] rounded-lg shadow-xl max-h-64 overflow-y-auto"
+          role="listbox"
         >
           {filtered.map((o, i) => (
             <button
@@ -220,13 +240,23 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
               onMouseDown={(e) => e.preventDefault()}
               onMouseEnter={() => setHighlightIdx(i)}
               onClick={() => selectOption(o)}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-dark-700 transition-colors ${
-                i === highlightIdx ? 'bg-dark-700' : ''
-              } ${o._id === value ? 'text-orange-400 bg-dark-700/50' : 'text-white'}`}
+              role="option"
+              aria-selected={o._id === value}
+              className="w-full text-left px-3 py-2 text-sm transition-colors"
+              style={{
+                background: i === highlightIdx ? 'var(--surface-3, #334155)' : 'transparent',
+                color: o._id === value ? 'var(--brand, #fb923c)' : 'var(--fg, #fff)',
+                fontWeight: o._id === value ? 600 : 400,
+              }}
             >
               {o.name}
             </button>
           ))}
+          {noMatches && (
+            <div className="px-3 py-2 text-sm" style={{ color: 'var(--fg-3, #94a3b8)' }}>
+              No matches for &ldquo;{inputValue.trim()}&rdquo;
+            </div>
+          )}
           {!disableCreate && inputValue.trim() && !exactMatch && (
             <button
               type="button"
@@ -241,9 +271,8 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
                 }
                 setOpen(false);
               }}
-              className={`w-full text-left px-3 py-2 text-sm text-orange-400 hover:bg-dark-700 transition-colors font-medium ${
-                filtered.length > 0 ? 'border-t border-dark-700' : ''
-              }`}
+              className="w-full text-left px-3 py-2 text-sm transition-colors font-medium"
+              style={{ color: 'var(--brand, #fb923c)', ...(filtered.length > 0 ? { borderTop: '1px solid var(--line, #334155)' } : {}) }}
             >
               + {createLabel} &ldquo;{inputValue.trim()}&rdquo;
             </button>
