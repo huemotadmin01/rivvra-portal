@@ -100,6 +100,9 @@ export const APP_REGISTRY = {
             { path: '/outreach/team-lists', label: 'Team Lists', icon: Layers },
           ],
         },
+        // 2026-11-09: every rep gets their own performance view; leads and
+        // admins also keep the team one.
+        { type: 'item', path: '/outreach/my-dashboard', label: 'My Dashboard', icon: BarChart3 },
         ...(isAdminOrLead ? [
           { type: 'item', path: '/outreach/team-dashboard', label: 'Team Dashboard', icon: BarChart3 },
         ] : []),

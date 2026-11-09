@@ -1162,6 +1162,17 @@ class ApiClient {
   }
 
   // Team Dashboard
+  // 2026-11-09: "My Performance" — same payload as getDashboardStats, scoped
+  // by the server to the caller's own leads and enrollments.
+  async getMyDashboardStats({ dateFrom, dateTo } = {}) {
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    try { params.append('tz', Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'); } catch { /* server defaults to IST */ }
+    const qs = params.toString();
+    return this.request(`/api/dashboard/me${qs ? `?${qs}` : ''}`);
+  }
+
   async getDashboardStats({ dateFrom, dateTo } = {}) {
     const params = new URLSearchParams();
     if (dateFrom) params.append('dateFrom', dateFrom);

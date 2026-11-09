@@ -233,7 +233,12 @@ function PieTooltip({ active, payload }) {
   );
 }
 
-export default function TeamDashboardPageV2() {
+// 2026-11-09: mode="me" is the "My Performance" view for sales executives —
+// the same dashboard over the caller's own leads/enrollments only (API
+// /api/dashboard/me scopes it on the server). Team-only panels are hidden.
+export default function TeamDashboardPageV2({ mode = 'team' }) {
+  const isMe = mode === 'me';
+  const contactsPath = isMe ? '/outreach/leads' : '/outreach/team-contacts';
   const isLight = useIsLightTheme();
   const { user } = useAuth();
   const { orgPath } = usePlatform();
@@ -262,7 +267,7 @@ export default function TeamDashboardPageV2() {
   // 2026-11-09: the org role (now the server-enforced Outreach role) wins;
   // user.role is only a fallback when no org context is loaded.
   const effectiveRole = orgRole || user?.role || 'member';
-  const canView = effectiveRole === 'admin' || effectiveRole === 'team_lead';
+  const canView = isMe || effectiveRole === 'admin' || effectiveRole === 'team_lead';
 
   // Compute date params based on filter
   // Keyed on the two date STRINGS, so switching to "Custom Range" (still
@@ -280,7 +285,7 @@ export default function TeamDashboardPageV2() {
     // previous range (or a 30s auto-refresh) used to overwrite a newer one.
     const seq = ++reqSeq.current;
     try {
-      const res = await api.getDashboardStats(dateParams);
+      const res = isMe ? await api.getMyDashboardStats(dateParams) : await api.getDashboardStats(dateParams);
       if (seq !== reqSeq.current) return;
       if (res.success) {
         setData(res);
@@ -298,7 +303,7 @@ export default function TeamDashboardPageV2() {
         setRefreshing(false);
       }
     }
-  }, [dateParams]);
+  }, [dateParams, isMe]);
 
   useEffect(() => {
     if (canView) {
@@ -439,9 +444,9 @@ export default function TeamDashboardPageV2() {
   // measure. The old step-to-step % divided replies by ACTIVE enrollments —
   // two groups that never overlap — so it could pass 100%.
   const pipelineSteps = [
-    { label: 'Total Leads', value: data?.totalLeads || 0, color: statusColor('not_contacted', isLight), link: '/outreach/team-contacts' },
-    { label: 'In Sequence', value: totalInSequence, color: statusColor('in_sequence', isLight), link: '/outreach/team-contacts?status=in_sequence' },
-    { label: 'Interested', value: data?.interestedCount ?? data?.repliedCount ?? 0, color: statusColor('replied', isLight), link: '/outreach/team-contacts?status=replied' },
+    { label: 'Total Leads', value: data?.totalLeads || 0, color: statusColor('not_contacted', isLight), link: contactsPath },
+    { label: 'In Sequence', value: totalInSequence, color: statusColor('in_sequence', isLight), link: `${contactsPath}?status=in_sequence` },
+    { label: 'Interested', value: data?.interestedCount ?? data?.repliedCount ?? 0, color: statusColor('replied', isLight), link: `${contactsPath}?status=replied` },
   ];
   const pipelineArrows = [
     (data?.totalLeads || 0) > 0 ? `${((totalInSequence / data.totalLeads) * 100).toFixed(0)}% in a sequence now` : null,
@@ -461,19 +466,21 @@ export default function TeamDashboardPageV2() {
             }}>
               <BarChart3 size={16} />
             </span>
-            Team Performance
+            {isMe ? 'My Performance' : 'Team Performance'}
           </h1>
           <p style={{ ...metaStyle, marginTop: 4, marginLeft: 42, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
             {/* 2026-11-09: an admin sees the whole org even when they also
                 lead a team, so the chip must say so. */}
-            {effectiveRole === 'admin' ? (
+            {isMe ? (
+              <Chip tone="brand">Only your contacts and sequences</Chip>
+            ) : effectiveRole === 'admin' ? (
               <Chip tone="brand">All Teams</Chip>
             ) : user?.teamName ? (
               <Chip tone="warn">{user.teamName}</Chip>
             ) : null}
             <span>
-              {data?.teamMembers?.length || 0} members
-              {lastUpdated && ` · ${lastUpdated.toLocaleTimeString()}`}
+              {!isMe && `${data?.teamMembers?.length || 0} members`}
+              {lastUpdated && `${isMe ? '' : ' · '}Updated ${lastUpdated.toLocaleTimeString()}`}
             </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--brand-ink)' }}>
               <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--brand)' }} />
@@ -588,7 +595,7 @@ export default function TeamDashboardPageV2() {
           label="Total Leads" value={(data?.totalLeads || 0).toLocaleString()}
           icon={<Users size={16} />} color="var(--acc-blue, var(--brand))"
           note="all time"
-          onClick={() => navigate(orgPath('/outreach/team-contacts'))}
+          onClick={() => navigate(orgPath(contactsPath))}
         />
         <Stat
           label="In Sequence" value={totalInSequenceInRange.toLocaleString()}
@@ -603,13 +610,13 @@ export default function TeamDashboardPageV2() {
           label="Response Rate" value={`${data?.responseRate?.rate || 0}%`}
           icon={<TrendingUp size={16} />} color="var(--brand)"
           note={`${data?.responseRate?.replied || 0} of ${data?.responseRate?.totalContacted || 0}`}
-          onClick={() => navigate(orgPath('/outreach/team-contacts') + '?status=replied')}
+          onClick={() => navigate(orgPath(contactsPath) + '?status=replied')}
         />
         <Stat
           label="Scraped" value={totalScrapedInRange.toLocaleString()}
           icon={<Zap size={16} />} color="var(--warn-ink)"
           note={dateLabel.toLowerCase()}
-          onClick={() => navigate(orgPath('/outreach/team-contacts'))}
+          onClick={() => navigate(orgPath(contactsPath))}
         />
         <Stat
           label="Emails Scheduled" value={totalEmailsScheduled.toLocaleString()}
@@ -666,8 +673,8 @@ export default function TeamDashboardPageV2() {
 
       {/* ─── Charts Row ─── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        {/* Bar Chart: In Sequence by sourcedBy */}
-        <Panel style={{ gridColumn: 'span 1' }}>
+        {/* Bar Chart: In Sequence by sourcedBy — per person, team view only */}
+        {!isMe && <Panel style={{ gridColumn: 'span 1' }}>
           <h3 style={h3Style}>
             <Send size={16} style={{ color: 'var(--brand-ink)' }} />
             In Sequence by Team Member
@@ -701,7 +708,7 @@ export default function TeamDashboardPageV2() {
               {`No leads enrolled ${dateLabel.toLowerCase()}`}
             </div>
           )}
-        </Panel>
+        </Panel>}
 
         {/* Donut: Leads by Status */}
         <Panel>
@@ -837,8 +844,8 @@ export default function TeamDashboardPageV2() {
         </Panel>
       </div>
 
-      {/* ─── Team Leaderboard ─── */}
-      <Panel>
+      {/* ─── Team Leaderboard ─── (team view only) */}
+      {!isMe && <Panel>
         <h3 style={{ ...h3Style, marginBottom: 16 }}>
           <Users size={16} style={{ color: 'var(--acc-blue, var(--brand-ink))' }} />
           Team Leaderboard
@@ -883,7 +890,7 @@ export default function TeamDashboardPageV2() {
         ) : (
           <p style={{ ...metaStyle, padding: '8px 0', textAlign: 'center' }}>No contacts sourced yet</p>
         )}
-      </Panel>
+      </Panel>}
 
       {/* ─── Status Breakdown ─── */}
       <Panel>
@@ -900,7 +907,7 @@ export default function TeamDashboardPageV2() {
             return (
               <button
                 key={key}
-                onClick={() => navigate(orgPath(`/outreach/team-contacts?status=${key}`))}
+                onClick={() => navigate(orgPath(`${contactsPath}?status=${key}`))}
                 style={{
                   padding: 14, textAlign: 'left', cursor: 'pointer',
                   borderRadius: 'var(--r-3, 14px)', border: 0,

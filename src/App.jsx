@@ -521,7 +521,8 @@ function App() {
                 <Route path="/org/:slug/outreach/lists" element={<MyListsPageV2 />} />
                 <Route path="/org/:slug/outreach/lists/:leadId" element={<MyListsPageV2 />} />
                 <Route path="/org/:slug/outreach/settings" element={<OrgOutreachSettingsRedirect />} />
-                <Route path="/org/:slug/outreach/team-dashboard" element={<ErrorBoundary><TeamDashboardPageV2 /></ErrorBoundary>} />
+                <Route path="/org/:slug/outreach/team-dashboard" element={<ErrorBoundary><TeamDashboardPageV2 key="team" /></ErrorBoundary>} />
+                <Route path="/org/:slug/outreach/my-dashboard" element={<ErrorBoundary><TeamDashboardPageV2 key="me" mode="me" /></ErrorBoundary>} />
                 <Route path="/org/:slug/outreach/team-contacts" element={<TeamContactsPageV2 />} />
                 <Route path="/org/:slug/outreach/team-contacts/:leadId" element={<TeamContactsPageV2 />} />
                 <Route path="/org/:slug/outreach/team-lists" element={<TeamListsPageV2 />} />
