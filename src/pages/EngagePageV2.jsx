@@ -142,6 +142,16 @@ function EngagePageV2() {
     return () => { cancelled = true; };
   }, []);
 
+  // 2026-11-09: ?sequence=<id> opens that sequence's detail (deep link from
+  // the Outreach Home "Your sequences" table).
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('sequence');
+    if (id && /^[a-f0-9]{24}$/i.test(id)) {
+      setSelectedSequenceId(id);
+      setView('detail');
+    }
+  }, [location.search]);
+
   // Handle redirect-back from Gmail OAuth (separate effect to avoid race conditions)
   // After Google callback → backend → /#/engage?gmail_code=xxx → OrgRedirect → here
   useEffect(() => {

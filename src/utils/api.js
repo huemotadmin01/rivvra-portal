@@ -1173,6 +1173,13 @@ class ApiClient {
     return this.request(`/api/dashboard/me${qs ? `?${qs}` : ''}`);
   }
 
+  // 2026-11-09: rebuilt Outreach Home — the signed-in rep's day.
+  async getHomeStats() {
+    let tz = 'Asia/Kolkata';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch { /* default */ }
+    return this.request(`/api/dashboard/home?tz=${encodeURIComponent(tz)}`);
+  }
+
   async getDashboardStats({ dateFrom, dateTo } = {}) {
     const params = new URLSearchParams();
     if (dateFrom) params.append('dateFrom', dateFrom);

@@ -48,9 +48,9 @@ import LeadDetailPanel from '../components/LeadDetailPanel';
 import api from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { exportLeadsToCSV } from '../utils/csvExport';
-import ComingSoonModal from '../components/ComingSoonModal';
 import { useExtensionDetector } from '../hooks/useExtensionDetector';
 import HiringSignalsCard from '../components/outreach/HiringSignalsCard';
+import OutreachHome from '../components/outreach/v2/OutreachHome';
 import { useGettingStarted } from '../components/WorkspaceGetStarted';
 import OnboardingHubTeaser from '../components/OnboardingHubTeaser';
 import {
@@ -59,7 +59,6 @@ import {
 } from '../components/ds';
 
 // ── Shared render tokens ────────────────────────────────────────────────────
-const h2Style = { font: "650 17px/1.28 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 };
 const h3Style = { font: "600 14px/1.36 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 };
 const bodyStyle = { font: "450 13px/1.55 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 };
 const metaStyle = { font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: 0 };
@@ -392,22 +391,18 @@ function AddToListModal({ isOpen, onClose, lists, onSelect, onCreateList, lead }
 // ==================== Main Dashboard Page ====================
 function DashboardPageV2() {
   const { user, isAuthenticated } = useAuth();
-  const { hasAppAccess, currentOrg } = useOrg();
+  const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const searchSeq = useRef(0);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const { installed: extInstalled, dismiss: dismissExt, isDismissed: isExtDismissed, chromeStoreUrl } = useExtensionDetector();
   const [extBannerDismissed, setExtBannerDismissed] = useState(false);
-  const [features, setFeatures] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showComingSoon, setShowComingSoon] = useState(false);
-  const [comingSoonFeature, setComingSoonFeature] = useState('');
   const [savedLeadsCount, setSavedLeadsCount] = useState(0);
   const [lists, setLists] = useState([]);
   const [gmailStatus, setGmailStatus] = useState(null);
   const [sequencesCount, setSequencesCount] = useState(null);
-  const [emailsToday, setEmailsToday] = useState(null);
 
   // First-run checklist for new workspaces (shared with the home launcher).
   const { data: gettingStarted, dismissed: gsDismissed, dismiss: dismissGettingStarted } = useGettingStarted(currentOrg?.slug);
@@ -497,6 +492,7 @@ function DashboardPageV2() {
 
   // Save & Add to List
   const [savedLeadIds, setSavedLeadIds] = useState(new Set());
+  const [home, setHome] = useState(null); // GET /api/dashboard/home (2026-11-09 Home rebuild)
   const myId = String(user?._id || user?.id || '');
   const ownsLead = (lead) => !!myId && (String(lead?.userId || '') === myId || String(lead?.visitorId || '') === myId);
   const [savingLeadId, setSavingLeadId] = useState(null);
@@ -505,25 +501,23 @@ function DashboardPageV2() {
   // ---- Dashboard data fetch ----
   const fetchData = useCallback(async () => {
     try {
-      const [featuresRes, leadsRes, listsRes, gmailRes, seqRes, emailsRes] = await Promise.all([
-        // 2026-11-09: a failed getFeatures used to reject the whole
-        // Promise.all and leave lists, Gmail status and counts all empty.
-        api.getFeatures().catch(() => ({ success: false })),
+      // 2026-11-09 Home rebuild: the AI-usage counters (getFeatures) and the
+      // old daily-quota bar (getEmailsSentToday) are gone — today's numbers
+      // come from getHomeStats below.
+      const [leadsRes, listsRes, gmailRes, seqRes] = await Promise.all([
         api.getLeads({ limit: 1 }).catch(() => ({ total: 0 })),
         api.getLists().catch(() => ({ lists: [] })),
         api.getGmailStatus().catch(() => null),
         api.getSequences().catch(() => null),
-        api.getEmailsSentToday().catch(() => null),
       ]);
+      api.getHomeStats().then((h) => { if (h?.success) setHome(h); }).catch(() => {});
 
-      if (featuresRes.success) setFeatures(featuresRes);
       setSavedLeadsCount(leadsRes.total || 0);
       setLists(listsRes.lists || []);
       setGmailStatus(gmailRes);
       // Own sequences only — org-shared ones counted too, so a new user with
       // none was told "your sequences are paused" and saw the checklist step ticked.
       setSequencesCount(seqRes?.sequences ? seqRes.sequences.filter((q) => q.isOwner !== false).length : null);
-      setEmailsToday(emailsRes?.success ? emailsRes : null);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -557,19 +551,6 @@ function DashboardPageV2() {
     };
   }, [fetchData]);
 
-  // Paid access is granted at the org level (enabledApps → membership appAccess),
-  // so org-provisioned users have no legacy user.plan. isPro covers outreach AI
-  // features; canExportCrm mirrors the backend's requireAppAccess('crm') gate on
-  // the convert-lead endpoint so the UI never offers an export the API will 403.
-  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
-  const canExportCrm = hasAppAccess('crm') || user?.plan === 'pro' || user?.plan === 'premium';
-
-  const handleFeatureClick = (feature) => {
-    if (!isPro) {
-      setComingSoonFeature(feature);
-      setShowComingSoon(true);
-    }
-  };
 
   // ---- Search ----
   const performSearch = useCallback(async (page = 1) => {
@@ -734,17 +715,17 @@ function DashboardPageV2() {
       <div style={{ minHeight: '100vh' }}>
         <div style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
           {/* ======== WELCOME SECTION ======== */}
-          <div style={{ textAlign: 'center', marginBottom: 32, paddingTop: 32 }}>
-            <h1 style={{ font: "700 26px/1.16 'Inter', system-ui, sans-serif", letterSpacing: '-0.02em', color: 'var(--fg)', margin: '0 0 8px' }}>
-              Welcome, {user?.name?.split(' ')[0] || 'there'}
+          <div style={{ textAlign: 'center', marginBottom: 20, paddingTop: 16 }}>
+            <h1 style={{ font: "700 24px/1.16 'Inter', system-ui, sans-serif", letterSpacing: '-0.02em', color: 'var(--fg)', margin: '0 0 6px' }}>
+              {(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, {user?.name?.split(' ')[0] || 'there'}
             </h1>
             <p style={bodyStyle}>
-              Search your saved contacts by name, email, company or title
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}{user?.teamName ? ` · ${user.teamName}` : ''}
             </p>
           </div>
 
           {/* ======== SEARCH BAR ======== */}
-          <div style={{ maxWidth: 672, margin: '0 auto 32px' }}>
+          <div style={{ maxWidth: 672, margin: '0 auto 24px' }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: 12,
               borderRadius: 'var(--r-3, 14px)', background: 'var(--surface-2)',
@@ -911,7 +892,8 @@ function DashboardPageV2() {
                 <OutreachGetStarted
                   gmailConnected={!!gmailStatus.connected}
                   contactsCount={savedLeadsCount}
-                  sequencesCount={sequencesCount}
+                  // Someone working a SHARED sequence has done this step too.
+                  sequencesCount={Math.max(sequencesCount, home?.totals?.contacted > 0 ? 1 : 0)}
                   orgPath={orgPath}
                 />
               )}
@@ -922,8 +904,6 @@ function DashboardPageV2() {
                   inside PlatformLayoutV2's `.ds-shell`, where legacy-bridge.css
                   remaps the dark-* scale onto ds tokens. Forking it to ds would
                   duplicate a component `main` is still actively changing. */}
-              {currentOrg?.slug && <HiringSignalsCard orgSlug={currentOrg.slug} />}
-
               {/* Extension Install Banner */}
               {!extInstalled && !extBannerDismissed && !isExtDismissed() && (
                 <div style={{ marginBottom: 32 }}>
@@ -958,222 +938,11 @@ function DashboardPageV2() {
                 </div>
               )}
 
-              {/* Recommended Leads Section */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-                  <Sparkles size={20} style={{ color: 'var(--warn-ink)' }} />
-                  <h2 style={h2Style}>Recommended contacts tailored just for you</h2>
-                  <Chip tone="brand">Beta</Chip>
-                </div>
+              {/* 2026-11-09 rebuilt Home: today, needs-attention, sequences, lists */}
+              <OutreachHome home={home} lists={lists} orgPath={orgPath} loading={loading} />
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
-                  {/* Similar to your reveals — Contacts / Companies. Both are
-                      placeholders; the copy says Coming Soon on purpose. */}
-                  {[
-                    { title: 'Similar to your reveals', kind: 'Contacts', icon: <Users size={28} />, line1: 'AI-powered contact recommendations', line2: 'Based on your saved contacts' },
-                    { title: 'Similar to your reveals', kind: 'Companies', icon: <Building2 size={28} />, line1: 'AI-powered company recommendations', line2: 'Based on your extracted companies' },
-                  ].map((card) => (
-                    <Panel key={card.kind}>
-                      <div style={{ padding: 4 }}>
-                        <div style={{ marginBottom: 16 }}>
-                          <h3 style={h3Style}>{card.title}</h3>
-                          <p style={{ ...metaStyle, marginTop: 2 }}>
-                            {card.kind} &bull; <span style={{ color: 'var(--warn-ink)' }}>Coming Soon</span>
-                          </p>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                          <span style={{
-                            width: 56, height: 56, borderRadius: 99, margin: '0 auto 12px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: 'var(--surface-3)', color: 'var(--fg-4)',
-                          }}>
-                            {card.icon}
-                          </span>
-                          <p style={{ ...bodyStyle, marginBottom: 4 }}>{card.line1}</p>
-                          <p style={metaStyle}>{card.line2}</p>
-                        </div>
-                      </div>
-                    </Panel>
-                  ))}
-
-                  {/* Suggested based on CRM */}
-                  <Panel>
-                    <div style={{ padding: 4 }}>
-                      <div style={{ marginBottom: 16 }}>
-                        <h3 style={h3Style}>Suggested based on your CRM</h3>
-                      </div>
-                      <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                        <span style={{
-                          width: 64, height: 64, borderRadius: 99, margin: '0 auto 16px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: 'var(--surface-3)', color: 'var(--fg-4)',
-                        }}>
-                          <Building2 size={32} />
-                        </span>
-                        <p style={{ ...bodyStyle, marginBottom: 8 }}>Connect your CRM to enable AI recommendations</p>
-                        <p style={{ ...metaStyle, marginBottom: 16 }}>Supports HubSpot, Salesforce, Odoo &amp; more</p>
-                        <Button onClick={() => handleFeatureClick('CRM Integration')}>Connect CRM</Button>
-                      </div>
-                    </div>
-                  </Panel>
-                </div>
-              </div>
-
-              {/* Daily email quota (only once Gmail is connected).
-                  The arithmetic below is carried across from legacy unchanged —
-                  it decides whether a user is told their queued sequence emails
-                  have stopped going out. */}
-              {emailsToday && gmailStatus?.connected && (() => {
-                const userLimit = emailsToday.limit || 0;
-                const orgLimit = emailsToday.org?.limit ?? null;
-                const effectiveLimit = orgLimit !== null ? Math.min(userLimit, orgLimit) : userLimit;
-                const orgBound = orgLimit !== null && orgLimit < userLimit;
-                const sent = orgBound ? (emailsToday.org?.sent || 0) : (emailsToday.sent || 0);
-                const pct = effectiveLimit > 0 ? Math.min(100, Math.round((sent / effectiveLimit) * 100)) : 0;
-                const atLimit = effectiveLimit > 0 && sent >= effectiveLimit;
-                const nearLimit = !atLimit && pct >= 80;
-                const ink = atLimit ? 'var(--danger)' : nearLimit ? 'var(--warn-ink)' : 'var(--fg-3)';
-                return (
-                  <div style={{
-                    marginBottom: 32, padding: '16px 20px', borderRadius: 'var(--r-3, 14px)',
-                    background: atLimit ? 'var(--danger-soft)' : nearLimit ? 'var(--warn-soft)' : 'var(--surface-2)',
-                    boxShadow: `inset 0 0 0 1px ${atLimit ? 'var(--danger-line, var(--line-2))' : nearLimit ? 'var(--warn-line, var(--line-2))' : 'var(--line-2)'}`,
-                  }}>
-                    <Meter
-                      value={pct}
-                      color={atLimit ? 'var(--danger)' : nearLimit ? 'var(--warn-ink)' : undefined}
-                      label={
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                          <Mail size={16} style={{ color: ink }} />
-                          <span style={{ font: "550 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>Emails sent today</span>
-                          {orgBound && <span style={metaStyle}>(org-wide plan limit)</span>}
-                        </span>
-                      }
-                      readout={<span style={{ font: "600 13px/1.4 'Inter', system-ui, sans-serif", color: ink }}>{sent} / {effectiveLimit}</span>}
-                    />
-                    {atLimit && (
-                      <p style={{ ...metaStyle, color: 'var(--danger)', marginTop: 8 }}>
-                        Daily email limit reached — queued sequence emails will resume sending tomorrow.{orgBound ? ' Upgrade your plan to raise the org-wide limit.' : ' You can raise your personal limit in Outreach settings.'}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Quick Stats Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
-                {[
-                  { label: 'Contacts Saved', value: savedLeadsCount || 0, icon: Users, color: 'var(--brand)', cta: 'Extract your first contact →' },
-                  { label: 'Emails Generated', value: features?.usage?.emailsGenerated || 0, icon: Mail, color: 'var(--acc-blue, var(--brand))', locked: !isPro, cta: 'Generate your first email →' },
-                  { label: 'DMs Generated', value: features?.usage?.dmsGenerated || 0, icon: MessageSquare, color: 'var(--acc-purple, var(--brand))', locked: !isPro, cta: 'Generate your first DM →' },
-                  { label: 'CRM Exports', value: features?.usage?.crmExports || 0, icon: Building2, color: 'var(--warn-ink)', locked: !canExportCrm, cta: 'Export to your CRM →' },
-                ].map((stat, i) => (
-                  <Stat
-                    key={i}
-                    icon={<stat.icon size={16} />}
-                    color={stat.color}
-                    value={stat.value}
-                    label={
-                      stat.locked ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                          {stat.label}
-                          <Lock size={12} style={{ color: 'var(--fg-4)' }} />
-                        </span>
-                      ) : stat.label
-                    }
-                    note={!loading && stat.value === 0 && !stat.locked ? stat.cta : undefined}
-                  />
-                ))}
-              </div>
-
-              {/* Bottom Row - Lists and Getting Started */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
-                {/* My Lists */}
-                <Panel
-                  title="My Lists"
-                  actions={
-                    <Button as={Link} to={orgPath('/outreach/lists')} variant="ghost" size="sm" iconRight={<ChevronRight size={16} />}>
-                      View all
-                    </Button>
-                  }
-                >
-                  {lists.length === 0 ? (
-                    <EmptyState
-                      compact
-                      icon={<List size={24} />}
-                      title="No lists yet"
-                      actions={
-                        <Button as={Link} to={orgPath('/outreach/lists')} variant="secondary" iconLeft={<Plus size={16} />}>
-                          Create List
-                        </Button>
-                      }
-                    />
-                  ) : (
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      {lists.slice(0, 4).map((list, idx) => (
-                        <Link
-                          key={idx}
-                          to={orgPath(`/outreach/lists?list=${encodeURIComponent(list.name)}`)}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                            padding: 12, borderRadius: 'var(--r-2, 12px)', background: 'var(--surface-2)',
-                            ...bodyStyle, color: 'var(--fg)',
-                          }}
-                        >
-                          <span style={truncate}>{list.name}</span>
-                          <span style={{ ...metaStyle, flexShrink: 0 }}>{list.count || 0} contacts</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </Panel>
-
-                {/* Chrome Extension CTA */}
-                {extInstalled ? (
-                  <Panel>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 4 }}>
-                      <span style={{
-                        width: 48, height: 48, borderRadius: 'var(--r-3, 14px)', flexShrink: 0,
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'var(--brand-soft)', color: 'var(--brand-ink)',
-                      }}>
-                        <CheckCircle2 size={24} />
-                      </span>
-                      <div>
-                        <h3 style={h3Style}>Extension Connected</h3>
-                        <p style={{ ...metaStyle, marginTop: 2 }}>Rivvra Chrome Extension is active</p>
-                      </div>
-                    </div>
-                  </Panel>
-                ) : (
-                  <Panel>
-                    <div style={{ padding: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                        <span style={{
-                          width: 48, height: 48, borderRadius: 'var(--r-3, 14px)', flexShrink: 0,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          background: 'var(--brand-soft)', color: 'var(--brand-ink)',
-                        }}>
-                          <Chrome size={24} />
-                        </span>
-                        <div>
-                          <h3 style={h3Style}>Chrome Extension</h3>
-                          <p style={{ ...metaStyle, marginTop: 2 }}>Extract contacts directly from LinkedIn</p>
-                        </div>
-                      </div>
-                      <p style={{ ...bodyStyle, marginBottom: 16 }}>
-                        Install our Chrome extension to start extracting contacts from LinkedIn profiles, searches, and Sales Navigator.
-                      </p>
-                      <Button
-                        as="a" href={chromeStoreUrl} target="_blank" rel="noopener noreferrer"
-                        iconRight={<ExternalLink size={16} />}
-                      >
-                        Install Extension
-                      </Button>
-                    </div>
-                  </Panel>
-                )}
-              </div>
+              {/* Hiring signals stay, below the day's work */}
+              {currentOrg?.slug && <div style={{ marginTop: 16 }}><HiringSignalsCard orgSlug={currentOrg.slug} /></div>}
             </>
           )}
         </div>
@@ -1199,12 +968,6 @@ function DashboardPageV2() {
         lead={listModalLead}
         onSelect={handleAddToList}
         onCreateList={handleCreateListAndAdd}
-      />
-
-      <ComingSoonModal
-        isOpen={showComingSoon}
-        onClose={() => setShowComingSoon(false)}
-        feature={comingSoonFeature}
       />
     </>
   );
