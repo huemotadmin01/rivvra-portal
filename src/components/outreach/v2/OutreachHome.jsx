@@ -59,7 +59,7 @@ function TodayCard({ label, to, toLabel, value, suffix, children, danger }) {
  * @param {Array} props.lists         GET /api/lists lists
  * @param {(p:string)=>string} props.orgPath
  */
-export default function OutreachHome({ home, lists = [], orgPath, loading, listsLoading }) {
+export default function OutreachHome({ home, lists = [], teamListCounts = null, orgPath, loading, listsLoading }) {
   // Placeholder blocks the same shape as the real sections, so nothing below
   // (Hiring Signals) jumps when the numbers land.
   if (loading && !home) {
@@ -86,7 +86,9 @@ export default function OutreachHome({ home, lists = [], orgPath, loading, lists
   const byCount = (a, b) => (b.count || 0) - (a.count || 0);
   const listRows = [
     ...lists.filter((l) => !l.isDefault).sort(byCount).slice(0, 6).map((l) => ({ ...l, path: `/outreach/lists?list=${encodeURIComponent(l.name)}` })),
-    ...lists.filter((l) => l.isDefault).sort(byCount).map((l) => ({ ...l, path: `/outreach/team-lists?list=${encodeURIComponent(l.name)}`, team: true })),
+    ...lists.filter((l) => l.isDefault)
+      .map((l) => ({ ...l, count: teamListCounts?.[l.name] ?? l.count, path: `/outreach/team-lists?list=${encodeURIComponent(l.name)}`, team: true }))
+      .sort(byCount),
   ];
   const bouncedNow = totals.bouncedContacts ?? totals.bounced;
   // Workspace plan cap (null limit = no cap). The engine stops at whichever

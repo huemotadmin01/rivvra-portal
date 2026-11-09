@@ -494,6 +494,11 @@ function DashboardPageV2() {
   const [savedLeadIds, setSavedLeadIds] = useState(new Set());
   const [home, setHome] = useState(null); // GET /api/dashboard/home (2026-11-09 Home rebuild)
   const [homeSettled, setHomeSettled] = useState(false); // home request answered (ok or failed)
+  // Team-list counts for the Home list cards: the five default lists open Team
+  // Lists, so their cards must show the counts that page shows. /api/lists
+  // counts a rep's OWN contacts (Akash: Hot Leads 1 on Home vs 65 on Team
+  // Lists, 2026-11-09). null until loaded → cards fall back to /api/lists.
+  const [teamListCounts, setTeamListCounts] = useState(null);
   const myId = String(user?._id || user?.id || '');
   const ownsLead = (lead) => !!myId && (String(lead?.userId || '') === myId || String(lead?.visitorId || '') === myId);
   const [savingLeadId, setSavingLeadId] = useState(null);
@@ -513,6 +518,9 @@ function DashboardPageV2() {
         .then((h) => { if (h?.success) setHome(h); })
         .catch(() => {})
         .finally(() => setHomeSettled(true));
+      api.getTeamLists()
+        .then((r) => { if (r?.success) setTeamListCounts(Object.fromEntries((r.lists || []).map((l) => [l.name, l.count || 0]))); })
+        .catch(() => {});
       const [leadsRes, listsRes, gmailRes, seqRes] = await Promise.all([
         api.getLeads({ limit: 1 }).catch(() => ({ total: 0 })),
         api.getLists().catch(() => ({ lists: [] })),
@@ -953,7 +961,7 @@ function DashboardPageV2() {
               )}
 
               {/* 2026-11-09 rebuilt Home: today, needs-attention, sequences, lists */}
-              <OutreachHome home={home} lists={lists} orgPath={orgPath} loading={!homeSettled} listsLoading={loading} />
+              <OutreachHome home={home} lists={lists} teamListCounts={teamListCounts} orgPath={orgPath} loading={!homeSettled} listsLoading={loading} />
 
               {/* Hiring signals stay, below the day's work — mounted only once the
                   day's numbers are in, so nothing above it can push it around. */}
