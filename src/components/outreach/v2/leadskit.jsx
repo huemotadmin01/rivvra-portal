@@ -4,6 +4,20 @@ import api from '../../../utils/api';
 import ManageDropdown from '../../ManageDropdown';
 import { DataTable, EmptyState, Chip, Avatar, InlineSelect } from '../../ds';
 
+// True below 640px wide (phones); follows rotation / window resizes.
+function useNarrowScreen() {
+  const q = '(max-width: 640px)';
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(q).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(q);
+    if (!mq) return undefined;
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
+
 /* DESIGN-SYSTEM BOUNDARY (settled in phase 1): LeadsTableV2 and ListsRailV2
    deliberately stay here rather than moving into ds/. Both encode Outreach
    domain knowledge — the lead row shape (profile picture, outreach status,
@@ -302,7 +316,10 @@ export function LeadsTableV2({
   // shows an ellipsis), so they get tighter padding than text cells.
   const CHECK_PAD = { padding: '11px 12px', textOverflow: 'clip' };
   const ACTIONS_PAD = { padding: '11px 8px', textOverflow: 'clip' };
-  const frz = (i, extra = {}) => ({
+  // 2026-11-09: on a phone the three frozen columns (388px) are wider than the
+  // screen, so nothing else could scroll into view — freeze nothing there.
+  const narrow = useNarrowScreen();
+  const frz = (i, extra = {}) => narrow ? td(extra) : ({
     ...td(extra), position: 'sticky', left: FROZEN_LEFT[i], zIndex: 1,
     ...(i === FROZEN_LEFT.length - 1 ? { boxShadow: 'inset -1px 0 0 var(--line-2, rgba(255,255,255,.11))' } : {}),
   });
@@ -320,7 +337,7 @@ export function LeadsTableV2({
         /* 2026-11-09: touch screens have no hover — keep the quick action visible. */
         @media (hover: none) { .ltv2-row .ltv2-quick { opacity: 1; } }
       `}</style>
-    <DataTable columns={columns} rows={[]} loading={loading} resizable={false} empty={empty} freezeColumns={3} maxHeight={scrollMaxHeight}>
+    <DataTable columns={columns} rows={[]} loading={loading} resizable={false} empty={empty} freezeColumns={narrow ? 0 : 3} maxHeight={scrollMaxHeight}>
       {!loading && leads.length ? leads.map((lead) => {
         const on = selSet.has(lead._id);
         const mp = manageProps ? manageProps(lead) : null;
