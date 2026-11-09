@@ -57,7 +57,7 @@ const defaultCollapsedFor = (appId) => APPS_DEFAULT_COLLAPSED.has(appId);
 function PlatformLayoutV2() {
   const { currentApp, orgPath } = usePlatform();
   const { currentOrg } = useOrg();
-  const { currentCompanyId, hydrated } = useCompany();
+  const { currentCompanyId, hydrated, loading: companiesLoading } = useCompany();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => defaultCollapsedFor(currentApp?.id));
@@ -126,7 +126,12 @@ function PlatformLayoutV2() {
                 <div className="page-inner">
                   {/* Same hydration gate + company-keyed remount as the
                       legacy shell — see PlatformLayout.jsx for the why. */}
-                  {hydrated ? (
+                  {/* 2026-11-09: also wait for the FIRST companies fetch. Before
+                      it lands currentCompanyId is null, so the key below went
+                      co-none → co-<id> ~50 ms later and every page mounted
+                      TWICE on a fresh load (double fetches, skeleton flash).
+                      `loading` only flips on an org change, never on switch. */}
+                  {hydrated && !companiesLoading ? (
                     <div key={`co-${currentCompanyId || 'none'}`}>
                       {/* First-visit explainer, on the app's landing route
                           only — "what is this app, who uses it, why". */}

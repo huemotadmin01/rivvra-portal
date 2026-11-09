@@ -493,6 +493,7 @@ function DashboardPageV2() {
   // Save & Add to List
   const [savedLeadIds, setSavedLeadIds] = useState(new Set());
   const [home, setHome] = useState(null); // GET /api/dashboard/home (2026-11-09 Home rebuild)
+  const [homeSettled, setHomeSettled] = useState(false); // home request answered (ok or failed)
   const myId = String(user?._id || user?.id || '');
   const ownsLead = (lead) => !!myId && (String(lead?.userId || '') === myId || String(lead?.visitorId || '') === myId);
   const [savingLeadId, setSavingLeadId] = useState(null);
@@ -504,13 +505,20 @@ function DashboardPageV2() {
       // 2026-11-09 Home rebuild: the AI-usage counters (getFeatures) and the
       // old daily-quota bar (getEmailsSentToday) are gone — today's numbers
       // come from getHomeStats below.
+      // Home stats go out FIRST and on their own — they used to wait for the
+      // batch below (/api/lists alone takes 3–5 s), so the Hiring Signals card
+      // painted first and was then shoved down the page when the day's numbers
+      // landed (the "flicker", 2026-11-09).
+      api.getHomeStats()
+        .then((h) => { if (h?.success) setHome(h); })
+        .catch(() => {})
+        .finally(() => setHomeSettled(true));
       const [leadsRes, listsRes, gmailRes, seqRes] = await Promise.all([
         api.getLeads({ limit: 1 }).catch(() => ({ total: 0 })),
         api.getLists().catch(() => ({ lists: [] })),
         api.getGmailStatus().catch(() => null),
         api.getSequences().catch(() => null),
       ]);
-      api.getHomeStats().then((h) => { if (h?.success) setHome(h); }).catch(() => {});
 
       setSavedLeadsCount(leadsRes.total || 0);
       setLists(listsRes.lists || []);
@@ -939,10 +947,11 @@ function DashboardPageV2() {
               )}
 
               {/* 2026-11-09 rebuilt Home: today, needs-attention, sequences, lists */}
-              <OutreachHome home={home} lists={lists} orgPath={orgPath} loading={loading} />
+              <OutreachHome home={home} lists={lists} orgPath={orgPath} loading={!homeSettled} listsLoading={loading} />
 
-              {/* Hiring signals stay, below the day's work */}
-              {currentOrg?.slug && <div style={{ marginTop: 16 }}><HiringSignalsCard orgSlug={currentOrg.slug} /></div>}
+              {/* Hiring signals stay, below the day's work — mounted only once the
+                  day's numbers are in, so nothing above it can push it around. */}
+              {currentOrg?.slug && homeSettled && <div style={{ marginTop: 16 }}><HiringSignalsCard orgSlug={currentOrg.slug} /></div>}
             </>
           )}
         </div>

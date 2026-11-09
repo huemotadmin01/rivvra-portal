@@ -59,11 +59,24 @@ function TodayCard({ label, to, toLabel, value, suffix, children, danger }) {
  * @param {Array} props.lists         GET /api/lists lists
  * @param {(p:string)=>string} props.orgPath
  */
-export default function OutreachHome({ home, lists = [], orgPath, loading }) {
+export default function OutreachHome({ home, lists = [], orgPath, loading, listsLoading }) {
+  // Placeholder blocks the same shape as the real sections, so nothing below
+  // (Hiring Signals) jumps when the numbers land.
   if (loading && !home) {
-    return <p style={{ ...t.muted, textAlign: 'center', padding: 24 }}>Loading your day…</p>;
+    const block = (h) => <div style={{ height: h, borderRadius: 14, background: 'var(--surface-2, var(--surface-1))', border: '1px solid var(--line)' }} />;
+    return (
+      <div style={{ display: 'grid', gap: 16 }} aria-busy="true" aria-label="Loading your day">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+          {block(120)}{block(120)}{block(120)}{block(120)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>{block(220)}{block(220)}</div>
+        {block(96)}
+      </div>
+    );
   }
-  if (!home) return null;
+  if (!home) {
+    return <p style={{ ...t.muted, textAlign: 'center', padding: 24 }}>Couldn't load today's numbers — refresh the page to try again.</p>;
+  }
   const { today, totals, replies = [], sequences = [] } = home;
   const remaining = Math.max(0, (today.limit || 0) - (today.sent || 0));
   const bounceRate = totals.contacted > 0 ? totals.bounced / totals.contacted : 0;
@@ -200,7 +213,9 @@ export default function OutreachHome({ home, lists = [], orgPath, loading }) {
             <ListIcon size={16} style={{ color: 'var(--brand-ink)' }} /> My lists
             <Link to={orgPath('/outreach/lists')} style={{ ...t.link, marginLeft: 'auto', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}>All lists <ArrowRight size={12} /></Link>
           </h2>
-          {listRows.length === 0 ? (
+          {listsLoading && listRows.length === 0 ? (
+            <p style={t.muted}>Loading lists…</p>
+          ) : listRows.length === 0 ? (
             <p style={t.muted}>No lists yet.</p>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
