@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
@@ -89,6 +89,13 @@ export default function TeamListsPageV2() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  // 2026-11-09: loadLists read `selectedList` as a dependency, so picking a
+  // list (incl. the first one, on load) re-created it and the mount effect
+  // fetched /api/lists/team AGAIN — every page load paid ~1.5 s twice. The
+  // current selection is read through a ref instead.
+  const selectedListRef = useRef(selectedList);
+  useEffect(() => { selectedListRef.current = selectedList; }, [selectedList]);
+
   const loadLists = useCallback(async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setRefreshing(true);
     try {
@@ -101,9 +108,10 @@ export default function TeamListsPageV2() {
         // 2026-11-09: Home deep-links default lists as ?list=<name>; match the
         // name case-insensitively and use the list's real name (the leads API
         // matches it exactly). Unknown name → fall back to the first list.
-        const match = selectedList && all.find((l) => l.name.toLowerCase() === selectedList.toLowerCase());
+        const current = selectedListRef.current;
+        const match = current && all.find((l) => l.name.toLowerCase() === current.toLowerCase());
         if (match) {
-          if (match.name !== selectedList) setSelectedList(match.name);
+          if (match.name !== current) setSelectedList(match.name);
         } else if (all.length > 0) {
           setSelectedList(all[0].name);
         }
@@ -116,7 +124,7 @@ export default function TeamListsPageV2() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedList]);
+  }, []);
 
   const loadLeads = useCallback(async (listName, pageNum = 1, search = '', filters = {}) => {
     if (!listName) return;

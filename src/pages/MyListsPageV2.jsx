@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
@@ -110,6 +110,11 @@ export default function MyListsPageV2() {
     }
   }, []);
 
+  // 2026-11-09: read the selection through a ref — as a dependency it
+  // re-created loadLists on every list pick and re-fetched /api/lists.
+  const selectedListRef = useRef(selectedList);
+  useEffect(() => { selectedListRef.current = selectedList; }, [selectedList]);
+
   const loadLists = useCallback(async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setRefreshing(true);
     try {
@@ -119,7 +124,7 @@ export default function MyListsPageV2() {
         const customLists = (res.lists || []).filter((l) => !l.isDefault);
         setLists(customLists);
         setListsError(null);
-        if (!selectedList && customLists.length > 0) setSelectedList(customLists[0].name);
+        if (!selectedListRef.current && customLists.length > 0) setSelectedList(customLists[0].name);
       }
     } catch (err) {
       console.error('Failed to load lists:', err);
@@ -129,7 +134,7 @@ export default function MyListsPageV2() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedList]);
+  }, []);
 
   useEffect(() => { loadLists(); }, [loadLists]);
 
