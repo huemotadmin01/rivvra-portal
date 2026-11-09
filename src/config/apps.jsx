@@ -75,7 +75,9 @@ export const APP_REGISTRY = {
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       // Admin derived from org role; team_lead from orgAppRole (org_memberships) OR legacy user.role (portal_users)
       const isAdmin = orgAppRole === 'admin';
-      const isTeamLead = orgAppRole === 'team_lead' || user?.role === 'team_lead';
+      // 2026-11-09: once the org payload carries the enforced role, trust it;
+      // the legacy user.role is only a fallback when no org role is known.
+      const isTeamLead = orgAppRole === 'team_lead' || (!orgAppRole && user?.role === 'team_lead');
       const isAdminOrLead = isAdmin || isTeamLead;
       return [
         { type: 'item', path: '/outreach/dashboard', label: 'Home', icon: Home },

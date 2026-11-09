@@ -263,6 +263,10 @@ export function OrgProvider({ children }) {
     if (!access?.enabled) return null;
     const orgRole = membership.orgRole;
     if (orgRole === 'owner' || orgRole === 'admin') return 'admin';
+    // 2026-11-09: Outreach — the role the API enforces in this org (sales-team
+    // leadership here), sent as membership.outreachRole. appAccess.outreach.role
+    // and user.role could say team_lead while the server refused (403).
+    if (appId === 'outreach' && membership.outreachRole) return membership.outreachRole;
     // Per-app admin for the finance apps (2026-10-26) — the SAME rule as the
     // API's helpers/appRole.js. `access.role` is NOT a grant: it defaults to
     // 'admin' for payroll/invoicing on every enable, which showed members admin

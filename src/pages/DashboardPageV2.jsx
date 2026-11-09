@@ -493,6 +493,8 @@ function DashboardPageV2() {
 
   // Save & Add to List
   const [savedLeadIds, setSavedLeadIds] = useState(new Set());
+  const myId = String(user?._id || user?.id || '');
+  const ownsLead = (lead) => !!myId && (String(lead?.userId || '') === myId || String(lead?.visitorId || '') === myId);
   const [savingLeadId, setSavingLeadId] = useState(null);
   const [listModalLead, setListModalLead] = useState(null);
 
@@ -629,7 +631,7 @@ function DashboardPageV2() {
   const handleSaveContact = async (lead) => {
     setSavingLeadId(lead._id);
     try {
-      await api.saveLead({
+      const saved = await api.saveLead({
         name: lead.name,
         title: lead.title || lead.currentTitle,
         headline: lead.headline,
@@ -648,7 +650,8 @@ function DashboardPageV2() {
         leadSource: 'portal_search',
       });
       setSavedLeadIds((prev) => new Set([...prev, lead._id]));
-      setSavedLeadsCount((prev) => prev + 1);
+      // An existing contact matched (duplicate) — the count did not change.
+      if (!saved?.duplicate) setSavedLeadsCount((prev) => prev + 1);
     } catch (err) {
       console.error('Failed to save contact:', err);
     } finally {
@@ -663,7 +666,7 @@ function DashboardPageV2() {
     setSavingLeadId(lead._id);
     setListModalLead(null);
     try {
-      await api.saveLead({
+      const savedToList = await api.saveLead({
         name: lead.name,
         title: lead.title || lead.currentTitle,
         headline: lead.headline,
@@ -683,7 +686,7 @@ function DashboardPageV2() {
         lists: [listName],
       });
       setSavedLeadIds((prev) => new Set([...prev, lead._id]));
-      setSavedLeadsCount((prev) => prev + 1);
+      if (!savedToList?.duplicate) setSavedLeadsCount((prev) => prev + 1);
       // Refresh lists to update counts
       try {
         const listsRes = await api.getLists();
@@ -826,7 +829,9 @@ function DashboardPageV2() {
                         onClick={() => openLead(lead)}
                         onSave={handleSaveContact}
                         onAddToList={(lead) => setListModalLead(lead)}
-                        isSaved={savedLeadIds.has(lead._id)}
+                        // 2026-11-09: a result the viewer already owns IS saved —
+                        // offering "Save" on it created a second copy.
+                        isSaved={savedLeadIds.has(lead._id) || ownsLead(lead)}
                         saving={savingLeadId === lead._id}
                       />
                     ))}

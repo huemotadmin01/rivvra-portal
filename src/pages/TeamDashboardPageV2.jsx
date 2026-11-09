@@ -250,7 +250,9 @@ export default function TeamDashboardPageV2() {
 
   // Org membership role is the source of truth; user.role (from Sales Teams) is fallback
   const orgRole = currentOrg ? getAppRole('outreach') : null;
-  const effectiveRole = (orgRole && orgRole !== 'member') ? orgRole : (user?.role || orgRole || 'member');
+  // 2026-11-09: the org role (now the server-enforced Outreach role) wins;
+  // user.role is only a fallback when no org context is loaded.
+  const effectiveRole = orgRole || user?.role || 'member';
   const canView = effectiveRole === 'admin' || effectiveRole === 'team_lead';
 
   // Compute date params based on filter
@@ -413,11 +415,19 @@ export default function TeamDashboardPageV2() {
   const totalEmailsScheduled = emailsScheduledInRange.reduce((s, r) => s + r.count, 0);
   const totalEmailsSentInRange = emailsSentInRange.reduce((s, r) => s + r.count, 0);
 
-  // Pipeline: Total → In Sequence → Replied
+  // Pipeline: Total → In Sequence → Interested.
+  // 2026-11-09: each step links to a list showing the same people (Total used
+  // to open My Contacts — only your own leads), and the arrows say what they
+  // measure. The old step-to-step % divided replies by ACTIVE enrollments —
+  // two groups that never overlap — so it could pass 100%.
   const pipelineSteps = [
-    { label: 'Total Leads', value: data?.totalLeads || 0, color: '#6b7280', link: '/outreach/leads' },
+    { label: 'Total Leads', value: data?.totalLeads || 0, color: '#6b7280', link: '/outreach/team-contacts' },
     { label: 'In Sequence', value: totalInSequence, color: '#3b82f6', link: '/outreach/team-contacts?status=in_sequence' },
-    { label: 'Responded', value: data?.repliedCount || 0, color: '#22c55e', link: '/outreach/team-contacts?status=replied' },
+    { label: 'Interested', value: data?.interestedCount ?? data?.repliedCount ?? 0, color: '#22c55e', link: '/outreach/team-contacts?status=replied' },
+  ];
+  const pipelineArrows = [
+    (data?.totalLeads || 0) > 0 ? `${((totalInSequence / data.totalLeads) * 100).toFixed(0)}% in a sequence now` : null,
+    (data?.responseRate?.totalContacted || 0) > 0 ? `${data.responseRate.rate || 0}% reply rate (all replies ÷ contacted)` : null,
   ];
 
   return (
@@ -557,8 +567,11 @@ export default function TeamDashboardPageV2() {
         <Stat
           label="In Sequence" value={totalInSequenceInRange.toLocaleString()}
           icon={<Send size={16} />} color="var(--brand)"
-          note={dateLabel.toLowerCase()}
-          onClick={() => navigate(orgPath('/outreach/team-contacts') + '?status=in_sequence')}
+          note={`enrolled ${dateLabel.toLowerCase()}`}
+          // 2026-11-09: this counts ENROLLMENTS made in the date range; the
+          // contact list can only show who is in a sequence now, so it opened
+          // a list that never matched. Engage shows the sequences themselves.
+          onClick={() => navigate(orgPath('/outreach/engage'))}
         />
         <Stat
           label="Response Rate" value={`${data?.responseRate?.rate || 0}%`}
@@ -613,9 +626,9 @@ export default function TeamDashboardPageV2() {
                     transition: 'width 700ms var(--e-out)',
                   }} />
                 </div>
-                {i < pipelineSteps.length - 1 && pipelineSteps[i].value > 0 && (
+                {i < pipelineSteps.length - 1 && pipelineArrows[i] && (
                   <p style={{ ...metaStyle, marginTop: 4, textAlign: 'center' }}>
-                    {((pipelineSteps[i + 1].value / pipelineSteps[i].value) * 100).toFixed(0)}%
+                    {pipelineArrows[i]}
                     <ArrowDownRight size={10} style={{ display: 'inline', marginLeft: 2 }} />
                   </p>
                 )}

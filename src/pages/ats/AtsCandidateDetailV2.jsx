@@ -370,10 +370,19 @@ function AtsCandidateDetailV2() {
     {
       key: 'stage',
       header: 'Stage',
-      width: 170,
+      width: 230,
       // stageName is a denormalised cache, not the source of truth — see the
       // note in the page header. Rendered as legacy does; not re-derived here.
-      render: (app) => <StageBadge stageName={app.stageName} />,
+      // 2026-11-09: archived / refused applications stay listed here (the
+      // 888 stale-application cleanup archived many) but are marked, so they
+      // don't read as live.
+      render: (app) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <StageBadge stageName={app.stageName} />
+          {app.archived && <Chip>Archived</Chip>}
+          {!app.archived && app.refused && <Chip tone="danger">Refused</Chip>}
+        </span>
+      ),
     },
     {
       key: 'applied',

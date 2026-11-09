@@ -55,7 +55,9 @@ function AppRoleGate({ appId, requiredRole = 'admin', allowTeamLead = false }) {
   }
 
   // Allow team leads through if allowTeamLead is set
-  if (allowTeamLead && (userRole === 'team_lead' || user?.role === 'team_lead')) {
+  // 2026-11-09: legacy user.role only when the org gave no role for this app
+  // (Outreach now sends the server-enforced role — see OrgContext.getAppRole).
+  if (allowTeamLead && (userRole === 'team_lead' || (!userRole && user?.role === 'team_lead'))) {
     return <Outlet />;
   }
 

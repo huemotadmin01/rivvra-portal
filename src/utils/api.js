@@ -1166,6 +1166,9 @@ class ApiClient {
     const params = new URLSearchParams();
     if (dateFrom) params.append('dateFrom', dateFrom);
     if (dateTo) params.append('dateTo', dateTo);
+    // 2026-11-09: the viewer's time zone, so "Today" means today in IST (the
+    // server used to cut days in UTC).
+    try { params.append('tz', Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'); } catch { /* server defaults to IST */ }
     const qs = params.toString();
     return this.request(`/api/dashboard/team${qs ? `?${qs}` : ''}`);
   }
