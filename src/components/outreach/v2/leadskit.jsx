@@ -35,6 +35,9 @@ export const OUTREACH_STATUS_OPTIONS = [
   { value: 'no_response', label: 'No Response' },
   { value: 'bounced', label: 'Bounced' },
   { value: 'converted', label: 'Converted' },
+  // 2026-11-09: the Team Dashboard's "Lost / No Response" card links here;
+  // without the option the list opened with no visible filter.
+  { value: 'lost_no_response', label: 'Lost / No Response' },
 ];
 
 // Same status → tone/label map every legacy page inlines.

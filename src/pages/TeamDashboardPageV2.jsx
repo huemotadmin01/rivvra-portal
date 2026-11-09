@@ -76,6 +76,9 @@ const STATUS_CONFIG = {
   no_response: { label: 'No Response', color: '#f59e0b' },
   bounced: { label: 'Bounced', color: '#f97316' },
   lost_no_response: { label: 'Lost / No Response', color: '#94a3b8' },
+  // 2026-11-09: counted in Total Leads but had no slice/card — the donut
+  // slices didn't add up to the total.
+  converted: { label: 'Converted', color: '#a855f7' },
 };
 
 // Helper: format date as YYYY-MM-DD for input[type=date] using LOCAL time (not UTC)
@@ -111,6 +114,7 @@ const STATUS_LIGHT = {
   no_response:            '#854d0e',
   bounced:                '#ea580c',
   lost_no_response:       '#64748b',
+  converted:              '#7e22ce',
 };
 
 /** True while the document is in the light theme. Charts take real colour
@@ -181,7 +185,7 @@ function MemberBar({ name, count, pct, color, showPct }) {
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {showPct && <span style={metaStyle}>{pct.toFixed(0)}%</span>}
-          <span style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>{count}</span>
+          <span style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>{Number(count || 0).toLocaleString()}</span>
         </span>
       </div>
       <div style={{ marginLeft: 32, height: 6, borderRadius: 99, background: 'var(--surface-3)', overflow: 'hidden' }}>
@@ -243,8 +247,13 @@ export default function TeamDashboardPageV2() {
 
   // Date filter state
   const [dateFilter, setDateFilter] = useState('today'); // 'today' | 'yesterday' | 'custom'
+  // Draft dates (the inputs) vs applied dates (what is fetched). 2026-11-09:
+  // every keystroke in a date input used to refetch and blank the page.
   const [customFrom, setCustomFrom] = useState(toDateStr(getToday()));
   const [customTo, setCustomTo] = useState(toDateStr(getToday()));
+  const [appliedFrom, setAppliedFrom] = useState(toDateStr(getToday()));
+  const [appliedTo, setAppliedTo] = useState(toDateStr(getToday()));
+  const reqSeq = useRef(0);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const dateDropdownRef = useRef(null);
 
@@ -256,23 +265,23 @@ export default function TeamDashboardPageV2() {
   const canView = effectiveRole === 'admin' || effectiveRole === 'team_lead';
 
   // Compute date params based on filter
-  const dateParams = useMemo(() => {
-    if (dateFilter === 'today') {
-      const today = toDateStr(getToday());
-      return { dateFrom: today, dateTo: today };
-    }
-    if (dateFilter === 'yesterday') {
-      const yesterday = toDateStr(getYesterday());
-      return { dateFrom: yesterday, dateTo: yesterday };
-    }
-    // custom
-    return { dateFrom: customFrom, dateTo: customTo };
-  }, [dateFilter, customFrom, customTo]);
+  // Keyed on the two date STRINGS, so switching to "Custom Range" (still
+  // today–today) does not refetch until Apply changes the range.
+  const [rangeFrom, rangeTo] = dateFilter === 'today'
+    ? [toDateStr(getToday()), toDateStr(getToday())]
+    : dateFilter === 'yesterday'
+      ? [toDateStr(getYesterday()), toDateStr(getYesterday())]
+      : [appliedFrom, appliedTo];
+  const dateParams = useMemo(() => ({ dateFrom: rangeFrom, dateTo: rangeTo }), [rangeFrom, rangeTo]);
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
+    // 2026-11-09: only the LATEST request may write — a slow answer for the
+    // previous range (or a 30s auto-refresh) used to overwrite a newer one.
+    const seq = ++reqSeq.current;
     try {
       const res = await api.getDashboardStats(dateParams);
+      if (seq !== reqSeq.current) return;
       if (res.success) {
         setData(res);
         setLastUpdated(new Date());
@@ -281,10 +290,13 @@ export default function TeamDashboardPageV2() {
         setError(res.error || 'Failed to load');
       }
     } catch (err) {
+      if (seq !== reqSeq.current) return;
       setError(err.message || 'Failed to load dashboard');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (seq === reqSeq.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [dateParams]);
 
@@ -335,27 +347,31 @@ export default function TeamDashboardPageV2() {
     return ((data.emailStats.clicked / data.emailStats.opened) * 100).toFixed(1);
   }, [data]);
 
+  // 2026-11-09: Interested and Bounced count ENROLLMENTS (people), so they
+  // divide by people contacted — they were divided by EMAILS sent.
+  const contacted = data?.responseRate?.totalContacted || 0;
   const emailReplyRate = useMemo(() => {
-    if (!data?.emailStats?.sent) return 0;
-    return ((data.emailStats.replied / data.emailStats.sent) * 100).toFixed(1);
-  }, [data]);
+    if (!contacted) return 0;
+    return ((data.emailStats.replied / contacted) * 100).toFixed(1);
+  }, [data, contacted]);
 
   const emailBounceRate = useMemo(() => {
-    if (!data?.emailStats?.sent) return 0;
-    return ((data.emailStats.bounced / data.emailStats.sent) * 100).toFixed(1);
-  }, [data]);
+    if (!contacted) return 0;
+    return ((data.emailStats.bounced / contacted) * 100).toFixed(1);
+  }, [data, contacted]);
 
   // Date label for display
   const dateLabel = useMemo(() => {
     if (dateFilter === 'today') return 'Today';
     if (dateFilter === 'yesterday') return 'Yesterday';
-    if (customFrom === customTo) {
-      return new Date(customFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (!appliedFrom || !appliedTo) return 'Custom range';
+    if (appliedFrom === appliedTo) {
+      return new Date(appliedFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     }
-    const from = new Date(customFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    const to = new Date(customTo + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const from = new Date(appliedFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const to = new Date(appliedTo + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     return `${from} – ${to}`;
-  }, [dateFilter, customFrom, customTo]);
+  }, [dateFilter, appliedFrom, appliedTo]);
 
 
   const { axisInk, axisInkMuted, cursorFill, barLead, barRest, rankGold, rankSilver, rankRest } = chartInk(isLight);
@@ -374,7 +390,9 @@ export default function TeamDashboardPageV2() {
     );
   }
 
-  if (loading) return (
+  // Full skeleton only before the first data arrives; later loads keep the
+  // page and spin the Refresh button.
+  if (loading && !data) return (
     <PageSkeleton>
       <HeaderSkeleton titleW="w-44" subtitleW="w-60" />
       <CardGridSkeleton count={3} />
@@ -421,9 +439,9 @@ export default function TeamDashboardPageV2() {
   // measure. The old step-to-step % divided replies by ACTIVE enrollments —
   // two groups that never overlap — so it could pass 100%.
   const pipelineSteps = [
-    { label: 'Total Leads', value: data?.totalLeads || 0, color: '#6b7280', link: '/outreach/team-contacts' },
-    { label: 'In Sequence', value: totalInSequence, color: '#3b82f6', link: '/outreach/team-contacts?status=in_sequence' },
-    { label: 'Interested', value: data?.interestedCount ?? data?.repliedCount ?? 0, color: '#22c55e', link: '/outreach/team-contacts?status=replied' },
+    { label: 'Total Leads', value: data?.totalLeads || 0, color: statusColor('not_contacted', isLight), link: '/outreach/team-contacts' },
+    { label: 'In Sequence', value: totalInSequence, color: statusColor('in_sequence', isLight), link: '/outreach/team-contacts?status=in_sequence' },
+    { label: 'Interested', value: data?.interestedCount ?? data?.repliedCount ?? 0, color: statusColor('replied', isLight), link: '/outreach/team-contacts?status=replied' },
   ];
   const pipelineArrows = [
     (data?.totalLeads || 0) > 0 ? `${((totalInSequence / data.totalLeads) * 100).toFixed(0)}% in a sequence now` : null,
@@ -446,10 +464,12 @@ export default function TeamDashboardPageV2() {
             Team Performance
           </h1>
           <p style={{ ...metaStyle, marginTop: 4, marginLeft: 42, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-            {user?.teamName ? (
-              <Chip tone="warn">{user.teamName}</Chip>
-            ) : effectiveRole === 'admin' ? (
+            {/* 2026-11-09: an admin sees the whole org even when they also
+                lead a team, so the chip must say so. */}
+            {effectiveRole === 'admin' ? (
               <Chip tone="brand">All Teams</Chip>
+            ) : user?.teamName ? (
+              <Chip tone="warn">{user.teamName}</Chip>
             ) : null}
             <span>
               {data?.teamMembers?.length || 0} members
@@ -523,7 +543,13 @@ export default function TeamDashboardPageV2() {
                         max={toDateStr(getToday())}
                       />
                     </Field>
-                    <Button block size="sm" onClick={() => setShowDateDropdown(false)}>Apply</Button>
+                    <Button
+                      block size="sm"
+                      disabled={!customFrom || !customTo || customFrom > customTo}
+                      onClick={() => { setAppliedFrom(customFrom); setAppliedTo(customTo); setShowDateDropdown(false); }}
+                    >
+                      Apply
+                    </Button>
                   </div>
                 )}
               </div>
@@ -534,8 +560,8 @@ export default function TeamDashboardPageV2() {
             variant="secondary"
             size="sm"
             onClick={() => fetchData(true)}
-            disabled={refreshing}
-            iconLeft={<RefreshCw size={14} className={refreshing ? 'animate-spin' : undefined} />}
+            disabled={refreshing || loading}
+            iconLeft={<RefreshCw size={14} className={refreshing || loading ? 'animate-spin' : undefined} />}
           >
             Refresh
           </Button>
@@ -622,7 +648,7 @@ export default function TeamDashboardPageV2() {
                 <div style={{ height: 32, borderRadius: 'var(--r-2, 12px)', background: 'var(--surface-3)', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: 'var(--r-2, 12px)', width: `${widthPct}%`,
-                    backgroundColor: step.color, opacity: 0.6,
+                    backgroundColor: step.color, opacity: 0.85,
                     transition: 'width 700ms var(--e-out)',
                   }} />
                 </div>
@@ -743,9 +769,9 @@ export default function TeamDashboardPageV2() {
           <EmailMetricCard label="Sent" value={data?.emailStats?.sent || 0} icon={<Send size={16} />} color="var(--acc-blue, var(--brand-ink))" />
           <EmailMetricCard label="Opened" value={data?.emailStats?.opened || 0} rate={emailOpenRate} rateLabel="open rate" icon={<Eye size={16} />} color="var(--acc-purple, var(--brand-ink))" />
           <EmailMetricCard label="Clicked" value={data?.emailStats?.clicked || 0} rate={emailClickRate} rateLabel="click-to-open" icon={<MousePointerClick size={16} />} color="var(--warn-ink)" />
-          <EmailMetricCard label="Interested" value={data?.emailStats?.replied || 0} rate={emailReplyRate} rateLabel="interested rate" icon={<MessageSquare size={16} />} color="var(--brand-ink)" />
+          <EmailMetricCard label="Interested" value={data?.emailStats?.replied || 0} rate={emailReplyRate} rateLabel="of people contacted" icon={<MessageSquare size={16} />} color="var(--brand-ink)" />
           <EmailMetricCard label="Not Interested" value={data?.emailStats?.repliedNotInterested || 0} icon={<ArrowDownRight size={16} />} color="var(--warn-ink)" negative />
-          <EmailMetricCard label="Bounced" value={data?.emailStats?.bounced || 0} rate={emailBounceRate} rateLabel="bounce rate" icon={<ArrowDownRight size={16} />} color="var(--danger)" negative />
+          <EmailMetricCard label="Bounced" value={data?.emailStats?.bounced || 0} rate={emailBounceRate} rateLabel="of people contacted" icon={<ArrowDownRight size={16} />} color="var(--danger)" negative />
         </div>
       </Panel>
 
@@ -756,7 +782,7 @@ export default function TeamDashboardPageV2() {
             <Send size={16} style={{ color: 'var(--acc-blue, var(--brand-ink))' }} />
             Emails Sent
             <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()}</span>
-            <Chip tone="info" style={{ marginLeft: 'auto' }}>{totalEmailsSentInRange}</Chip>
+            <Chip tone="info" style={{ marginLeft: 'auto' }}>{Number(totalEmailsSentInRange || 0).toLocaleString()}</Chip>
           </h3>
           {emailsSentInRange.length > 0 ? (
             <div style={{ display: 'grid', gap: 10 }}>
@@ -788,7 +814,7 @@ export default function TeamDashboardPageV2() {
               <div key={col.title}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                   <span style={microStyle}>{col.title}</span>
-                  <Chip tone={col.tone}>{col.total}</Chip>
+                  <Chip tone={col.tone}>{Number(col.total || 0).toLocaleString()}</Chip>
                 </div>
                 {col.rows.length > 0 ? (
                   <div style={{ display: 'grid', gap: 8 }}>
@@ -798,7 +824,7 @@ export default function TeamDashboardPageV2() {
                           <MemberDot name={r.sourcedBy} />
                           <span style={{ ...bodyStyle, fontSize: 12, ...truncate }}>{r.sourcedBy}</span>
                         </span>
-                        <span style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', marginLeft: 8 }}>{r.count}</span>
+                        <span style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', marginLeft: 8 }}>{Number(r.count || 0).toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -908,7 +934,7 @@ export default function TeamDashboardPageV2() {
             <CalendarDays size={16} style={{ color: 'var(--acc-purple, var(--brand-ink))' }} />
             Emails Scheduled
             <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()} · contacts due for next email</span>
-            <Chip tone="purple" style={{ marginLeft: 'auto' }}>{totalEmailsScheduled}</Chip>
+            <Chip tone="purple" style={{ marginLeft: 'auto' }}>{Number(totalEmailsScheduled || 0).toLocaleString()}</Chip>
           </h3>
           {emailsScheduledInRange.length > 0 ? (
             <div style={{ display: 'grid', gap: 10 }}>
@@ -932,7 +958,7 @@ export default function TeamDashboardPageV2() {
             <Send size={16} style={{ color: 'var(--brand-ink)' }} />
             In Sequence Detail
             <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()}</span>
-            <Chip tone="brand" style={{ marginLeft: 'auto' }}>{totalInSequenceInRange}</Chip>
+            <Chip tone="brand" style={{ marginLeft: 'auto' }}>{Number(totalInSequenceInRange || 0).toLocaleString()}</Chip>
           </h3>
           {(data?.inSequenceByUserInRange?.length || 0) > 0 ? (
             <div style={{ display: 'grid', gap: 10 }}>

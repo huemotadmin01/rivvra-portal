@@ -33,7 +33,7 @@
 // the legacy `if (totalPages <= 1) return null;`.
 // ============================================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import LeadDetailPanel from '../components/LeadDetailPanel';
 import api from '../utils/api';
+import { useToast } from '../context/ToastContext';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import ComingSoonModal from '../components/ComingSoonModal';
 import { useExtensionDetector } from '../hooks/useExtensionDetector';
@@ -135,7 +136,7 @@ function OutreachGetStarted({ gmailConnected, contactsCount, sequencesCount, org
                 {!step.done && <p style={{ ...metaStyle, marginTop: 2 }}>{step.desc}</p>}
               </div>
               {!step.done && (
-                <Button as="a" href={step.to} variant="secondary" size="sm" iconRight={<ArrowRight size={14} />} style={{ flexShrink: 0 }}>
+                <Button as={Link} to={step.to} variant="secondary" size="sm" iconRight={<ArrowRight size={14} />} style={{ flexShrink: 0 }}>
                   {step.cta}
                 </Button>
               )}
@@ -393,6 +394,9 @@ function DashboardPageV2() {
   const { user, isAuthenticated } = useAuth();
   const { hasAppAccess, currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { showToast } = useToast();
+  const searchSeq = useRef(0);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const { installed: extInstalled, dismiss: dismissExt, isDismissed: isExtDismissed, chromeStoreUrl } = useExtensionDetector();
   const [extBannerDismissed, setExtBannerDismissed] = useState(false);
   const [features, setFeatures] = useState(null);
@@ -502,7 +506,9 @@ function DashboardPageV2() {
   const fetchData = useCallback(async () => {
     try {
       const [featuresRes, leadsRes, listsRes, gmailRes, seqRes, emailsRes] = await Promise.all([
-        api.getFeatures(),
+        // 2026-11-09: a failed getFeatures used to reject the whole
+        // Promise.all and leave lists, Gmail status and counts all empty.
+        api.getFeatures().catch(() => ({ success: false })),
         api.getLeads({ limit: 1 }).catch(() => ({ total: 0 })),
         api.getLists().catch(() => ({ lists: [] })),
         api.getGmailStatus().catch(() => null),
@@ -514,7 +520,9 @@ function DashboardPageV2() {
       setSavedLeadsCount(leadsRes.total || 0);
       setLists(listsRes.lists || []);
       setGmailStatus(gmailRes);
-      setSequencesCount(seqRes?.sequences ? seqRes.sequences.length : null);
+      // Own sequences only — org-shared ones counted too, so a new user with
+      // none was told "your sequences are paused" and saw the checklist step ticked.
+      setSequencesCount(seqRes?.sequences ? seqRes.sequences.filter((q) => q.isOwner !== false).length : null);
       setEmailsToday(emailsRes?.success ? emailsRes : null);
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -575,15 +583,23 @@ function DashboardPageV2() {
       return;
     }
 
+    const params = { page, limit: 25, sort: sortBy, sortDir };
+    if (searchQuery.trim().length >= 2) params.search = searchQuery.trim();
+    Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+    // 2026-11-09: Enter + the 400 ms debounce fired the same search twice, and
+    // a slower earlier answer could overwrite a newer one. Same query while
+    // one is in flight → skip; only the latest request may write results.
+    const key = JSON.stringify(params);
+    if (searchSeq.inFlightKey === key) return;
+    const seq = ++searchSeq.current;
+    searchSeq.inFlightKey = key;
+
     setSearchLoading(true);
     setIsSearchActive(true);
 
     try {
-      const params = { page, limit: 25, sort: sortBy, sortDir };
-      if (searchQuery.trim().length >= 2) params.search = searchQuery.trim();
-      Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
-
       const response = await api.searchAllLeads(params);
+      if (seq !== searchSeq.current) return;
       if (response.success) {
         setSearchResults(response.leads || []);
         setSearchTotal(response.total || 0);
@@ -591,11 +607,12 @@ function DashboardPageV2() {
         setSearchTotalPages(response.totalPages || 0);
       }
     } catch (err) {
-      console.error('Search failed:', err);
+      if (seq === searchSeq.current) showToast(err?.message || 'Search failed', 'error');
     } finally {
-      setSearchLoading(false);
+      if (searchSeq.inFlightKey === key) searchSeq.inFlightKey = null;
+      if (seq === searchSeq.current) setSearchLoading(false);
     }
-  }, [searchQuery, filters, sortBy, sortDir]);
+  }, [searchQuery, filters, sortBy, sortDir, showToast]);
 
   // Debounced search
   useEffect(() => {
@@ -653,7 +670,7 @@ function DashboardPageV2() {
       // An existing contact matched (duplicate) — the count did not change.
       if (!saved?.duplicate) setSavedLeadsCount((prev) => prev + 1);
     } catch (err) {
-      console.error('Failed to save contact:', err);
+      showToast(err?.message || 'Could not save the contact', 'error');
     } finally {
       setSavingLeadId(null);
     }
@@ -693,7 +710,7 @@ function DashboardPageV2() {
         setLists(listsRes.lists || []);
       } catch (e) {}
     } catch (err) {
-      console.error('Failed to add to list:', err);
+      showToast(err?.message || 'Could not add the contact to the list', 'error');
     } finally {
       setSavingLeadId(null);
     }
@@ -722,7 +739,7 @@ function DashboardPageV2() {
               Welcome, {user?.name?.split(' ')[0] || 'there'}
             </h1>
             <p style={bodyStyle}>
-              Search and explore contacts and companies to get smarter recommendations as you go
+              Search your saved contacts by name, email, company or title
             </p>
           </div>
 
@@ -754,9 +771,11 @@ function DashboardPageV2() {
           {/* ======== CONDITIONAL CONTENT ======== */}
           {isSearchActive ? (
             /* ==================== SEARCH RESULTS VIEW ==================== */
-            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
               {/* LEFT: Filters Panel */}
-              <div className="hidden lg:block" style={{ width: 288, flexShrink: 0 }}>
+              {/* 2026-11-09: below lg the panel used to be hidden with no way in;
+                  the "Filters" button in the results header opens it. */}
+              <div className={showMobileFilters ? 'block' : 'hidden lg:block'} style={{ width: 288, maxWidth: '100%', flexShrink: 0 }}>
                 <FiltersPanel
                   filters={filters}
                   setFilters={setFilters}
@@ -765,8 +784,8 @@ function DashboardPageV2() {
                 />
               </div>
 
-              {/* RIGHT: Results */}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* RIGHT: Results — wraps under the filters on narrow screens */}
+              <div style={{ flex: 1, minWidth: 'min(100%, 360px)' }}>
                 {/* Results Header */}
                 <div style={{
                   display: 'flex', flexWrap: 'wrap', alignItems: 'center',
@@ -780,6 +799,11 @@ function DashboardPageV2() {
                       </>
                     )}
                   </p>
+                  <span className="lg:hidden">
+                    <Button variant="secondary" size="sm" onClick={() => setShowMobileFilters((v) => !v)} aria-expanded={showMobileFilters}>
+                      {showMobileFilters ? 'Hide filters' : 'Filters'}
+                    </Button>
+                  </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Button
                         variant="secondary"
@@ -864,7 +888,7 @@ function DashboardPageV2() {
                   <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '0 0 8px' }}>
                     Enrollments won't send any emails until Gmail is reconnected. They resume automatically once connected.
                   </p>
-                  <Button as="a" href={orgPath('/outreach/engage')} variant="secondary" size="sm">
+                  <Button as={Link} to={orgPath('/outreach/engage')} variant="secondary" size="sm">
                     Connect Gmail
                   </Button>
                 </Callout>
@@ -1057,7 +1081,7 @@ function DashboardPageV2() {
                         </span>
                       ) : stat.label
                     }
-                    note={stat.value === 0 && !stat.locked ? stat.cta : undefined}
+                    note={!loading && stat.value === 0 && !stat.locked ? stat.cta : undefined}
                   />
                 ))}
               </div>
@@ -1068,7 +1092,7 @@ function DashboardPageV2() {
                 <Panel
                   title="My Lists"
                   actions={
-                    <Button as="a" href={orgPath('/outreach/lists')} variant="ghost" size="sm" iconRight={<ChevronRight size={16} />}>
+                    <Button as={Link} to={orgPath('/outreach/lists')} variant="ghost" size="sm" iconRight={<ChevronRight size={16} />}>
                       View all
                     </Button>
                   }
@@ -1079,7 +1103,7 @@ function DashboardPageV2() {
                       icon={<List size={24} />}
                       title="No lists yet"
                       actions={
-                        <Button as="a" href={orgPath('/outreach/lists')} variant="secondary" iconLeft={<Plus size={16} />}>
+                        <Button as={Link} to={orgPath('/outreach/lists')} variant="secondary" iconLeft={<Plus size={16} />}>
                           Create List
                         </Button>
                       }
