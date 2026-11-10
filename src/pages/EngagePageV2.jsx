@@ -788,7 +788,7 @@ function SequencesTab({
                   </th>
                   <th style={thStyle}>Active/Finished</th>
                   <th style={thStyle}>
-                    <SortableHeader label="Delivered" sortKey="delivered" currentSort={sort} onSort={handleSort} />
+                    <SortableHeader label="Sent" sortKey="delivered" currentSort={sort} onSort={handleSort} />
                   </th>
                   <th style={thStyle}>
                     <SortableHeader label="Opened" sortKey="opened" currentSort={sort} onSort={handleSort} />
@@ -850,6 +850,13 @@ function SequencesTab({
                           )}
                         </div>
                         <div style={metaStyle}>{emailSteps} Email{emailSteps !== 1 ? 's' : ''}</div>
+                        {/* 2026-11-10: the columns on a shared sequence are the
+                            whole team's — show the rep's own numbers too. */}
+                        {seq.myStats && (
+                          <div style={{ ...metaStyle, color: 'var(--fg-3)', marginTop: 2 }}>
+                            Yours: {seq.myStats.enrolled.toLocaleString()} contacts · {seq.myStats.active.toLocaleString()} active · {seq.myStats.enrolled ? Math.round((seq.myStats.bounced / seq.myStats.enrolled) * 100) : 0}% bounced
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, fontSize: 12, whiteSpace: 'nowrap' }}>
                         {seq.isOwner === false

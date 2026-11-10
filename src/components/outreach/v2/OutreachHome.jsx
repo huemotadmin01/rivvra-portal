@@ -120,7 +120,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
           </div>
         </TodayCard>
         <TodayCard label="Bounced today" to={orgPath('/outreach/leads?status=bounced')} toLabel="Fix" value={today.bounced} danger={today.bounced > 0}>
-          <div style={t.hint}>{fmt(totals.bounced)} bounced in total ({pct(totals.bounced, totals.contacted)} of contacted)</div>
+          <div style={t.hint}>{fmt(totals.bounced)} of {fmt(totals.contacted)} people contacted have bounced ({pct(totals.bounced, totals.contacted)})</div>
         </TodayCard>
       </div>
 
@@ -161,7 +161,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, ...t.body }}>
-                    <b style={{ color: 'var(--fg)' }}>{fmt(bouncedNow)} contact{bouncedNow === 1 ? '' : 's'} bounced</b>
+                    <b style={{ color: 'var(--fg)' }}>{fmt(bouncedNow)} contact{bouncedNow === 1 ? '' : 's'} to review</b>
                     {today.bounced > 0 && <Chip tone="warn">{fmt(today.bounced)} today</Chip>}
                   </div>
                   <div style={{ ...t.body, marginTop: 2 }}>Correct their email and they can be added back to a sequence.</div>
@@ -214,7 +214,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
             )}
             {totals.contacted >= 50 && bounceRate > 0.1 && (
               <Callout tone="danger" style={{ marginTop: 12 }}>
-                High bounce rate — {pct(totals.bounced, totals.contacted)} of the emails you found are invalid. Verify emails before enrolling to protect your Gmail sending reputation.
+                High bounce rate — {pct(totals.bounced, totals.contacted)} of the people you contacted bounced (address not found, or their company blocked the email). Verify emails before enrolling, and keep the first email short and plain, to protect your Gmail sending reputation.
               </Callout>
             )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
