@@ -447,8 +447,9 @@ function SequenceDetailPage({ sequenceId, onBack }) {
 
   const isActive = sequence.status === 'active';
   const isOwner = sequence.isOwner !== false; // true for owner or legacy sequences without isOwner field
-  const createdDate = sequence.createdAt ? new Date(sequence.createdAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '';
-  const updatedDate = sequence.updatedAt ? new Date(sequence.updatedAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '';
+  // 2026-11-10: was en-US 02/12/2026 — read in India as 2 Dec, it was 12 Feb.
+  const createdDate = sequence.createdAt ? new Date(sequence.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const updatedDate = sequence.updatedAt ? new Date(sequence.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
