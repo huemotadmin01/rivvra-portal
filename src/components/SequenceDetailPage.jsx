@@ -1102,7 +1102,12 @@ function OverviewTab({ sequence, sequenceId, stepStats, isOwner, onToggleStep, o
                     {(stat.sent > 0 || stat.opened > 0) && (
                       <div className="flex items-center gap-3 text-xs text-dark-500 ml-2">
                         <span className="flex items-center gap-1"><Send className="w-3 h-3" />{stat.sent || 0}</span>
-                        <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{stat.opened || 0}</span>
+                        {/* 2026-11-10: opens restart from the bot filter (10 Nov) —
+                            older counts include mail-scanner hits. */}
+                        <span className="flex items-center gap-1" title={`Opens since 10 Nov (scanner opens filtered): ${stat.openedSince || 0} of ${stat.sentSince || 0} sent since then`}>
+                          <Eye className="w-3 h-3" />{stat.openedSince || 0}{stat.sentSince > 0 ? ` (${Math.round(((stat.openedSince || 0) / stat.sentSince) * 100)}%)` : ''}
+                          <span style={{ opacity: 0.7 }}>since 10 Nov</span>
+                        </span>
                         {stat.bounced > 0 && <span className="flex items-center gap-1 text-red-400"><AlertTriangle className="w-3 h-3" />{stat.bounced}</span>}
                       </div>
                     )}

@@ -814,9 +814,12 @@ function SequencesTab({
                   //    sent; `finished` is every terminal outcome, and `active`
                   //    is what is left of the enrolled set.
                   //    `deliveredRate` is dead in legacy too — see the header note.
-                  const openRate = stats.sent > 0
-                    ? `${Math.min((stats.opened / stats.sent) * 100, 100).toFixed(0)}%`
-                    : '0%';
+                  // 2026-11-10: open rate counts only emails sent since the bot
+                  // filter (older opens include mail-scanner hits).
+                  const ts = seq.trackingSince;
+                  const openRate = ts
+                    ? (ts.sent > 0 ? `${Math.min((ts.opened / ts.sent) * 100, 100).toFixed(0)}%` : '—')
+                    : (stats.sent > 0 ? `${Math.min((stats.opened / stats.sent) * 100, 100).toFixed(0)}%` : '0%');
                   // 2026-11-09: Interested / Bounced are PEOPLE outcomes, so the
                   // base is people enrolled — dividing by emails sent (5 per
                   // person) understated both ~5x and disagreed with Home and
@@ -866,7 +869,7 @@ function SequencesTab({
                       <td style={tdStyle}>{stats.enrolled || 0}</td>
                       <td style={tdStyle}>{Math.max(active, 0)}/{finished}</td>
                       <td style={tdStyle}>{stats.sent || 0}</td>
-                      <td style={tdStyle}>{openRate}</td>
+                      <td style={tdStyle} title={seq.trackingSince ? `Since 10 Nov: ${seq.trackingSince.opened} opens of ${seq.trackingSince.sent} sent (scanner opens filtered)` : undefined}>{openRate}</td>
                       <td style={tdStyle}>
                         <span style={{ color: (stats.replied || 0) > 0 ? 'var(--brand-ink)' : 'var(--fg-3)' }}>
                           {replyRate}
