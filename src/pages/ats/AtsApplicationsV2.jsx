@@ -765,7 +765,7 @@ export default function AtsApplicationsV2() {
                 iconLeft={loadingGroup === key ? <Loader2 size={14} className="animate-spin" /> : null}
                 onClick={() => loadMoreInGroup(key, group.records.length)}
               >
-                {`Show ${Math.min(GROUP_PAGE, remaining)} more of ${remaining}`}
+                {remaining > GROUP_PAGE ? `Show ${GROUP_PAGE} more of ${remaining}` : `Show the last ${remaining}`}
               </Button>
             </td>
           </tr>,
