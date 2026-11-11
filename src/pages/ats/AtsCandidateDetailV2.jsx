@@ -579,6 +579,7 @@ function AtsCandidateDetailV2() {
                     {h.via === 'manual' ? `by ${h.byName || 'someone'}`
                       : h.via === 'referral_link' ? 'referral link'
                       : h.via === 'claim' ? `claimed${h.byName ? ` by ${h.byName}` : ''}`
+                      : h.via === 'repair' ? 'corrected to first recruiter'
                       : 'first application'}
                     {h.at ? ` · ${new Date(h.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
                   </div>
