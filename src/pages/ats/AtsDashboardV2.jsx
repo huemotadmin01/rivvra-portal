@@ -611,7 +611,7 @@ function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
  * Cumulative answers the question recruiters actually ask — "how many
  * have we kept through this gate?"
  */
-function RecruitmentFunnel({ data, onStageClick }) {
+function RecruitmentFunnel({ data, onStageClick, subtitle = 'Applicants currently at or past each stage', emptyText = 'No data yet' }) {
   // Only stages with a known sequence; sort ascending. Stages with null
   // sequence (e.g. archived or oddly imported) drop out of the funnel.
   const ordered = useMemo(() => {
@@ -636,10 +636,10 @@ function RecruitmentFunnel({ data, onStageClick }) {
   return (
     <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
       <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Recruitment Funnel</h3>
-      <p className="text-dark-500 text-[11px] mb-3">Applicants currently at or past each stage</p>
+      <p className="text-dark-500 text-[11px] mb-3">{subtitle}</p>
 
-      {ordered.length === 0 ? (
-        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
+      {ordered.length === 0 || passed[0] === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">{emptyText}</p>
       ) : (
         <div className="space-y-1">
           {ordered.map((stage, i) => {
@@ -1036,6 +1036,7 @@ export default function AtsDashboardV2() {
   const {
     applicationsByStage = [],
     applicationsByStageActive = [],
+    applicationsByStageLive = null,
     applicationsBySource = [],
     applicationsByRecruiter = [],
     applicationsByTeam = [],
@@ -1284,14 +1285,22 @@ export default function AtsDashboardV2() {
       {/* ── Funnel — active pipeline only (refused + archived excluded).
           Bars navigate to Applications filtered by stage + ongoing-only. */}
       <RecruitmentFunnel
-        // 2026-11-11: the active pipeline excludes hired apps by design, so the
-        // funnel's last row always read "Hired 0" beside the Hired tile (111).
-        // Feed the Hired stage the same hired count as the tile.
-        data={(applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage)
-          .map((st) => (/^hired$/i.test(String(st.stageName || st.name || '')) ? { ...st, count: Number(hiredCount) || 0 } : st))}
+        // 2026-11-11: LIVE pipeline — applications in flight on open, approved
+        // jobs only (on-hold/closed jobs were ~90% of the old count). No Hired
+        // row: filled jobs close, so hires are never on a live job — the
+        // Hired tile above carries hires. Falls back to the old active data
+        // for an API that doesn't send the live rows yet.
+        data={applicationsByStageLive
+          ? applicationsByStageLive.filter((st) => st.stageKind !== 'hired' && !/^hired$/i.test(String(st.stageName || '')))
+          : (applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage)
+            .map((st) => (/^hired$/i.test(String(st.stageName || st.name || '')) ? { ...st, count: Number(hiredCount) || 0 } : st))}
+        subtitle={applicationsByStageLive
+          ? 'Live pipeline — applications on open jobs, at or past each stage. On-hold and closed jobs are left out.'
+          : undefined}
+        emptyText={applicationsByStageLive ? 'No live applications — no open jobs have applicants in progress.' : undefined}
         onStageClick={(s) => {
           const ids = (s.stageIds && s.stageIds.length) ? s.stageIds.join(',') : s.stageId;
-          if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${scopeQuery}`);
+          if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${applicationsByStageLive ? '&liveJobs=1' : ''}${scopeQuery}`);
         }}
       />
 

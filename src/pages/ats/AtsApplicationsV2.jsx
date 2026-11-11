@@ -223,6 +223,7 @@ export default function AtsApplicationsV2() {
     'search', 'stageId', 'jobId', 'recruiter', 'archived',
     'source', 'employmentType', 'applicationStatus', 'groupBy', 'sort', 'dir',
     'hiredOnly', 'refusedOnly', 'mine', 'team', 'unclaimed', 'aiScoreMin', 'rateConfirmation',
+    'liveJobs',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   const [page, setPage] = usePageParam();
@@ -811,6 +812,7 @@ export default function AtsApplicationsV2() {
             <SelectChipV2 paramKey="jobId" label="Job Position" options={jobOptions} />
             <SelectChipV2 paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
             <BooleanChipV2 paramKey="unclaimed" label="Unclaimed" />
+            <BooleanChipV2 paramKey="liveJobs" label="Open jobs only" />
             <GroupByChipV2 options={APP_GROUP_BY_OPTIONS} />
             <MoreFiltersV2 paramKeys={['source', 'employmentType', 'aiScoreMin', 'rateConfirmation']}>
               <SelectChipV2 paramKey="rateConfirmation" label="Rate Confirmation" options={[
