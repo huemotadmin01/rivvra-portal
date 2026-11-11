@@ -1284,7 +1284,11 @@ export default function AtsDashboardV2() {
       {/* ── Funnel — active pipeline only (refused + archived excluded).
           Bars navigate to Applications filtered by stage + ongoing-only. */}
       <RecruitmentFunnel
-        data={applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage}
+        // 2026-11-11: the active pipeline excludes hired apps by design, so the
+        // funnel's last row always read "Hired 0" beside the Hired tile (111).
+        // Feed the Hired stage the same hired count as the tile.
+        data={(applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage)
+          .map((st) => (/^hired$/i.test(String(st.stageName || st.name || '')) ? { ...st, count: Number(hiredCount) || 0 } : st))}
         onStageClick={(s) => {
           const ids = (s.stageIds && s.stageIds.length) ? s.stageIds.join(',') : s.stageId;
           if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${scopeQuery}`);
@@ -1537,7 +1541,8 @@ export default function AtsDashboardV2() {
                   {item.department && <span className="text-dark-500"> · {item.department}</span>}
                 </span>
                 <span className="text-xs text-red-400 shrink-0">
-                  {item.hoursSinceCreated != null ? `${item.hoursSinceCreated}h` : '—'}
+                  {/* 2026-11-11: "12053h" → days once past two days. */}
+                  {item.hoursSinceCreated == null ? '—' : item.hoursSinceCreated >= 48 ? `${Math.floor(item.hoursSinceCreated / 24)}d` : `${item.hoursSinceCreated}h`}
                 </span>
               </Link>
             </li>
