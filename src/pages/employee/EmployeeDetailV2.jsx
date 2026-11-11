@@ -2400,7 +2400,7 @@ export default function EmployeeDetail() {
               {Object.entries({
                 leads: 'Outreach leads', sequences: 'Sequences', lists: 'Lead lists',
                 atsCandidates: 'Candidates (as manager)', atsApplications: 'Applications',
-                atsJobs: 'Jobs (as recruiter)', crmOpportunities: 'CRM opportunities',
+                atsJobs: 'Jobs (as recruiter)', crmOpportunities: 'Open CRM opportunities',
                 invoices: 'Invoices (as salesperson)', todos: 'Tasks',
                 activities: 'Activities', directReports: 'Direct reports', contacts: 'Contacts (as salesperson)',
               }).filter(([k]) => handover.owned?.[k] > 0).map(([k, label]) => (
