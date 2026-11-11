@@ -15,6 +15,9 @@ import useRefetchOnFocus from '../../hooks/useRefetchOnFocus';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
 import { DataTable, FilterBar, Pagination, EmptyState, Button, Chip, DensityToggle, GroupedHeader, BulkActionBar } from '../../components/ds';
+
+// Rows per group in grouped mode; "Show more" loads the next batch.
+const GROUP_PAGE = 50;
 import {
   useListParams, usePageParam, useSearchParamValue,
   SelectChipV2, BooleanChipV2, GroupByChipV2, MoreFiltersV2, PageHeaderV2,
@@ -259,6 +262,14 @@ export default function AtsApplicationsV2() {
   // Server-counted group totals + whether the rows were capped. Counting in
   // the browser broke silently once a company passed the row ceiling.
   const [groupMeta, setGroupMeta] = useState({ counts: null, truncated: false });
+  const [loadingGroup, setLoadingGroup] = useState(null);
+  // Sort + filters shared by the grouped list and a group's "Show more", so
+  // the extra rows continue exactly where the first page of the group ended.
+  const baseListParams = () => {
+    const p = { sort: 'appliedOn', dir: 'desc', ...filterParams };
+    if (lifecycle === 'ongoing' && !p.applicationStatus) p.applicationStatus = 'ongoing';
+    return p;
+  };
 
   const [jobs, setJobs] = useState([]);
   const [stages, setStages] = useState([]);
@@ -320,17 +331,13 @@ export default function AtsApplicationsV2() {
       const listParams = {
         page: isGrouped ? 1 : page,
         limit: isGrouped ? 5000 : 25,
-        // 2026-11-11: grouped mode loads every row — ask for slim rows (only
-        // the fields this table reads): ~5.7 MB → well under 1 MB.
-        ...(isGrouped ? { slim: '1' } : {}),
-        sort: 'appliedOn',
-        dir: 'desc',
-        ...filterParams,
+        // 2026-11-11: grouped mode asks for slim rows (only the fields this
+        // table reads) and only the first GROUP_PAGE rows of each group; a
+        // group's "Show more" row loads the rest on demand.
+        ...(isGrouped ? { slim: '1', perGroup: String(GROUP_PAGE) } : {}),
+        ...baseListParams(),
         _requestKey: 'ats:applications:list',
       };
-      if (lifecycle === 'ongoing' && !listParams.applicationStatus) {
-        listParams.applicationStatus = 'ongoing';
-      }
       const res = await atsApi.listApplications(orgSlug, listParams);
       if (res.success) {
         setApplications(res.applications || []);
@@ -689,6 +696,30 @@ export default function AtsApplicationsV2() {
     );
   };
 
+  // Next page of ONE group: the plain paged list, filtered to that group,
+  // same sort. Page n of size GROUP_PAGE starts right after the rows loaded.
+  const loadMoreInGroup = async (key, loaded) => {
+    const field = { stage: 'stageId', recruiter: 'recruiterId', job: 'jobPositionId' }[groupBy];
+    if (!field || !orgSlug) return;
+    setLoadingGroup(key);
+    try {
+      const params = { ...baseListParams(), slim: '1', limit: GROUP_PAGE, page: Math.floor(loaded / GROUP_PAGE) + 1, [field]: key };
+      delete params.groupBy;
+      delete params.jobId;
+      const res = await atsApi.listApplications(orgSlug, params);
+      if (res.success) {
+        setApplications((prev) => {
+          const seen = new Set(prev.map((a) => String(a._id)));
+          return [...prev, ...(res.applications || []).filter((a) => !seen.has(String(a._id)))];
+        });
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to load more applications', 'error');
+    } finally {
+      setLoadingGroup(null);
+    }
+  };
+
   const bodyRows = () => {
     if (!isGrouped) return applications.map((a) => renderRow(a));
     return (groupedApplications || []).flatMap(([key, group]) => {
@@ -721,6 +752,25 @@ export default function AtsApplicationsV2() {
         />
       );
       const rows = collapsed ? [] : group.records.map((a) => renderRow(a, `__${key}`));
+      const groupTotal = groupMeta.counts?.get(String(key)) ?? group.records.length;
+      const remaining = groupTotal - group.records.length;
+      if (!collapsed && remaining > 0 && key !== '__unknown__') {
+        rows.push(
+          <tr key={`__more__${key}`}>
+            <td colSpan={columns.length} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border, #e5e7eb)' }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={loadingGroup === key}
+                iconLeft={loadingGroup === key ? <Loader2 size={14} className="animate-spin" /> : null}
+                onClick={() => loadMoreInGroup(key, group.records.length)}
+              >
+                {`Show ${Math.min(GROUP_PAGE, remaining)} more of ${remaining}`}
+              </Button>
+            </td>
+          </tr>,
+        );
+      }
       return [header, ...rows];
     });
   };

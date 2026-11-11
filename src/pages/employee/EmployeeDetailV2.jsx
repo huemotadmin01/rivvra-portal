@@ -13,7 +13,7 @@ import AssetClearance from '../../components/employee/AssetClearance';
 import FnFSettlement from '../../components/employee/FnFSettlement';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
-import { InlineField, Panel, Button } from '../../components/ds';
+import { InlineField, InlineComboField, Panel, Button } from '../../components/ds';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
 import { formatDateUTC, toDateInputValue, todayStr } from '../../utils/dateUtils';
 import { currencySymbol as currencySymbolOf } from '../../utils/formatCurrency';
@@ -298,6 +298,11 @@ export default function EmployeeDetail() {
   const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [sepForm, setSepForm] = useState({ status: '', lwd: '', reason: '', notes: '' });
   const [sepSaving, setSepSaving] = useState(false);
+  // 2026-11-11: active direct reports of this employee + who they move to
+  // when this employee leaves (separation dialog / leaver banner).
+  const [directReports, setDirectReports] = useState([]);
+  const [reportsTo, setReportsTo] = useState('');
+  const [reportsSaving, setReportsSaving] = useState(false);
   // Audit M1 — confirm modal before firing an irreversible separation.
   const [showSeparationConfirm, setShowSeparationConfirm] = useState(false);
   // Handover prompt — the PROMPTED half of offboarding. Access revocation is
@@ -347,6 +352,9 @@ export default function EmployeeDetail() {
         lastWorkingDate: sepForm.lwd,
         separationReason: sepForm.reason || 'Other',
         separationNotes: sepForm.notes || '',
+        // Their direct reports move to the manager HR picked (actual
+        // separation only — a scheduled exit keeps them until the date).
+        ...(effStatus !== 'active' && directReports.length > 0 && reportsTo ? { reassignReportsTo: reportsTo } : {}),
       };
       const res = await employeeApi.update(currentOrg.slug, employee._id, payload);
       if (res.success) {
@@ -358,6 +366,11 @@ export default function EmployeeDetail() {
           separationNotes: sepForm.notes || '',
         } : prev);
         showToast(effStatus === 'active' ? 'Exit scheduled' : `Employee marked as ${effStatus}`, 'success');
+        if (res.reportsMoved?.error) showToast(`Direct reports not moved: ${res.reportsMoved.error}`, 'error');
+        else if (res.reportsMoved?.moved) {
+          showToast(`${res.reportsMoved.moved} direct report${res.reportsMoved.moved === 1 ? '' : 's'} now report to ${res.reportsMoved.newManagerName}`, 'success');
+          setDirectReports([]);
+        }
         setShowSeparationConfirm(false);
         // Only for an actual separation, not a scheduled future exit.
         if (effStatus !== 'active' && employee.linkedUserId) openHandover(employee.linkedUserId);
@@ -369,7 +382,7 @@ export default function EmployeeDetail() {
     } finally {
       setSepSaving(false);
     }
-  }, [employee?._id, currentOrg?.slug, sepForm, showToast]);
+  }, [employee?._id, currentOrg?.slug, sepForm, showToast, directReports.length, reportsTo]);
 
   // Pre-fill separation form from employee record (e.g. existing scheduled exit)
   useEffect(() => {
@@ -389,6 +402,34 @@ export default function EmployeeDetail() {
 
   const isAdmin = getAppRole('employee') === 'admin';
   const appRole = getAppRole('employee') || 'member';
+
+  // Admins: load who still reports to this person (drives the separation
+  // dialog's "new manager" picker and the leaver banner).
+  useEffect(() => {
+    if (!isAdmin || !employee?._id || !currentOrg?.slug) { setDirectReports([]); return; }
+    let live = true;
+    employeeApi.getDirectReports(currentOrg.slug, employee._id)
+      .then((r) => { if (live && r?.success) setDirectReports(r.reports || []); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [isAdmin, employee?._id, employee?.status, currentOrg?.slug]);
+
+  const moveDirectReports = async () => {
+    if (!reportsTo || !employee?._id) return;
+    setReportsSaving(true);
+    try {
+      const r = await employeeApi.reassignReports(currentOrg.slug, employee._id, reportsTo);
+      if (r?.success) {
+        showToast(`${r.moved} direct report${r.moved === 1 ? '' : 's'} now report to ${r.newManagerName}`, 'success');
+        setDirectReports([]);
+        setReportsTo('');
+      } else showToast(r?.error || 'Could not move direct reports', 'error');
+    } catch (err) {
+      showToast(err.message || 'Could not move direct reports', 'error');
+    } finally {
+      setReportsSaving(false);
+    }
+  };
 
   // Determine viewer context for inline editing
   const isSelf = !!(employee && user && employee.linkedUserId === user._id);
@@ -945,6 +986,11 @@ export default function EmployeeDetail() {
   }
 
   const emp = employee;
+  // Searchable picker rows for Manager / Sourced By: "Name  #empId", never
+  // the employee themselves.
+  const personPickerOptions = managerOptions
+    .filter((m) => String(m._id) !== String(emp?._id))
+    .map((m) => ({ value: String(m._id), label: m.employeeId ? `${m.fullName}  #${m.employeeId}` : m.fullName }));
   const addr = emp.address || {};
   const emergency = emp.emergencyContact || {};
   const bank = emp.bankDetails || {};
@@ -1189,13 +1235,17 @@ export default function EmployeeDetail() {
               transition from edit → read is seamless (no jump in font/format
               when the InlineField flips state). renderEmployeeChip() shows
               "Name  #10000003" — same as the picker trigger. */}
-          <InlineField label="Manager" field="manager" value={emp.manager} type="employee-picker"
-            options={managerOptions} excludeIds={[emp._id].filter(Boolean).map(String)}
+          {/* 2026-11-11: searchable picker. These were InlineField with
+              type="employee-picker", which the ds InlineField does not have —
+              it fell back to a free-text box and saved whatever was typed. */}
+          <InlineComboField label="Manager" field="manager" value={emp.manager ? String(emp.manager) : ''}
+            options={personPickerOptions}
             editable={fp('manager').editable} required={fp('manager').required}
+            allowClear={!fp('manager').required}
             onSave={handleFieldSave}
             displayValue={renderEmployeeChip(managerOptions, emp.manager, emp.managerName)} />
-          <InlineField label="Sourced By" field="sourcedByEmployeeId" value={emp.sourcedByEmployeeId} type="employee-picker"
-            options={managerOptions} excludeIds={[emp._id].filter(Boolean).map(String)}
+          <InlineComboField label="Sourced By" field="sourcedByEmployeeId" value={emp.sourcedByEmployeeId ? String(emp.sourcedByEmployeeId) : ''}
+            options={personPickerOptions}
             editable={fp('sourcedByEmployeeId').editable}
             onSave={handleFieldSave}
             displayValue={renderEmployeeChip(managerOptions, emp.sourcedByEmployeeId, emp.sourcedByName)} />
@@ -1581,6 +1631,33 @@ export default function EmployeeDetail() {
 
       {/* Compute exit-related flags once for downstream sections */}
       {(() => null)()}
+
+      {/* ── Leaver still has direct reports (2026-11-11) ───────────────── */}
+      {(emp.status === 'resigned' || emp.status === 'terminated' || (emp.status === 'active' && emp.lastWorkingDate)) && isAdmin && directReports.length > 0 && (
+        <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
+          <h3 className="text-white font-semibold mb-1">
+            {directReports.length} {directReports.length === 1 ? 'person still reports' : 'people still report'} to {emp.fullName}
+          </h3>
+          <p className="text-dark-400 text-sm mb-3">
+            {emp.status === 'active' ? 'They leave soon. ' : 'They have left. '}
+            Pick a new manager for: {directReports.map((r) => r.fullName).join(', ')}.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={reportsTo}
+              onChange={(e) => setReportsTo(e.target.value)}
+              className="min-w-[260px] bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-white text-sm"
+            >
+              <option value="">Select the new manager…</option>
+              {personPickerOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <Button size="sm" disabled={!reportsTo || reportsSaving} onClick={moveDirectReports}
+              iconLeft={reportsSaving ? <Loader2 size={14} className="animate-spin" /> : null}>
+              Move {directReports.length} {directReports.length === 1 ? 'person' : 'people'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── Asset Clearance (for separated or scheduled-exit employees) ── */}
       {(emp.status === 'resigned' || emp.status === 'terminated' || (emp.status === 'active' && emp.lastWorkingDate)) && isAdmin && (
@@ -2268,6 +2345,22 @@ export default function EmployeeDetail() {
               <li>Last working date: <span className="text-white">{sepForm.lwd || '—'}</span></li>
               {sepForm.reason && <li>Reason: <span className="text-white">{sepForm.reason}</span></li>}
             </ul>
+            {directReports.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm text-dark-300 mb-1">
+                  New manager for their {directReports.length} direct report{directReports.length === 1 ? '' : 's'} <span className="text-red-400">*</span>
+                </label>
+                <p className="text-xs text-dark-500 mb-2">{directReports.map((r) => r.fullName).join(', ')}</p>
+                <select
+                  value={reportsTo}
+                  onChange={(e) => setReportsTo(e.target.value)}
+                  className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  <option value="">Select the new manager…</option>
+                  {personPickerOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            )}
             <p className="text-xs text-amber-400/80 mb-4">
               This cannot be fully undone — you can only revert to active state by re-activating the record.
             </p>
@@ -2280,7 +2373,8 @@ export default function EmployeeDetail() {
               >Cancel</button>
               <button
                 type="button"
-                disabled={sepSaving}
+                disabled={sepSaving || (directReports.length > 0 && !reportsTo)}
+                title={directReports.length > 0 && !reportsTo ? 'Pick the new manager for their direct reports first' : undefined}
                 onClick={runSeparationSave}
                 className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-40"
               >

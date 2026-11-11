@@ -139,6 +139,19 @@ const employeeApi = {
   },
 
   // ── Manager Options (active employees with portal license) ──
+  // Active employees still reporting to this employee (admin).
+  getDirectReports(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${id}/direct-reports`);
+  },
+
+  // Move this employee's active direct reports to a new manager (admin).
+  reassignReports(orgSlug, id, newManagerId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${id}/reassign-reports`, {
+      method: 'POST',
+      body: JSON.stringify({ newManagerId }),
+    });
+  },
+
   getManagerOptions(orgSlug) {
     return api.request(`/api/org/${orgSlug}/employee/manager-options`);
   },
