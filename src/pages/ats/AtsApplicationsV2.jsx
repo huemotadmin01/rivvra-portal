@@ -320,6 +320,9 @@ export default function AtsApplicationsV2() {
       const listParams = {
         page: isGrouped ? 1 : page,
         limit: isGrouped ? 5000 : 25,
+        // 2026-11-11: grouped mode loads every row — ask for slim rows (only
+        // the fields this table reads): ~5.7 MB → well under 1 MB.
+        ...(isGrouped ? { slim: '1' } : {}),
         sort: 'appliedOn',
         dir: 'desc',
         ...filterParams,
@@ -387,7 +390,13 @@ export default function AtsApplicationsV2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id]);
 
-  useEffect(() => { fetchApplications(); }, [fetchApplications]);
+  // 2026-11-11: on first visit the effect above is about to add
+  // groupBy=stage — fetching before that wasted a full list request.
+  const awaitingDefaultGroup = !searchParams.has('groupBy')
+    && lifecycle === 'ongoing'
+    && !searchParams.get('applicationStatus') && !searchParams.get('hiredOnly') && !searchParams.get('refusedOnly')
+    && (() => { try { return !sessionStorage.getItem('ats-apps-groupby-applied:ongoing'); } catch { return false; } })();
+  useEffect(() => { if (!awaitingDefaultGroup) fetchApplications(); }, [fetchApplications, awaitingDefaultGroup]);
   const refetchSilently = useCallback(() => fetchApplications({ silent: true }), [fetchApplications]);
   useRefetchOnFocus(refetchSilently);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
