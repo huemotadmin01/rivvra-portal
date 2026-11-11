@@ -189,6 +189,9 @@ function AtsCandidateDetailV2() {
   const crossCompanySafe = !!currentCompanyId && !isCrossCompany;
   const canEdit = canRecruit && canActOnThis && !candidate?.archived && crossCompanySafe;
   const isViewOnly = !!(canRecruit && candidate && (!canActOnThis || isCrossCompany));
+  // Manager (owner) field — 2026-11-11: decided by the server (admins, or the
+  // recruitment-team lead of the current owner). Recruiters can't hand off.
+  const canChangeManager = !!candidate?.canChangeManager && !candidate?.archived && crossCompanySafe;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,7 +257,7 @@ function AtsCandidateDetailV2() {
     }
     const res = await atsApi.updateCandidate(slug, candidateId, { [field]: coerced });
     if (res?.candidate) {
-      setCandidate(res.candidate);
+      setCandidate((prev) => ({ ...res.candidate, canChangeManager: prev?.canChangeManager }));
     } else {
       setCandidate((prev) => ({ ...prev, [field]: coerced }));
     }
@@ -270,7 +273,7 @@ function AtsCandidateDetailV2() {
         [nameField]: name || '',
       });
       if (res?.candidate) {
-        setCandidate(res.candidate);
+        setCandidate((prev) => ({ ...res.candidate, canChangeManager: prev?.canChangeManager }));
       } else {
         setCandidate((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
       }
@@ -563,10 +566,25 @@ function AtsCandidateDetailV2() {
               label="Manager"
               currentValue={candidate.managerId}
               currentName={candidate.managerName}
-              editable={canEdit}
+              editable={canChangeManager}
               linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_candidate', candidateId)}
               onSelect={(id, name) => savePerson('managerId', 'managerName', id, name)}
             />
+            {Array.isArray(candidate.managerHistory) && candidate.managerHistory.length > 0 && (
+              <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
+                {candidate.managerHistory.slice(-3).reverse().map((h, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.4 }}>
+                    {(h.fromName || 'No one')} → {h.toName || 'No one'}
+                    {' · '}
+                    {h.via === 'manual' ? `by ${h.byName || 'someone'}`
+                      : h.via === 'referral_link' ? 'referral link'
+                      : h.via === 'claim' ? `claimed${h.byName ? ` by ${h.byName}` : ''}`
+                      : 'first application'}
+                    {h.at ? ` · ${new Date(h.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                  </div>
+                ))}
+              </div>
+            )}
           </Panel>
 
           <Panel title="Evaluation" icon={<Star size={16} />}>
