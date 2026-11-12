@@ -3527,11 +3527,14 @@ export default function InvoiceDetailV2() {
             {/* Attachments */}
             <Panel
               flush
+              style={{ minWidth: 0 }}
               icon={<Paperclip size={14} />}
               title="Attachments"
               actions={<span style={mutedStyle}>({attachments.length})</span>}
             >
-              <div style={{ padding: 16, display: 'grid', gap: 12 }}>
+              {/* minmax(0,1fr): without it a long file name widens the grid
+                  track and pushes Preview/Download/Delete out of the panel. */}
+              <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
                 {/* Drop zone */}
                 <div
                   role="button"
