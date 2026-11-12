@@ -958,6 +958,14 @@ function StepEditorModal({ step, stepIndex, sequenceId, onSave, onClose }) {
 function OverviewTab({ sequence, sequenceId, stepStats, isOwner, onToggleStep, onEditStep, onDeleteStep, onSendTest, onUpdateWaitDays, onAddEmail }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editBackup, setEditBackup] = useState(null);
+  // 2026-11-12: anyone who can see the sequence (incl. reps on a shared
+  // one) can open the full subject + body of each email.
+  const [openSteps, setOpenSteps] = useState(() => new Set());
+  const toggleOpen = (i) => setOpenSteps((prev) => {
+    const next = new Set(prev);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    return next;
+  });
   const steps = sequence.steps || [];
 
   // Get only email steps with their original indices (for counting)
@@ -1144,17 +1152,28 @@ function OverviewTab({ sequence, sequenceId, stepStats, isOwner, onToggleStep, o
                 {/* Subject */}
                 <div className="flex items-start gap-2 mb-1">
                   <span className="text-xs text-dark-500 w-14 flex-shrink-0 pt-0.5">Subject</span>
-                  <p className="text-sm text-white truncate">{step.subject || <span className="text-dark-500 italic">No subject</span>}</p>
+                  <p className={`text-sm text-white ${openSteps.has(index) ? 'break-words' : 'truncate'}`}>{step.subject || <span className="text-dark-500 italic">No subject</span>}</p>
                 </div>
 
-                {/* Body preview */}
+                {/* Body preview — click "Show full email" to read all of it */}
                 <div className="flex items-start gap-2">
                   <span className="text-xs text-dark-500 w-14 flex-shrink-0 pt-0.5">Content</span>
                   {step.body && !isBodyEmpty(step.body) ? (
-                    <div
-                      className="rich-body-preview text-xs text-dark-400 line-clamp-2 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(step.body) }}
-                    />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`rich-body-preview text-xs leading-relaxed ${openSteps.has(index) ? 'text-dark-300' : 'text-dark-400 line-clamp-2'}`}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(step.body) }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleOpen(index)}
+                        className="mt-1.5 flex items-center gap-1 text-xs font-medium text-rivvra-400 hover:text-rivvra-300"
+                      >
+                        {openSteps.has(index)
+                          ? <><ChevronUp className="w-3 h-3" />Show less</>
+                          : <><ChevronDown className="w-3 h-3" />Show full email</>}
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-dark-500 italic text-xs">No content</span>
                   )}
