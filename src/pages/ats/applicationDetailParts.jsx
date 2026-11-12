@@ -679,7 +679,7 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
   const isOfferMode = mode === 'offer';
   const headerTitle = isOfferMode ? 'Offer Details' : 'Confirm Hire';
   const headerSub = envelopeLocked
-    ? (initialOffer?.signedOfferDocId ? 'Offer signed — terms are read-only' : 'Offer letter sent — terms locked until the envelope is cancelled')
+    ? (initialOffer?.signedOfferDocId ? (isOfferMode ? 'Offer signed — terms are read-only' : 'Offer signed — only the joining date can be changed') : 'Offer letter sent — terms locked until the envelope is cancelled')
     : isOfferMode
       ? 'Capture offer details'
       : 'Capture offer details before marking as hired';
@@ -809,10 +809,20 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                 value={joiningDate}
                 onChange={(e) => setJoiningDate(e.target.value)}
                 className="input-field"
-                disabled={envelopeLocked}
+                // 2026-11-12 (owner): at Hire the joining date stays editable
+                // even after the offer is signed — the actual start date often
+                // moves. The hire API takes it as-is; offer-mode still locks it
+                // (PATCH /offer rejects changed terms on a signed/sent letter).
+                disabled={envelopeLocked && isOfferMode}
                 required
               />
               {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
+              {envelopeLocked && !isOfferMode && initialOffer?.joiningDate && joiningDate && joiningDate !== initJoining && (
+                <p className="text-xs text-amber-400 mt-1 flex items-start gap-1">
+                  <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                  <span>Signed offer says {initJoining.split('-').reverse().join('/')}. Hiring uses this new date for the employee record and welcome email; the signed letter is not changed.</span>
+                </p>
+              )}
               {/* Passive note (not a block — a hard past-date guard was
                   intentionally declined): the joining date prefills from a
                   possibly-stale prior offer capture and prints verbatim on the
