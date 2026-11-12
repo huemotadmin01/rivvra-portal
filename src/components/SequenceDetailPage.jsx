@@ -1894,6 +1894,8 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
   const [selectedContact, setSelectedContact] = useState(null);
   const [contactEmails, setContactEmails] = useState([]);
   const [contactEmailsLoading, setContactEmailsLoading] = useState(false);
+  // Exact templates of past sends + source-sequence names (2026-11-12)
+  const [historyCtx, setHistoryCtx] = useState({ versions: {}, sequenceNames: {} });
   const [contactSearch, setContactSearch] = useState('');
   const [searchResults, setSearchResults] = useState(null); // null = not searching, [] = no results
   const [searchLoading, setSearchLoading] = useState(false);
@@ -2002,11 +2004,24 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
         clicked: h.clicked || false,
         stepIndex: h.stepIndex,
         body: h.body || null,
+        templateVersionId: h.templateVersionId || null,
+        // Which sequence sent it: recorded on new sends; for older sends of a
+        // contact that was moved, everything before the move came from the old one.
+        sentFromSequenceId: h.sequenceId
+          || (enrollment.movedFrom?.sequenceId && h.sentAt && new Date(h.sentAt) < new Date(enrollment.movedFrom.at) ? String(enrollment.movedFrom.sequenceId) : null),
         enrollmentStatus: enrollment.status // Track enrollment-level status (bounced, etc.)
       }))
       .sort((a, b) => (b.stepIndex ?? 999) - (a.stepIndex ?? 999)); // Newest first (Email 3, 2, 1)
 
     setContactEmails(history);
+    setHistoryCtx({ versions: {}, sequenceNames: {} });
+    const versionIds = [...new Set(history.map((h) => h.templateVersionId).filter(Boolean))];
+    const otherSeqIds = [...new Set(history.map((h) => h.sentFromSequenceId).filter((x) => x && x !== String(sequenceId)))];
+    if (versionIds.length || otherSeqIds.length) {
+      api.getSequenceHistoryContext(sequenceId, versionIds, otherSeqIds)
+        .then((res) => { if (res?.success) setHistoryCtx({ versions: res.versions || {}, sequenceNames: res.sequenceNames || {} }); })
+        .catch(() => { /* fall back to the current template + note */ });
+    }
   }
 
   // Compute next scheduled email for selected contact
@@ -2277,7 +2292,23 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
 
                   // Reconstruct email body from sequence step template + contact data
                   const step = email.stepIndex !== undefined ? (sequence?.steps || [])[email.stepIndex] : null;
-                  let emailBody = email.body || (step?.body) || '';
+                  const exact = email.templateVersionId ? historyCtx.versions[email.templateVersionId] : null;
+                  let emailBody = email.body || exact?.body || (step?.body) || '';
+                  // Older sends have no saved template: say so instead of
+                  // implying the current text is what the contact received.
+                  const fromOther = email.sentFromSequenceId && email.sentFromSequenceId !== String(sequenceId);
+                  const fromName = fromOther ? (historyCtx.sequenceNames[email.sentFromSequenceId] || 'another sequence') : null;
+                  const sentLong = email.sentAt ? new Date(email.sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+                  const contentNote = email.status === 'sent' || email.status === 'bounced'
+                    ? (exact
+                      ? (fromOther ? `Sent from "${fromName}". This is the email that was sent.` : null)
+                      : email.body ? null
+                        : fromOther
+                          ? `Sent from "${fromName}" on ${sentLong}. The text below is this sequence's current template, not the email that was sent.`
+                          : (sequence?.updatedAt && email.sentAt && new Date(email.sentAt) < new Date(sequence.updatedAt)
+                            ? `The text below is the current template. The sequence was edited after this email went out on ${sentLong}, so the sent email may have differed.`
+                            : null))
+                    : null;
                   if (emailBody && selectedContact) {
                     const nameParts = (selectedContact.leadName || '').trim().split(' ');
                     const fn = nameParts[0] || '';
@@ -2317,6 +2348,11 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                       {emailBody && !isBodyEmpty(emailBody) && (
                         <div className="mt-2">
                           <span className="text-xs text-dark-500">Content</span>
+                          {contentNote && (
+                            <div className="text-xs mt-1 px-2 py-1 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                              {contentNote}
+                            </div>
+                          )}
                           <div
                             className={`rich-body-preview text-xs text-dark-300 mt-1 ${!isExpanded ? 'line-clamp-3' : ''}`}
                             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(emailBody) }}

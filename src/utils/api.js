@@ -712,6 +712,12 @@ class ApiClient {
     return this.request(`/api/sequences/${sequenceId}/email-log?page=${page}&limit=${limit}`);
   }
 
+  // Exact templates of past sends + names of sequences a contact came from (2026-11-12)
+  async getSequenceHistoryContext(sequenceId, versionIds = [], sequenceIds = []) {
+    const q = new URLSearchParams({ versions: versionIds.join(','), sequences: sequenceIds.join(',') });
+    return this.request(`/api/sequences/${sequenceId}/history-context?${q}`);
+  }
+
   // Lightweight poll for sequence updates (stats + latest activity timestamp)
   async pollSequence(sequenceId) {
     return this.request(`/api/sequences/${sequenceId}/poll`);
