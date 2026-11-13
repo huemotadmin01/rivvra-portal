@@ -164,7 +164,7 @@ export default function AppointmentLetterModal({ show, onClose, orgSlug, employe
                     <Row k="Probation" v={`${terms.probationMonths} months`} />
                     <Row k="Notice" v={`${terms.noticeDuringProbationDays} days during probation · ${terms.noticePeriodDays} days after confirmation`} />
                     <Row k="Non-solicitation" v={`${terms.nonSolicitMonths} months after exit`} />
-                    <p className="text-[11px] text-dark-500 pt-1">Probation and notice come from the employee record (company default if blank). Edit them on the Work Information panel before sending if this hire agreed different terms.</p>
+                    <p className="text-[11px] text-dark-500 pt-1">Probation is the company policy (Letter Defaults). Notice comes from the employee record, company default if blank. For someone moved to full-time, the date of joining is the full-time start date.</p>
                   </>
                 )}
               </div>

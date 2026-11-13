@@ -1014,7 +1014,8 @@ export default function EmployeeDetail() {
   return (
     <div className="p-3 sm:p-6 max-w-5xl">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="card p-4 sm:p-6 mb-6">
+      {/* 2026-11-13: raised while the Letters menu is open — the banner card below painted over the menu */}
+      <div className={`card p-4 sm:p-6 mb-6 relative ${showLettersMenu ? 'z-30' : ''}`}>
         <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
           {/* Avatar */}
           <div className="w-20 h-20 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
