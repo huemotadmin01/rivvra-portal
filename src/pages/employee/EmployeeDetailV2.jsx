@@ -218,6 +218,7 @@ export default function EmployeeDetail() {
   const [showAppointmentLetter, setShowAppointmentLetter] = useState(false); // 2026-10-12
   const [showNda, setShowNda] = useState(false); // 2026-10-12 employee NDA
   const [showFullTimeOffer, setShowFullTimeOffer] = useState(false); // 2026-11-13 intern/consultant → full-time
+  const [showLettersMenu, setShowLettersMenu] = useState(false); // 2026-11-13 Letters menu
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
@@ -1067,7 +1068,7 @@ export default function EmployeeDetail() {
 
               {/* Action buttons (admin only) */}
               {isAdmin && (
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
                   {/* Request Details — smart button: invite if not linked, send form if linked.
                       When an invite is already sent but not yet accepted, show a
                       Pending state + Resend instead of re-opening the invite modal
@@ -1118,39 +1119,53 @@ export default function EmployeeDetail() {
                       </button>
                     )
                   )}
-                  {/* 2026-11-13: full-time offer — interns/consultants moving to full-time, and full-timers who never got one */}
-                  {isAdmin && ['confirmed', 'intern', 'internal_consultant'].includes(emp.employmentType) && emp.status !== 'inactive' && (
-                    <button
-                      onClick={() => setShowFullTimeOffer(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-sm transition-colors"
-                      title="Send the Full-Time offer letter (with Annexure A) for signature"
-                    >
-                      <FileSignature size={14} />
-                      {emp.conversionOffer && !['cancelled', 'refused', 'expired'].includes(emp.conversionOffer.state) ? 'Re-send Full-time Offer' : 'Send Full-time Offer'}
-                    </button>
-                  )}
-                  {/* 2026-10-12: Full-Time appointment letter (Director → employee), rendered from the record + salary */}
-                  {isAdmin && emp.employmentType === 'confirmed' && (
-                    <button
-                      onClick={() => setShowAppointmentLetter(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 text-sm transition-colors"
-                      title={emp.appointmentLetter?.refNo ? `Last sent: ${emp.appointmentLetter.refNo} (${emp.appointmentLetter.state})` : 'Send the appointment letter for signature'}
-                    >
-                      <FileSignature size={14} />
-                      {emp.appointmentLetter && !['cancelled', 'refused', 'expired'].includes(emp.appointmentLetter.state) ? 'Re-send Appointment Letter' : 'Send Appointment Letter'}
-                    </button>
-                  )}
-                  {/* 2026-10-12: Employee NDA — every payroll type (FT, intern, internal consultant) */}
-                  {isAdmin && ['confirmed', 'intern', 'internal_consultant'].includes(emp.employmentType) && (
-                    <button
-                      onClick={() => setShowNda(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 text-sm transition-colors"
-                      title={emp.ndaAgreement?.refNo ? `Last sent: ${emp.ndaAgreement.refNo} (${emp.ndaAgreement.state})` : 'Send the confidentiality agreement for signature'}
-                    >
-                      <FileSignature size={14} />
-                      {emp.ndaAgreement && !['cancelled', 'refused', 'expired'].includes(emp.ndaAgreement.state) ? 'Re-send NDA' : 'Send NDA'}
-                    </button>
-                  )}
+                  {/* 2026-11-13: one "Letters" menu instead of three letter buttons (the row overflowed the card).
+                      Each item: Send / Re-send + the last envelope's state. */}
+                  {(() => {
+                    const live = (x) => x && !['cancelled', 'refused', 'expired'].includes(x.state);
+                    const when = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '');
+                    const statusOf = (x) => (!x ? 'Not sent' : x.state === 'signed' ? `Signed ${when(x.signedAt)}` : x.state === 'sent' ? `Awaiting signature · sent ${when(x.sentAt)}` : `Last one ${x.state}`);
+                    const payroll = ['confirmed', 'intern', 'internal_consultant'].includes(emp.employmentType);
+                    const items = [
+                      payroll && emp.status !== 'inactive' && { key: 'offer', label: 'Full-time Offer', rec: emp.conversionOffer, open: () => setShowFullTimeOffer(true) },
+                      emp.employmentType === 'confirmed' && { key: 'apt', label: 'Appointment Letter', rec: emp.appointmentLetter, open: () => setShowAppointmentLetter(true) },
+                      payroll && { key: 'nda', label: 'NDA', rec: emp.ndaAgreement, open: () => setShowNda(true) },
+                    ].filter(Boolean);
+                    if (!items.length) return null;
+                    return (
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowLettersMenu((v) => !v)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 text-sm transition-colors"
+                          aria-haspopup="menu" aria-expanded={showLettersMenu}
+                        >
+                          <FileSignature size={14} />
+                          Letters
+                          <ChevronDown size={14} className={`transition-transform ${showLettersMenu ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showLettersMenu && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setShowLettersMenu(false)} />
+                            <div role="menu" className="absolute left-0 mt-2 z-40 w-72 rounded-xl border border-dark-700 bg-dark-800 shadow-2xl p-1.5">
+                              {items.map((it) => (
+                                <button
+                                  key={it.key}
+                                  role="menuitem"
+                                  onClick={() => { setShowLettersMenu(false); it.open(); }}
+                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-dark-700 transition-colors"
+                                >
+                                  <div className="text-sm text-white">{live(it.rec) ? 'Re-send' : 'Send'} {it.label}</div>
+                                  <div className={`text-[11px] mt-0.5 ${it.rec?.state === 'signed' ? 'text-emerald-400' : live(it.rec) ? 'text-amber-400' : 'text-dark-400'}`}>
+                                    {statusOf(it.rec)}{it.rec?.refNo ? ` · ${it.rec.refNo}` : ''}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {/* Launch Plan */}
                   <button
                     onClick={() => setShowLaunchPlanModal(true)}
