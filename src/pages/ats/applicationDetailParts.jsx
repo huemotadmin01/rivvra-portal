@@ -439,11 +439,14 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
       const noticeDefault = /internal consultant/.test(et) ? '30' : /full|external consultant|contract/.test(et) ? '60' : '30';
       setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : noticeDefault);
       setProbationMonths(io?.probationMonths != null ? String(io.probationMonths) : '6');
-      if (io?.noticePeriodDays == null || io?.probationMonths == null) {
+      // 2026-11-13 (owner): notice is company policy for every hire type — always the Letter Defaults
+      // figure until a letter goes out (then the sent letter's figure, locked).
+      const noticeFromPolicy = !io?.signEnvelopeId;
+      if (noticeFromPolicy || io?.probationMonths == null) {
         const key = /internal consultant/.test(et) ? 'internal_consultant' : /external consultant|contract/.test(et) ? 'external_consultant' : /intern/.test(et) ? 'intern' : 'confirmed';
         employeeApi.getLetterDefaults(orgSlug).then((r) => {
           const row = r?.byType?.[key]; if (!row) return;
-          if (io?.noticePeriodDays == null && row.noticePeriodDays != null) setNoticePeriodDays(String(row.noticePeriodDays));
+          if (noticeFromPolicy && row.noticePeriodDays != null) setNoticePeriodDays(String(row.noticePeriodDays));
           if (io?.probationMonths == null && key === 'confirmed' && row.probationMonths != null) setProbationMonths(String(row.probationMonths));
         }).catch(() => { /* keep the code defaults */ });
       }
@@ -895,10 +898,12 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                   min="0"
                   step="1"
                   value={noticePeriodDays}
-                  onChange={(e) => setNoticePeriodDays(e.target.value)}
-                  disabled={envelopeLocked}
-                  className="input-field"
+                  readOnly
+                  disabled
+                  title="Company policy (Employee → Letter Defaults)"
+                  className="input-field opacity-70"
                 />
+                <p className="text-[11px] text-dark-500 mt-1">{envelopeLocked ? 'As in the letter sent' : 'Company policy for this hire type'}</p>
                 {errors.noticePeriodDays && <p className="text-xs text-red-400 mt-1">{errors.noticePeriodDays}</p>}
               </div>
 

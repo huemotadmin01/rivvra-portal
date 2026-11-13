@@ -1391,13 +1391,15 @@ export default function EmployeeDetail() {
             displayValue={`${emp.billable === true ? 'Yes' : 'No'} · set by project assignments`} />
           <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
             editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
-          {emp.employmentType === 'confirmed' && (
+          {/* 2026-11-13 (owner): notice is company policy (Letter Defaults) for every type — read-only here.
+              A stored figure is what the person signed; blank = the current policy. */}
+          {emp.employmentType === 'confirmed' ? (
             <>
-              <InlineField label="Notice (after confirmation)" field="noticePeriodDays" value={emp.noticePeriodDays ?? ''} type="number"
-                editable={isAdmin} onSave={handleFieldSave} placeholder="60 (company default)" />
-              <InlineField label="Notice (during probation)" field="noticeDuringProbationDays" value={emp.noticeDuringProbationDays ?? ''} type="number"
-                editable={isAdmin} onSave={handleFieldSave} placeholder="30 (company default)" />
+              <InfoRow label="Notice (after confirmation)" value={emp.noticePeriodDays != null ? `${emp.noticePeriodDays} days` : 'Company policy (Letter Defaults)'} />
+              <InfoRow label="Notice (during probation)" value={emp.noticeDuringProbationDays != null ? `${emp.noticeDuringProbationDays} days` : 'Company policy (Letter Defaults)'} />
             </>
+          ) : (
+            <InfoRow label="Notice period" value={emp.noticePeriodDays != null ? `${emp.noticePeriodDays} days` : 'Company policy (Letter Defaults)'} />
           )}
           <InfoRow label="Salary Disbursement" value={(() => {
             const ruleLabels = {
