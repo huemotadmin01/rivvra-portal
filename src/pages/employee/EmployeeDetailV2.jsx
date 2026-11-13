@@ -56,6 +56,7 @@ import {
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import AppointmentLetterModal from '../../components/employee/AppointmentLetterModal';
+import FullTimeOfferModal from '../../components/employee/FullTimeOfferModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
@@ -216,6 +217,7 @@ export default function EmployeeDetail() {
   const [showLaunchPlanModal, setShowLaunchPlanModal] = useState(false);
   const [showAppointmentLetter, setShowAppointmentLetter] = useState(false); // 2026-10-12
   const [showNda, setShowNda] = useState(false); // 2026-10-12 employee NDA
+  const [showFullTimeOffer, setShowFullTimeOffer] = useState(false); // 2026-11-13 intern/consultant → full-time
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
@@ -1127,6 +1129,17 @@ export default function EmployeeDetail() {
                       {emp.appointmentLetter && !['cancelled', 'refused', 'expired'].includes(emp.appointmentLetter.state) ? 'Re-send Appointment Letter' : 'Send Appointment Letter'}
                     </button>
                   )}
+                  {/* 2026-11-13: full-time offer for an intern / consultant moving to full-time */}
+                  {isAdmin && emp.employmentType && emp.employmentType !== 'confirmed' && emp.status !== 'inactive' && (
+                    <button
+                      onClick={() => setShowFullTimeOffer(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-sm transition-colors"
+                      title="Send the Full-Time offer letter (with Annexure A) for signature"
+                    >
+                      <FileSignature size={14} />
+                      {emp.conversionOffer && !['cancelled', 'refused', 'expired'].includes(emp.conversionOffer.state) ? 'Re-send Full-time Offer' : 'Send Full-time Offer'}
+                    </button>
+                  )}
                   {/* 2026-10-12: Employee NDA — every payroll type (FT, intern, internal consultant) */}
                   {isAdmin && ['confirmed', 'intern', 'internal_consultant'].includes(emp.employmentType) && (
                     <button
@@ -1215,6 +1228,30 @@ export default function EmployeeDetail() {
           </button>
         </div>
       )}
+
+      {/* 2026-11-13: full-time offer status — terms come from the letter that was sent */}
+      {emp.conversionOffer && !['cancelled', 'refused', 'expired'].includes(emp.conversionOffer.state) && (() => {
+        const t = emp.conversionOfferTerms || {};
+        const signed = emp.conversionOffer.state === 'signed';
+        const when = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—');
+        const done = emp.employmentType === 'confirmed';
+        return (
+          <div className={`rounded-xl border p-4 mb-5 text-sm flex items-start gap-3 ${signed && !done ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-dark-700 bg-dark-800/40 text-dark-200'}`}>
+            <FileSignature size={16} className="mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <div className="font-medium">
+                Full-time offer {signed ? `signed on ${when(emp.conversionOffer.signedAt)}` : `sent on ${when(emp.conversionOffer.sentAt)} — waiting for signatures`}
+              </div>
+              <div className="text-xs mt-0.5 opacity-90">
+                {t.designation || '—'} · ₹{Number(t.ctcAnnual || 0).toLocaleString('en-IN')}/yr ({t.structureName || 'structure'}) · from {when(t.effectiveDate)}
+              </div>
+              {signed && !done && (
+                <div className="text-xs mt-1.5">Next: change Employment Type to Full-time and set the new CTC in Payroll from {when(t.effectiveDate)}. Nothing has been changed automatically.</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Info Sections (2-col grid) ──────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -2518,6 +2555,13 @@ export default function EmployeeDetail() {
         orgSlug={currentOrg?.slug}
         employee={emp}
         onSent={(msg) => { setShowNda(false); if (msg) showToast(msg, 'success'); if (currentOrg?.slug && employee?._id) employeeApi.get(currentOrg.slug, employee._id).then((r) => { if (r?.success && r.employee) setEmployee(r.employee); }).catch(() => {}); }}
+      />
+      <FullTimeOfferModal
+        show={showFullTimeOffer}
+        onClose={() => setShowFullTimeOffer(false)}
+        orgSlug={currentOrg?.slug}
+        employee={emp}
+        onSent={(msg) => { setShowFullTimeOffer(false); if (msg) showToast(msg, 'success'); if (currentOrg?.slug && employee?._id) employeeApi.get(currentOrg.slug, employee._id).then((r) => { if (r?.success && r.employee) setEmployee(r.employee); }).catch(() => {}); }}
       />
       <AppointmentLetterModal
         show={showAppointmentLetter}

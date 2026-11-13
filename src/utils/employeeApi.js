@@ -15,6 +15,13 @@ const employeeApi = {
   bulkNda(orgSlug, body) {
     return api.request(`/api/org/${orgSlug}/employee/employees/letters/nda/bulk`, { method: 'POST', body: JSON.stringify(body || { dryRun: true }) });
   },
+  // 2026-11-13: full-time offer for an existing employee (intern/consultant → full-time)
+  getConversionOfferSetup(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/conversion-offer/setup`);
+  },
+  getConversionOfferPrefill(orgSlug, employeeId, body) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/conversion-offer/prefill`, { method: 'POST', body: JSON.stringify(body || {}) });
+  },
   // kind: 'appointment' | 'nda'
   getLetterPrefill(orgSlug, employeeId, kind, params = {}) {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
