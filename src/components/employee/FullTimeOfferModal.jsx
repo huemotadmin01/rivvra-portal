@@ -40,16 +40,22 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
       // the current statutory salary record so the letter matches it.
       const cur = s.employee.employmentType === 'confirmed' && s.currentSalary?.payrollMode === 'statutory' ? s.currentSalary : null;
       const curStructure = cur && s.structures.some((x) => x._id === cur.structureId) ? cur.structureId : '';
+      // 2026-11-13 bug pass: an employee already Full-time has their pay in
+      // Payroll — the letter takes CTC / structure / start date from that
+      // record and they are NOT editable here (the letter could otherwise
+      // promise a different salary than the payslip). Designation and
+      // reporting manager come from the employee record (edit them there).
+      const locked = !!cur;
       setF({
-        ctcAnnual: last.ctcAnnual ? String(last.ctcAnnual) : (cur?.ctcAnnual ? String(cur.ctcAnnual) : ''),
-        structureId: last.structureId || curStructure || (s.structures.find((x) => x.isDefault) || s.structures[0] || {})._id || '',
-        variablePayAnnual: last.variablePayAnnual ? String(last.variablePayAnnual) : '',
-        effectiveDate: last.effectiveDate ? ymd(last.effectiveDate) : (cur?.effectiveFrom ? ymd(cur.effectiveFrom) : ''),
-        designation: last.designation || s.employee.designation || '',
+        ctcAnnual: locked ? String(cur.ctcAnnual || '') : (last.ctcAnnual ? String(last.ctcAnnual) : ''),
+        structureId: (locked ? curStructure : last.structureId) || curStructure || (s.structures.find((x) => x.isDefault) || s.structures[0] || {})._id || '',
+        variablePayAnnual: locked ? '' : (last.variablePayAnnual ? String(last.variablePayAnnual) : ''),
+        effectiveDate: locked ? (cur.effectiveFrom ? ymd(cur.effectiveFrom) : '') : (last.effectiveDate ? ymd(last.effectiveDate) : ''),
+        designation: locked ? (s.employee.designation || '') : (last.designation || s.employee.designation || ''),
         probationMonths: String(s.defaults.probationMonths ?? 6), // company policy, not editable
-        noticePeriodDays: String(last.noticePeriodDays ?? s.defaults.noticePeriodDays ?? 60),
-        workLocation: last.workLocation || '',
-        reportingManager: last.reportingManager || s.employee.manager || '',
+        noticePeriodDays: String(s.defaults.noticePeriodDays ?? 60), // company policy (Letter Defaults), not editable
+        workLocation: last.workLocation || s.employee.workLocation || '',
+        reportingManager: locked ? (s.employee.manager || '') : (last.reportingManager || s.employee.manager || ''),
         acceptanceDeadline: plusDays(7),
         templateId: s.templates[0]?._id || '',
         signatoryName: s.signatory.name || '',
@@ -61,6 +67,15 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [show, orgSlug, employee?._id]);
+
+  // Esc closes (not while sending)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!show) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape' && !sending) onClose?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [show, sending, onClose]);
 
   if (!show) return null;
 
@@ -85,8 +100,18 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
   };
 
   const fromType = setup?.employee?.employmentType || '';
-  const canSend = !loading && !sending && setup && breakupFresh && f.templateId && f.effectiveDate && f.designation?.trim()
-    && f.signatoryName?.trim() && f.signatoryEmail?.trim() && f.employeeEmail?.trim();
+  const payLocked = fromType === 'confirmed' && setup?.currentSalary?.payrollMode === 'statutory';
+  const todayYmd = ymd(new Date());
+  const deadlineBad = !!f.acceptanceDeadline && f.acceptanceDeadline < todayYmd;
+  const missing = [
+    !f.workLocation?.trim() && 'work location',
+    !f.designation?.trim() && 'designation',
+    !f.effectiveDate && 'full-time start date',
+    !f.employeeEmail?.trim() && 'employee email',
+    !f.signatoryEmail?.trim() && 'signer email',
+  ].filter(Boolean);
+  const canSend = !loading && !sending && setup && breakupFresh && f.templateId && !missing.length && !deadlineBad
+    && f.signatoryName?.trim();
 
   const send = async () => {
     setError(''); setSending(true);
@@ -148,7 +173,7 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
                 </div>
               )}
               {fromType === 'confirmed' && (
-                <div className="text-sm text-sky-200 bg-sky-500/10 border border-sky-500/30 rounded-lg p-3">Already Full-time in Rivvra. The CTC and start date below come from the current salary record — check they match what was agreed. Sending changes nothing in Payroll.</div>
+                <div className="text-sm text-sky-200 bg-sky-500/10 border border-sky-500/30 rounded-lg p-3">Already Full-time in Rivvra. Pay, start date, designation and manager come from Payroll and the employee record, so the letter matches the payslip. To change them, update Payroll / the Work Information panel first.</div>
               )}
               {setup.templates.length === 0 && (
                 <div className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">No active Full-Time offer letter template (one with an Annexure A) for this company.</div>
@@ -162,20 +187,20 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
 
               <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">New terms</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><L req>Annual CTC (₹)</L><input type="number" min="1" value={f.ctcAnnual} onChange={set('ctcAnnual')} placeholder="e.g. 300000" className={inputCls} /></div>
+                <div><L req>Annual CTC (₹)</L><input type="number" min="1" value={f.ctcAnnual} onChange={set('ctcAnnual')} placeholder="e.g. 300000" disabled={payLocked} className={`${inputCls} ${payLocked ? 'opacity-70' : ''}`} /></div>
                 <div><L req>Salary structure</L>
-                  <select value={f.structureId} onChange={set('structureId')} className={inputCls}>
+                  <select value={f.structureId} onChange={set('structureId')} disabled={payLocked} className={`${inputCls} ${payLocked ? 'opacity-70' : ''}`}>
                     {setup.structures.map((s) => <option key={s._id} value={s._id}>{s.name}{s.isDefault ? ' (default)' : ''}</option>)}
                   </select>
                 </div>
-                <div><L>Variable pay (₹/yr, part of CTC)</L><input type="number" min="0" value={f.variablePayAnnual} onChange={set('variablePayAnnual')} placeholder="0" className={inputCls} /></div>
-                <div><L req>Full-time from</L><input type="date" value={f.effectiveDate} onChange={set('effectiveDate')} className={inputCls} /></div>
-                <div><L req>Designation</L><input value={f.designation} onChange={set('designation')} className={inputCls} /></div>
-                <div><L>Work location</L><input value={f.workLocation} onChange={set('workLocation')} placeholder="e.g. Bhopal" className={inputCls} /></div>
-                <div><L>Reporting manager</L><input value={f.reportingManager} onChange={set('reportingManager')} className={inputCls} /></div>
-                <div><L>Accept by</L><input type="date" value={f.acceptanceDeadline} onChange={set('acceptanceDeadline')} className={inputCls} /></div>
+                <div><L>Variable pay (₹/yr, part of CTC)</L><input type="number" min="0" value={f.variablePayAnnual} onChange={set('variablePayAnnual')} placeholder="0" disabled={payLocked} className={`${inputCls} ${payLocked ? 'opacity-70' : ''}`} /></div>
+                <div><L req>Full-time from</L><input type="date" value={f.effectiveDate} onChange={set('effectiveDate')} disabled={payLocked} className={`${inputCls} ${payLocked ? 'opacity-70' : ''}`} /></div>
+                <div><L req>Designation</L><input value={f.designation} onChange={set('designation')} disabled={payLocked} className={`${inputCls} ${payLocked ? 'opacity-70' : ''}`} /></div>
+                <div><L req>Work location</L><input value={f.workLocation} onChange={set('workLocation')} placeholder="e.g. Bhopal" className={inputCls} /></div>
+                <div><L>Reporting manager</L><input value={f.reportingManager} onChange={set('reportingManager')} disabled={payLocked} className={`${inputCls} ${payLocked ? 'opacity-70' : ''}`} /></div>
+                <div><L>Accept by</L><input type="date" min={todayYmd} value={f.acceptanceDeadline} onChange={set('acceptanceDeadline')} className={inputCls} />{deadlineBad && <p className="text-[11px] text-red-400 mt-1">Must be today or later</p>}</div>
                 <div><L>Probation (months)</L><input type="number" value={f.probationMonths} readOnly disabled title="Company policy (Employee → Letter Defaults)" className={`${inputCls} opacity-70`} /><p className="text-[11px] text-dark-500 mt-1">Company policy</p></div>
-                <div><L req>Notice period (days)</L><input type="number" min="0" value={f.noticePeriodDays} onChange={set('noticePeriodDays')} className={inputCls} /></div>
+                <div><L>Notice period (days)</L><input type="number" value={f.noticePeriodDays} readOnly disabled title="Company policy (Employee → Letter Defaults)" className={`${inputCls} opacity-70`} /><p className="text-[11px] text-dark-500 mt-1">Company policy</p></div>
               </div>
 
               <div className="rounded-xl border border-dark-700 bg-dark-800/30 p-3">
@@ -218,6 +243,7 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
                   <button type="button" onClick={() => setF((p) => ({ ...p, employeeEmail: setup.employee.privateEmail }))} className="text-[11px] text-blue-300 hover:text-blue-200 mt-1">Use personal email {setup.employee.privateEmail}</button>
                 )}
               </div>
+              {missing.length > 0 && <p className="text-[11px] text-amber-400">Still needed: {missing.join(', ')}.</p>}
               <p className="text-[11px] text-dark-500">Sending does not change pay or employment type. Once signed, change the employment type to Full-time and set the new CTC in Payroll from the start date.</p>
             </>
           )}

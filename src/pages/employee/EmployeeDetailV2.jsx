@@ -219,6 +219,12 @@ export default function EmployeeDetail() {
   const [showNda, setShowNda] = useState(false); // 2026-10-12 employee NDA
   const [showFullTimeOffer, setShowFullTimeOffer] = useState(false); // 2026-11-13 intern/consultant → full-time
   const [showLettersMenu, setShowLettersMenu] = useState(false); // 2026-11-13 Letters menu
+  useEffect(() => {
+    if (!showLettersMenu) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setShowLettersMenu(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showLettersMenu]);
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
