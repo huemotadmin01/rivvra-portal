@@ -910,9 +910,12 @@ export function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', ini
                   step="1"
                   value={probationMonths}
                   onChange={(e) => setProbationMonths(e.target.value)}
-                  disabled={envelopeLocked}
+                  // 2026-11-13 (owner): full-time probation is company policy (Letter Defaults); the server enforces it too
+                  disabled={envelopeLocked || isInternalFullTime}
+                  title={isInternalFullTime ? 'Company policy for full-time employees (Employee → Letter Defaults)' : undefined}
                   className="input-field"
                 />
+                {isInternalFullTime && !envelopeLocked && <p className="text-[11px] text-dark-500 mt-1">Company policy for full-time hires</p>}
                 {errors.probationMonths && <p className="text-xs text-red-400 mt-1">{errors.probationMonths}</p>}
               </div>
             </>

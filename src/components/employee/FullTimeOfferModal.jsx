@@ -46,7 +46,7 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
         variablePayAnnual: last.variablePayAnnual ? String(last.variablePayAnnual) : '',
         effectiveDate: last.effectiveDate ? ymd(last.effectiveDate) : (cur?.effectiveFrom ? ymd(cur.effectiveFrom) : ''),
         designation: last.designation || s.employee.designation || '',
-        probationMonths: String(last.probationMonths ?? s.defaults.probationMonths ?? 6),
+        probationMonths: String(s.defaults.probationMonths ?? 6), // company policy, not editable
         noticePeriodDays: String(last.noticePeriodDays ?? s.defaults.noticePeriodDays ?? 60),
         workLocation: last.workLocation || '',
         reportingManager: last.reportingManager || s.employee.manager || '',
@@ -174,7 +174,7 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
                 <div><L>Work location</L><input value={f.workLocation} onChange={set('workLocation')} placeholder="e.g. Bhopal" className={inputCls} /></div>
                 <div><L>Reporting manager</L><input value={f.reportingManager} onChange={set('reportingManager')} className={inputCls} /></div>
                 <div><L>Accept by</L><input type="date" value={f.acceptanceDeadline} onChange={set('acceptanceDeadline')} className={inputCls} /></div>
-                <div><L req>Probation (months)</L><input type="number" min="0" value={f.probationMonths} onChange={set('probationMonths')} className={inputCls} /></div>
+                <div><L>Probation (months)</L><input type="number" value={f.probationMonths} readOnly disabled title="Company policy (Employee → Letter Defaults)" className={`${inputCls} opacity-70`} /><p className="text-[11px] text-dark-500 mt-1">Company policy</p></div>
                 <div><L req>Notice period (days)</L><input type="number" min="0" value={f.noticePeriodDays} onChange={set('noticePeriodDays')} className={inputCls} /></div>
               </div>
 
