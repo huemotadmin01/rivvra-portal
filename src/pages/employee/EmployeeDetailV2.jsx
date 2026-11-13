@@ -1118,6 +1118,17 @@ export default function EmployeeDetail() {
                       </button>
                     )
                   )}
+                  {/* 2026-11-13: full-time offer — interns/consultants moving to full-time, and full-timers who never got one */}
+                  {isAdmin && ['confirmed', 'intern', 'internal_consultant'].includes(emp.employmentType) && emp.status !== 'inactive' && (
+                    <button
+                      onClick={() => setShowFullTimeOffer(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-sm transition-colors"
+                      title="Send the Full-Time offer letter (with Annexure A) for signature"
+                    >
+                      <FileSignature size={14} />
+                      {emp.conversionOffer && !['cancelled', 'refused', 'expired'].includes(emp.conversionOffer.state) ? 'Re-send Full-time Offer' : 'Send Full-time Offer'}
+                    </button>
+                  )}
                   {/* 2026-10-12: Full-Time appointment letter (Director → employee), rendered from the record + salary */}
                   {isAdmin && emp.employmentType === 'confirmed' && (
                     <button
@@ -1127,17 +1138,6 @@ export default function EmployeeDetail() {
                     >
                       <FileSignature size={14} />
                       {emp.appointmentLetter && !['cancelled', 'refused', 'expired'].includes(emp.appointmentLetter.state) ? 'Re-send Appointment Letter' : 'Send Appointment Letter'}
-                    </button>
-                  )}
-                  {/* 2026-11-13: full-time offer for an intern / consultant moving to full-time */}
-                  {isAdmin && emp.employmentType && emp.employmentType !== 'confirmed' && emp.status !== 'inactive' && (
-                    <button
-                      onClick={() => setShowFullTimeOffer(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-sm transition-colors"
-                      title="Send the Full-Time offer letter (with Annexure A) for signature"
-                    >
-                      <FileSignature size={14} />
-                      {emp.conversionOffer && !['cancelled', 'refused', 'expired'].includes(emp.conversionOffer.state) ? 'Re-send Full-time Offer' : 'Send Full-time Offer'}
                     </button>
                   )}
                   {/* 2026-10-12: Employee NDA — every payroll type (FT, intern, internal consultant) */}

@@ -36,11 +36,15 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
       if (!s?.success) throw new Error(s?.error || 'Could not load the offer form');
       setSetup(s);
       const last = s.lastTerms || {};
+      // Already full-time (offer issued after Payroll was set up): start from
+      // the current statutory salary record so the letter matches it.
+      const cur = s.employee.employmentType === 'confirmed' && s.currentSalary?.payrollMode === 'statutory' ? s.currentSalary : null;
+      const curStructure = cur && s.structures.some((x) => x._id === cur.structureId) ? cur.structureId : '';
       setF({
-        ctcAnnual: last.ctcAnnual ? String(last.ctcAnnual) : '',
-        structureId: last.structureId || (s.structures.find((x) => x.isDefault) || s.structures[0] || {})._id || '',
+        ctcAnnual: last.ctcAnnual ? String(last.ctcAnnual) : (cur?.ctcAnnual ? String(cur.ctcAnnual) : ''),
+        structureId: last.structureId || curStructure || (s.structures.find((x) => x.isDefault) || s.structures[0] || {})._id || '',
         variablePayAnnual: last.variablePayAnnual ? String(last.variablePayAnnual) : '',
-        effectiveDate: last.effectiveDate ? ymd(last.effectiveDate) : '',
+        effectiveDate: last.effectiveDate ? ymd(last.effectiveDate) : (cur?.effectiveFrom ? ymd(cur.effectiveFrom) : ''),
         designation: last.designation || s.employee.designation || '',
         probationMonths: String(last.probationMonths ?? s.defaults.probationMonths ?? 6),
         noticePeriodDays: String(last.noticePeriodDays ?? s.defaults.noticePeriodDays ?? 60),
@@ -144,7 +148,7 @@ export default function FullTimeOfferModal({ show, onClose, orgSlug, employee, o
                 </div>
               )}
               {fromType === 'confirmed' && (
-                <div className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">This employee is already Full-time. For a pay change on an existing full-time employee use the appointment letter / a salary revision instead.</div>
+                <div className="text-sm text-sky-200 bg-sky-500/10 border border-sky-500/30 rounded-lg p-3">Already Full-time in Rivvra. The CTC and start date below come from the current salary record — check they match what was agreed. Sending changes nothing in Payroll.</div>
               )}
               {setup.templates.length === 0 && (
                 <div className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">No active Full-Time offer letter template (one with an Annexure A) for this company.</div>
