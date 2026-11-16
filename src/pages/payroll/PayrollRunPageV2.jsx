@@ -656,14 +656,19 @@ export default function PayrollRunPageV2() {
     // and show the genuine residuals (LOP, salary, TDS…) as the table.
     const frozenSettled = frozenDriftAll.filter((d) => d.settledByArrears);
     const frozenDrift = frozenDriftAll.filter((d) => !d.settledByArrears);
-    const settledPf = frozenSettled.filter((d) => d.settledVia !== 'adhoc');
+    const settledPf = frozenSettled.filter((d) => !['adhoc', 'type_changed', 'tds_true_up'].includes(d.settledVia));
     const settledAdhoc = frozenSettled.filter((d) => d.settledVia === 'adhoc');
+    // 2026-11-16: not money owed — the type changed after the month, or only TDS differs (later months absorb it)
+    const settledType = frozenSettled.filter((d) => d.settledVia === 'type_changed');
+    const settledTds = frozenSettled.filter((d) => d.settledVia === 'tds_true_up');
     const settledMonth = settledPf[0]?.pfArrearsRecovered ? `${MONTHS[settledPf[0].pfArrearsRecovered.month]} ${settledPf[0].pfArrearsRecovered.year}` : null;
     const adhocMonth = settledAdhoc[0]?.adhocArrear ? `${MONTHS[settledAdhoc[0].adhocArrear.month]} ${settledAdhoc[0].adhocArrear.year}` : null;
     // One sentence covering both kinds of settled rows (2026-10-15)
     const settledSentence = [
       settledPf.length ? `${settledPf.length} differ only by the PF wage-ceiling change${settledMonth ? ` already recovered as arrears in ${settledMonth}` : ''}` : null,
       settledAdhoc.length ? `${settledAdhoc.length} ${settledAdhoc.length === 1 ? 'was' : 'were'} already settled as an ad-hoc arrear${adhocMonth ? ` in ${adhocMonth}` : ''} (${settledAdhoc.map((d) => `${d.employeeName} ${formatMoney(Math.abs(d.residualNet))}`).join(', ')})` : null,
+      settledType.length ? `${settledType.length} changed employment type after this month (${settledType.map((d) => d.employeeName).join(', ')}) — the month was paid on the type it had` : null,
+      settledTds.length ? `${settledTds.length} differ${settledTds.length === 1 ? 's' : ''} only in TDS, which later months' tax projection corrects automatically (${settledTds.map((d) => `${d.employeeName} ${formatMoney(Math.abs(d.tdsDifference || 0))}`).join(', ')})` : null,
     ].filter(Boolean).join('; ');
     // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
     const columns = [
@@ -876,8 +881,8 @@ export default function PayrollRunPageV2() {
             <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
               {MONTHS[run.month]} data changed after these employees were paid. Their rows were left
               untouched — recomputing would have moved a figure they have already received. The amount
-              shown is the genuine difference after setting aside the PF ceiling change; pay it as an
-              ad-hoc arrear (or recover it) in a later run.
+              shown is the genuine difference after setting aside the PF ceiling change and TDS (later
+              months' tax projection corrects TDS); pay it as an ad-hoc arrear (or recover it) in a later run.
               {frozenSettled.length > 0 && ` Of the other released payslips, ${settledSentence} — nothing to do for them.`}
             </p>
             <div style={{ marginTop: 8, overflowX: 'auto' }}>
@@ -887,7 +892,7 @@ export default function PayrollRunPageV2() {
                     <th style={{ textAlign: 'left', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Employee</th>
                     <th style={{ textAlign: 'right', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Paid net</th>
                     <th style={{ textAlign: 'right', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Would have become</th>
-                    <th style={{ textAlign: 'right', fontWeight: 500, paddingBottom: 4 }} title="Net difference after setting aside the PF ceiling change. Positive = owed to the employee.">Owed / (excess)</th>
+                    <th style={{ textAlign: 'right', fontWeight: 500, paddingBottom: 4 }} title="Net difference after setting aside the PF ceiling change and TDS. Positive = owed to the employee.">Owed / (excess)</th>
                   </tr>
                 </thead>
                 <tbody>
