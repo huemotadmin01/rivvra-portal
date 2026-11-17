@@ -776,6 +776,24 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
               </div>
             </div>
           )}
+          {/* 2026-11-17: who took this contact off a list, and when. */}
+          {Array.isArray(lead.listHistory) && lead.listHistory.length > 0 && (
+            <div className="flex items-start gap-3 py-1.5">
+              <Tag className="w-4 h-4 text-dark-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-[11px] text-dark-500 mb-1">List changes</p>
+                <ul className="space-y-0.5">
+                  {[...lead.listHistory].reverse().slice(0, 5).map((h, i) => (
+                    <li key={`${h.at}-${i}`} className="text-xs text-dark-300">
+                      Removed from <span className="font-medium">{h.list}</span>
+                      {h.byName ? <> by {h.byName}</> : null}
+                      {h.at ? <span className="text-dark-500"> · {new Date(h.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </aside>
