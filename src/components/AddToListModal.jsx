@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Plus, Check, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
+import { isAutomaticList } from '../utils/outreachLists';
 import { useToast } from '../context/ToastContext';
 
 const LIST_COLORS = [
@@ -55,6 +56,12 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
   );
 
   const toggleList = (listName) => {
+    // 2026-11-17: an automatic list the contact is on is left by a status
+    // change only (the server keeps it either way).
+    if (isAutomaticList(listName) && (lead.lists || []).includes(listName)) {
+      showToast(`"${listName}" follows the contact's status — change the status to move it`, 'warning');
+      return;
+    }
     setSelectedLists(prev =>
       prev.includes(listName)
         ? prev.filter(n => n !== listName)
@@ -239,6 +246,9 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
                           <span className={`text-sm font-medium flex-1 ${isSelected ? 'text-white' : 'text-dark-200'}`}>
                             {list.name}
                           </span>
+                          {isSelected && (lead.lists || []).includes(list.name) && isAutomaticList(list.name) && (
+                            <span className="text-[11px] text-dark-500 flex-shrink-0">set by status</span>
+                          )}
                           {isSelected && (
                             <Check className="w-4 h-4 text-rivvra-400 flex-shrink-0" />
                           )}

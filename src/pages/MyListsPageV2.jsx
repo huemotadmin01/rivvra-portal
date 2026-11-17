@@ -6,6 +6,7 @@ import { useOrg } from '../context/OrgContext';
 import { useToast } from '../context/ToastContext';
 import { Users, RefreshCw, Download, Trash2, Plus, FolderOpen, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
+import { isAutomaticList } from '../utils/outreachLists';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import LeadDetailPanel from '../components/LeadDetailPanel';
 import ComingSoonModal from '../components/ComingSoonModal';
@@ -264,8 +265,11 @@ export default function MyListsPageV2() {
     onAddToList: () => { setAddToListTarget(lead); setShowAddToList(true); },
     onEditContact: () => { setEditContactTarget(lead); setShowEditContact(true); },
     onTagContact: () => { setComingSoonFeature('Tag Contact'); setShowComingSoon(true); },
-    onRemoveContact: () => { setRemoveTarget(lead); setShowRemoveModal(true); },
-    removeLabel: 'Remove from list',
+    // 2026-11-17: automatic lists change only by status — no Remove there.
+    ...(isAutomaticList(selectedList) ? {} : {
+      onRemoveContact: () => { setRemoveTarget(lead); setShowRemoveModal(true); },
+      removeLabel: 'Remove from list',
+    }),
   });
 
   const handleExportCSV = async () => {
@@ -395,7 +399,9 @@ export default function MyListsPageV2() {
         onClear={() => setSelectedLeads([])}
         actions={[
           { label: 'Export CSV', icon: <Download size={13} />, onClick: handleExportCSV },
-          { label: 'Remove from list', tone: 'danger', icon: <Trash2 size={13} />, onClick: () => { setRemoveTarget(null); setShowRemoveModal(true); } },
+          ...(isAutomaticList(selectedList) ? [] : [
+            { label: 'Remove from list', tone: 'danger', icon: <Trash2 size={13} />, onClick: () => { setRemoveTarget(null); setShowRemoveModal(true); } },
+          ]),
         ]}
       />
 

@@ -6,6 +6,7 @@ import { useOrg } from '../context/OrgContext';
 import { useToast } from '../context/ToastContext';
 import { Users, RefreshCw, Download, Pencil, Lock, Layers, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
+import { isAutomaticList } from '../utils/outreachLists';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import LeadDetailPanel from '../components/LeadDetailPanel';
 import ComingSoonModal from '../components/ComingSoonModal';
@@ -243,8 +244,11 @@ export default function TeamListsPageV2() {
       onAddToList: () => { setAddToListTarget(lead); setShowAddToList(true); },
       onEditContact: () => { setEditContactTarget(lead); setShowEditContact(true); },
       onTagContact: () => { setComingSoonFeature('Tag Contact'); setShowComingSoon(true); },
-      onRemoveContact: () => { setRemoveTarget(lead); setShowRemoveModal(true); },
-      removeLabel: 'Remove from list',
+      // 2026-11-17: automatic lists change only by status — no Remove there.
+      ...(isAutomaticList(selectedList) ? {} : {
+        onRemoveContact: () => { setRemoveTarget(lead); setShowRemoveModal(true); },
+        removeLabel: 'Remove from list',
+      }),
     };
   };
 

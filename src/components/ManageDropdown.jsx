@@ -113,12 +113,13 @@ function ManageDropdown({
       label: 'Archive',
       action: onArchive,
     } : null,
-    {
+    // 2026-11-17: no item when the page passes no handler (automatic lists).
+    onRemoveContact ? {
       icon: Trash2,
       label: removeLabel,
       action: onRemoveContact,
       danger: true,
-    },
+    } : null,
   ].filter(Boolean);
 
   return (
