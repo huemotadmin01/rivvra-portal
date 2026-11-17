@@ -1644,25 +1644,34 @@ export default function EmployeeDetail() {
               {isAdmin && (
                 <button
                   onClick={async () => {
-                    if (!window.confirm(`Reactivate ${emp.fullName}? This will set status to Active and clear the Last Working Date.`)) return;
+                    // 2026-11-17: Rejoin keeps the finished stint in Employment
+                    // history; the rejoin date becomes the joining date. (The
+                    // old Reactivate wiped the LWD and separation reason.)
+                    const lwdDay = emp.lastWorkingDate ? String(emp.lastWorkingDate).slice(0, 10) : '';
+                    const nextAssign = (emp.assignments || [])
+                      .filter((a) => a.status === 'active' && a.startDate && String(a.startDate).slice(0, 10) > lwdDay)
+                      .map((a) => String(a.startDate).slice(0, 10)).sort()[0];
+                    const date = window.prompt(
+                      `Rejoin ${emp.fullName} — date they started again (YYYY-MM-DD).\nThis becomes the joining date; the earlier stint (to ${formatDate(emp.lastWorkingDate) || '—'}) is kept in Employment history.`,
+                      nextAssign || new Date().toISOString().slice(0, 10),
+                    );
+                    if (!date) return;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) { showToast('Use the format YYYY-MM-DD', 'error'); return; }
                     try {
-                      const res = await employeeApi.update(currentOrg.slug, emp._id, {
-                        status: 'active',
-                        lastWorkingDate: null,
-                        separationReason: null,
-                        separationNotes: null,
-                      });
-                      if (res.success) {
-                        setEmployee(prev => prev ? { ...prev, status: 'active', lastWorkingDate: null, separationReason: null, separationNotes: null } : prev);
-                        showToast('Employee reactivated', 'success');
+                      const res = await employeeApi.rejoin(currentOrg.slug, emp._id, { rejoinDate: date.trim() });
+                      if (res.success && res.employee) {
+                        setEmployee(res.employee);
+                        showToast(`${emp.fullName} rejoined from ${formatDate(date.trim())}`, 'success');
+                      } else {
+                        showToast(res.error || 'Failed to rejoin', 'error');
                       }
                     } catch (err) {
-                      showToast(err.message || 'Failed to reactivate', 'error');
+                      showToast(err.message || 'Failed to rejoin', 'error');
                     }
                   }}
                   className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors"
                 >
-                  <UserPlus size={13} /> Reactivate
+                  <UserPlus size={13} /> Rejoin
                 </button>
               )}
             </div>
@@ -1686,6 +1695,29 @@ export default function EmployeeDetail() {
                 <p className="text-dark-300 text-sm">{emp.separationNotes}</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Employment history (2026-11-17): earlier stints of a rejoiner ── */}
+      {Array.isArray(emp.employmentHistory) && emp.employmentHistory.length > 0 && (
+        <div className="mt-5">
+          <div className="card p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar size={16} className="text-dark-400" />
+              <h3 className="text-white font-semibold">Employment history</h3>
+              <span className="text-xs text-dark-500">current stint from {formatDate(emp.joiningDate) || '—'}</span>
+            </div>
+            <div className="space-y-2">
+              {[...emp.employmentHistory].reverse().map((s, i) => (
+                <div key={i} className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-sm border-t border-dark-700 pt-2 first:border-t-0 first:pt-0">
+                  <div><p className="text-dark-500 text-xs">Period</p><p className="text-white">{formatDate(s.joiningDate) || '—'} – {formatDate(s.lastWorkingDate) || '—'}</p></div>
+                  <div><p className="text-dark-500 text-xs">Ended as</p><p className="text-dark-300 capitalize">{s.status || '—'}</p></div>
+                  <div><p className="text-dark-500 text-xs">Reason</p><p className="text-dark-300">{s.separationReason || '—'}</p></div>
+                  <div><p className="text-dark-500 text-xs">Notes</p><p className="text-dark-300">{s.separationNotes || '—'}</p></div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -6,6 +6,10 @@ import api, { authHeaders, getActiveCompanyId, orgSlugForRequest } from './api';
 import { API_BASE_URL } from './config';
 
 const employeeApi = {
+  // 2026-11-17: separated employee starts again — keeps the old stint in history.
+  rejoin(orgSlug, employeeId, body) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/rejoin`, { method: 'POST', body: JSON.stringify(body || {}) });
+  },
   // 2026-10-12: Full-Time appointment letter — key→value map for the Sign
   // template, built from the employee record + current salary.
   getAppointmentLetterPrefill(orgSlug, employeeId, params = {}) {
