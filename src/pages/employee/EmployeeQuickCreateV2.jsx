@@ -71,6 +71,12 @@ export default function EmployeeQuickCreateV2() {
   const [companyEmployeeCount, setCompanyEmployeeCount] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [joiningDate, setJoiningDate] = useState('');
+  // 2026-11-17: same person already exists in another company (e.g. Inc hired
+  // through ATS). Seven Pvt records were typed by hand with no joining date,
+  // phone, designation or department — offer to copy them instead.
+  const [twin, setTwin] = useState(null);
+  const [copyTwin, setCopyTwin] = useState(true);
 
   // Server flag ignores the owner's own seeded record; count===0 kept as the
   // fallback for an older API (2026-10-06).
@@ -100,8 +106,28 @@ export default function EmployeeQuickCreateV2() {
       .catch(() => {});
   }, [orgSlug, currentCompany?._id]);
 
+  useEffect(() => {
+    setTwin(null);
+    const em = email.trim().toLowerCase();
+    if (!orgSlug || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return undefined;
+    let live = true;
+    const t = setTimeout(() => {
+      employeeApi.otherCompanyMatch(orgSlug, em)
+        .then((res) => {
+          if (!live || !res?.success || !res.match) return;
+          setTwin(res.match);
+          setCopyTwin(true);
+          if (res.match.joiningDate) setJoiningDate((cur) => cur || String(res.match.joiningDate).slice(0, 10));
+          setFullName((cur) => cur || res.match.fullName || '');
+        })
+        .catch(() => {});
+    }, 400);
+    return () => { live = false; clearTimeout(t); };
+  }, [email, orgSlug, currentCompany?._id]);
+
   const canSave =
     fullName.trim().length > 0 &&
+    !!joiningDate &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     (isFirstHire || !!sourcedByEmployeeId) &&
     (isFirstHire || !!managerEmployeeId);
@@ -115,6 +141,7 @@ export default function EmployeeQuickCreateV2() {
       setError('Please enter a valid email');
       return;
     }
+    if (!joiningDate) { setError('Joining date is required'); return; }
     if (!isFirstHire && !sourcedByEmployeeId) {
       setError('Sourced By is required — pick the employee who referred this hire.');
       return;
@@ -126,12 +153,15 @@ export default function EmployeeQuickCreateV2() {
 
     setSaving(true);
     try {
-      // Minimal payload — backend defaults the rest (billable=true so no
-      // joiningDate is required, employeeId auto-generated, etc.).
+      // Minimal payload — backend defaults the rest (employeeId auto-generated,
+      // etc.). With copyFromEmployeeId the API fills phone, designation,
+      // department… from the other company's record.
       const res = await employeeApi.create(orgSlug, {
         fullName: fullName.trim(),
         email: normEmail,
         employmentType,
+        joiningDate,
+        ...(twin && copyTwin ? { copyFromEmployeeId: twin._id } : {}),
         ...(sourcedByEmployeeId ? { sourcedByEmployeeId } : {}),
         ...(managerEmployeeId ? { manager: managerEmployeeId } : {}),
       });
@@ -237,6 +267,33 @@ export default function EmployeeQuickCreateV2() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="work.email@company.com"
             />
+          </Field>
+
+          {twin && (
+            <Callout tone="info" icon={<Info size={16} />}>
+              <div style={{ font: "550 12.5px/1.4 'Inter', system-ui, sans-serif", marginBottom: 3 }}>
+                {twin.fullName} already exists in {twin.companyName || 'another company'}
+                {twin.createdFromAts ? ' (hired through ATS)' : ''}.
+              </div>
+              <div style={{ font: "400 11.5px/1.6 'Inter', system-ui, sans-serif" }}>
+                {[
+                  twin.joiningDate && `Joined ${String(twin.joiningDate).slice(0, 10)}`,
+                  twin.designation,
+                  twin.departmentName,
+                  twin.phone,
+                ].filter(Boolean).join(' · ') || 'No extra details on that record.'}
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, font: "500 12px/1.4 'Inter', system-ui, sans-serif", cursor: 'pointer' }}>
+                <input type="checkbox" checked={copyTwin} onChange={(e) => setCopyTwin(e.target.checked)} />
+                Copy their joining date, phone, designation and department into this record
+              </label>
+              <div style={{ ...note, marginTop: 4 }}>Salary, rates, bank details and manager are never copied.</div>
+            </Callout>
+          )}
+
+          <Field label="Joining Date" required htmlFor="qc-doj">
+            <Input id="qc-doj" type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
+            <p style={note}>Payroll uses this to decide which months this person belongs to.</p>
           </Field>
 
           <Field label="Employment Type" htmlFor="qc-type">

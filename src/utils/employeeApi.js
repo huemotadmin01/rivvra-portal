@@ -44,6 +44,11 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/employees/${id}`);
   },
 
+  // 2026-11-17: same email in another company of this org (e.g. Inc ATS hire)
+  otherCompanyMatch(orgSlug, email) {
+    return api.request(`/api/org/${orgSlug}/employee/other-company-match?email=${encodeURIComponent(email)}`);
+  },
+
   create(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/employee/employees`, {
       method: 'POST',
