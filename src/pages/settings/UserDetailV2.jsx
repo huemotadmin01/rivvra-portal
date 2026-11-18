@@ -26,6 +26,7 @@ import { APP_REGISTRY } from '../../config/apps';
 // Mirrors APP_ADMIN_GRANTABLE in the API's helpers/appRole.js.
 const APP_ADMIN_GRANTABLE = ['payroll', 'incentive', 'invoicing'];
 import ReassignDataModal from '../../components/settings/ReassignDataModal';
+import LoginActivityPanel from '../../components/settings/LoginActivityPanel';
 import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../../utils/sendLimits';
 
 // Active apps (exclude settings + coming_soon).
@@ -57,11 +58,13 @@ export default function UserDetail() {
   const navigate = useNavigate();
   const { user, impersonateUser } = useAuth();
   const { orgPath } = usePlatform();
-  const { currentOrg, isOrgAdmin, isOrgOwner, refetchOrg } = useOrg();
+  const { currentOrg, isOrgAdmin, isOrgOwner, refetchOrg, getAppRole } = useOrg();
   const { showToast } = useToast();
   const { companies: allCompanies } = useCompany();
   const orgSlug = currentOrg?.slug;
   const canManage = isOrgAdmin || isOrgOwner;
+  // Sign-in history: org admins + HR (Employee-app) admins (2026-11-18).
+  const canSeeLogins = canManage || getAppRole?.('employee') === 'admin';
 
   // Data
   const [member, setMember] = useState(null);
@@ -967,6 +970,13 @@ export default function UserDetail() {
               </div>
             )}
           </Panel>
+        )}
+
+        {/* Login activity (2026-11-18) */}
+        {canSeeLogins && member.userId && (
+          <div className="lg:col-span-2">
+            <LoginActivityPanel orgSlug={orgSlug} userId={member.userId} />
+          </div>
         )}
 
         {/* Actions */}

@@ -490,6 +490,11 @@ const employeeApi = {
     });
   },
 
+  // Onboarding timeline for HR (2026-11-18): stage, missing details, steps.
+  getOnboardingTimeline(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/onboarding`);
+  },
+
   // ── Onboarding ─────────────────────────────────────────────────────────────
   checkOnboarding(orgSlug) {
     return api.request(`/api/org/${orgSlug}/employee/onboarding-check`);

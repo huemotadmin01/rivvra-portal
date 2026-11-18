@@ -16,6 +16,7 @@ import {
   PageHeader, Panel, Chip, Button, SearchInput, SelectChip,
   EmptyState, PageSpinner,
 } from '../../components/ds';
+import { ONBOARDING_STAGES } from '../../utils/activityTime';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The directory's data layer is spliced in verbatim in four segments, each
@@ -98,6 +99,7 @@ export default function EmployeeDirectoryV2() {
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [billableFilter, setBillableFilter] = useState('');
+  const [onboardingFilter, setOnboardingFilter] = useState(''); // 2026-11-18, HR admins
 
   // Departments for dropdown
   const [departments, setDepartments] = useState([]);
@@ -117,7 +119,7 @@ export default function EmployeeDirectoryV2() {
   const [flash, setFlash] = useState('');
 
   // Count active filters
-  const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter]
+  const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter, onboardingFilter]
     .filter(Boolean).length;
 
   // Fetch departments + employment types once
@@ -155,6 +157,7 @@ export default function EmployeeDirectoryV2() {
         employmentType: params.employmentType !== undefined ? params.employmentType : employmentTypeFilter,
         status: params.status !== undefined ? params.status : statusFilter,
         billable: params.billable !== undefined ? params.billable : billableFilter,
+        onboarding: onboardingFilter,
       });
       if (res.success) {
         setEmployees(res.employees || []);
@@ -168,7 +171,7 @@ export default function EmployeeDirectoryV2() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, departmentFilter, employmentTypeFilter, statusFilter, billableFilter]);
+  }, [orgSlug, currentCompany?._id, page, search, departmentFilter, employmentTypeFilter, statusFilter, billableFilter, onboardingFilter]);
 
   // Initial load + re-fetch on filter / page change (include fetchEmployees to fix stale closure)
   useEffect(() => {
@@ -205,6 +208,7 @@ export default function EmployeeDirectoryV2() {
     setEmploymentTypeFilter('');
     setStatusFilter('');
     setBillableFilter('');
+    setOnboardingFilter('');
     setPage(1);
   };
 
@@ -233,6 +237,12 @@ export default function EmployeeDirectoryV2() {
     { value: 'active', label: 'Active' },
     { value: 'resigned', label: 'Resigned' },
     { value: 'terminated', label: 'Terminated' },
+  ];
+
+  const onboardingOptions = [
+    { value: '', label: 'Any onboarding' },
+    ...['invited', 'form_pending', 'completed', 'not_requested', 'not_invited']
+      .map((k) => ({ value: k, label: ONBOARDING_STAGES[k].label })),
   ];
 
   const billableOptions = [
@@ -299,6 +309,10 @@ export default function EmployeeDirectoryV2() {
             onChange={handleFilterSelect(setStatusFilter)} />
           <SelectChip label="Billable" value={billableFilter} options={billableOptions}
             onChange={handleFilterSelect(setBillableFilter)} />
+          {isAdmin && (
+            <SelectChip label="Onboarding" value={onboardingFilter} options={onboardingOptions}
+              onChange={handleFilterSelect(setOnboardingFilter)} />
+          )}
 
           {activeFilterCount > 0 && (
             <Button variant="ghost" size="sm" onClick={clearAllFilters} iconLeft={<X size={13} />}>
@@ -314,7 +328,7 @@ export default function EmployeeDirectoryV2() {
       ) : employees.length === 0 ? (
         <Panel>
           <EmptyState icon={<Users size={22} />} title="No employees found">
-            {search || departmentFilter || employmentTypeFilter || statusFilter || billableFilter
+            {search || departmentFilter || employmentTypeFilter || statusFilter || billableFilter || onboardingFilter
               ? 'Try adjusting your search or filters.'
               : 'Add your first employee to get started.'}
           </EmptyState>
@@ -390,6 +404,9 @@ export default function EmployeeDirectoryV2() {
                       </Chip>
                     )}
                     {emp.billable && <Chip tone="brand">Billable</Chip>}
+                    {isAdmin && ['invited', 'form_pending'].includes(emp.onboardingStage) && (
+                      <Chip tone="warn">{ONBOARDING_STAGES[emp.onboardingStage].label}</Chip>
+                    )}
                   </div>
 
                   {/* Contact */}

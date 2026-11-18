@@ -67,6 +67,7 @@ import ComboSelect from '../../components/ComboSelect';
 import QuickAddClientModal from '../../components/QuickAddClientModalV2';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
 import { Paperclip } from 'lucide-react';
+import OnboardingTimelinePanel from '../../components/employee/OnboardingTimelinePanel';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -226,6 +227,7 @@ export default function EmployeeDetail() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showLettersMenu]);
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
+  const [onboardingRefresh, setOnboardingRefresh] = useState(0);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
@@ -888,6 +890,7 @@ export default function EmployeeDetail() {
         res = await employeeApi.sendOnboardingLink(currentOrg.slug, employeeId, { resend: true });
       }
       if (res.success) {
+        setOnboardingRefresh((n) => n + 1);
         alert('Onboarding form link sent successfully to ' + employee?.email);
       } else {
         alert(res.error || 'Failed to send onboarding link');
@@ -1289,6 +1292,13 @@ export default function EmployeeDetail() {
           </div>
         );
       })()}
+
+      {/* ── Onboarding timeline (HR admins, 2026-11-18) ─────────────────── */}
+      {isAdmin && (
+        <div className="mb-5">
+          <OnboardingTimelinePanel orgSlug={currentOrg?.slug} employeeId={emp._id} refreshKey={onboardingRefresh} />
+        </div>
+      )}
 
       {/* ── Info Sections (2-col grid) ──────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

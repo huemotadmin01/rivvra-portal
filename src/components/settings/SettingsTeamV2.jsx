@@ -28,6 +28,17 @@ import InviteTeamMemberModal from '../InviteTeamMemberModal';
 import ComboSelect from '../ComboSelect';
 import { Panel, Chip, Button, Input, Avatar, Callout, EmptyState, PageSpinner, ConfirmDialog } from '../ds';
 import { MAX_DAILY_SEND_LIMIT, MAX_HOURLY_SEND_LIMIT, clampSendLimit, parseSendLimitInput } from '../../utils/sendLimits';
+import { timeAgo, fmtDateTime } from '../../utils/activityTime';
+
+// Last seen = the later of "last active" (recorded from 18 Nov 2026) and the
+// last sign-in. Used by the Last active column and its filters (2026-11-18).
+const lastSeenOf = (m) => {
+  const t = Math.max(m.lastActiveAt ? new Date(m.lastActiveAt).getTime() : 0, m.lastLogin ? new Date(m.lastLogin).getTime() : 0);
+  return t || null;
+};
+const IDLE_DAYS = 14;
+// Fixed so the column headers line up with the rows.
+const APPS_COL_W = 190;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚠️ Every mutation on this page was left alone during verification: Invite
@@ -124,6 +135,7 @@ export default function SettingsTeamV2() {
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
+  const [activityFilter, setActivityFilter] = useState('all'); // all | never | idle
 
   // Resend invite
   const [resendingInvite, setResendingInvite] = useState(null);
@@ -248,7 +260,11 @@ export default function SettingsTeamV2() {
   const invitedMembers = members.filter(m => m.status === 'invited');
 
   // Search filter
+  const neverCount = activeMembers.filter(m => !lastSeenOf(m)).length;
+  const idleCount = activeMembers.filter(m => { const t = lastSeenOf(m); return t && Date.now() - t > IDLE_DAYS * 86400000; }).length;
   const filteredActive = activeMembers.filter(m => {
+    if (activityFilter === 'never' && lastSeenOf(m)) return false;
+    if (activityFilter === 'idle') { const t = lastSeenOf(m); if (!t || Date.now() - t <= IDLE_DAYS * 86400000) return false; }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (m.name || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q);
@@ -297,19 +313,45 @@ export default function SettingsTeamV2() {
               />
             </div>
 
+            {/* Activity filters (2026-11-18) */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {[
+                ['all', `All (${activeMembers.length})`],
+                ['never', `Never signed in (${neverCount})`],
+                ['idle', `Not active ${IDLE_DAYS}+ days (${idleCount})`],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActivityFilter(key)}
+                  aria-pressed={activityFilter === key}
+                  style={{
+                    height: 26, padding: '0 10px', borderRadius: 'var(--r-1)', cursor: 'pointer', border: 0,
+                    font: "500 11.5px/1 'Inter', system-ui, sans-serif",
+                    background: activityFilter === key ? 'var(--brand-soft)' : 'var(--surface-2)',
+                    color: activityFilter === key ? 'var(--brand-ink)' : 'var(--fg-3)',
+                    boxShadow: `0 0 0 1px ${activityFilter === key ? 'var(--brand-line)' : 'var(--line)'}`,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* Column headers */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '6px 14px', borderBottom: '1px solid var(--line-2)', marginBottom: 8 }}>
               <div style={{ ...colHead, flex: 1, minWidth: 0 }}>User</div>
-              <div style={{ ...colHead, textAlign: 'center' }}>Apps</div>
+              <div className="hidden md:block" style={{ ...colHead, width: 110 }}>Last active</div>
+              <div style={{ ...colHead, width: APPS_COL_W, textAlign: 'center', flexShrink: 0 }}>Apps</div>
               <div style={{ ...colHead, width: 112, textAlign: 'center' }}>Org Role</div>
               <div style={{ width: 32 }} />
             </div>
 
             {/* Active Members */}
             <div style={{ display: 'grid', gap: 4 }}>
-              {filteredActive.length === 0 && searchQuery.trim() && (
+              {filteredActive.length === 0 && (searchQuery.trim() || activityFilter !== 'all') && (
                 <p style={{ font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', textAlign: 'center', padding: '22px 0', margin: 0 }}>
-                  No members match "{searchQuery}"
+                  {searchQuery.trim() ? `No members match "${searchQuery}"` : 'No members in this view'}
                 </p>
               )}
               {filteredActive.map((member) => {
@@ -356,8 +398,28 @@ export default function SettingsTeamV2() {
                         </div>
                       </div>
 
+                      {/* Last active (2026-11-18) */}
+                      {(() => {
+                        const seen = lastSeenOf(member);
+                        const idle = seen && Date.now() - seen > IDLE_DAYS * 86400000;
+                        return (
+                          <div
+                            className="hidden md:block"
+                            style={{ width: 110, flexShrink: 0 }}
+                            title={[
+                              member.lastActiveAt ? `Last active: ${fmtDateTime(member.lastActiveAt)} IST` : null,
+                              member.lastLogin ? `Last sign-in: ${fmtDateTime(member.lastLogin)} IST` : 'Never signed in',
+                            ].filter(Boolean).join('\n')}
+                          >
+                            <span style={{ font: "500 11.5px/1.4 'Inter', system-ui, sans-serif", color: !seen ? 'var(--warn-ink)' : idle ? 'var(--fg-4)' : 'var(--fg-2)' }}>
+                              {seen ? timeAgo(seen) : 'Never'}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
                       {/* App access dots */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, width: APPS_COL_W }}>
                         {MANAGEABLE_APPS.map(app => {
                           const access = member.appAccess?.[app.id];
                           const isEnabled = access?.enabled === true;
