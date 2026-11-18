@@ -1421,7 +1421,10 @@ export default function AtsDashboardV2() {
                   <th className="text-left font-medium px-3 py-2">Job</th>
                   <th className="text-left font-medium px-3 py-2 hidden md:table-cell">Client</th>
                   <th className="text-left font-medium px-3 py-2 hidden lg:table-cell">Location</th>
-                  <th className="text-right font-medium px-3 py-2 hidden md:table-cell">Budget</th>
+                  {/* Client Budget: admins, sales, job owner/approver only (2026-11-18) */}
+                  {openJobsList.some((x) => !x.clientBudgetHidden) && (
+                    <th className="text-right font-medium px-3 py-2 hidden md:table-cell">Budget</th>
+                  )}
                   <th className="text-right font-medium px-3 py-2">Target</th>
                   <th className="text-right font-medium px-3 py-2">Hires</th>
                   <th className="text-right font-medium px-3 py-2">Apps</th>
@@ -1441,6 +1444,7 @@ export default function AtsDashboardV2() {
                     </td>
                     <td className="px-3 py-2 text-dark-300 truncate max-w-[200px] hidden md:table-cell" title={j.clientName}>{j.clientName || '—'}</td>
                     <td className="px-3 py-2 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={j.clientJobLocation || j.location}>{j.clientJobLocation || j.location || '—'}</td>
+                    {openJobsList.some((x) => !x.clientBudgetHidden) && (
                     <td className="px-3 py-2 text-right text-dark-300 hidden md:table-cell">
                       {/* 2026-05-17 health-check I.2: format with the
                           company's currency to match AtsJobDetail; raw
@@ -1454,6 +1458,7 @@ export default function AtsDashboardV2() {
                           : Number(j.clientBudget).toLocaleString())
                         : '—'}
                     </td>
+                    )}
                     <td className="px-3 py-2 text-right text-dark-300">{j.expectedHires || 1}</td>
                     <td className="px-3 py-2 text-right">
                       <span className={(j.hiredCount || 0) >= (j.expectedHires || 1) ? 'text-emerald-400 font-medium' : 'text-dark-300'}>

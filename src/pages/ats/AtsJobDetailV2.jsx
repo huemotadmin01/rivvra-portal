@@ -1603,15 +1603,20 @@ export default function AtsJobDetail() {
               onSave={saveWorkLocation}
               placeholder="e.g. Remote, Bangalore on-site"
             />
-            <InlineField
-              label="Client Budget"
-              field="clientBudget"
-              value={job.clientBudget}
-              editable={canEdit}
-              onSave={saveField}
-              placeholder="0"
-              displayValue={fmtBudget(job.clientBudget) || undefined}
-            />
+            {/* Client Budget: admins, sales, and this job's Account Owner /
+                Approver only — the API leaves it out for everyone else
+                (2026-11-18). */}
+            {!job.clientBudgetHidden && (
+              <InlineField
+                label="Client Budget"
+                field="clientBudget"
+                value={job.clientBudget}
+                editable={canEdit}
+                onSave={saveField}
+                placeholder="0"
+                displayValue={fmtBudget(job.clientBudget) || undefined}
+              />
+            )}
             <InlineField
               label="Candidate Max Budget"
               field="maxBudget"
