@@ -481,9 +481,12 @@ const employeeApi = {
   },
 
   // ── Send Onboarding Form Link ──────────────────────────────────────────────
-  sendOnboardingLink(orgSlug, employeeId) {
+  // resend: true = the person already completed the form; email the link
+  // anyway (opens the form for updates) without asking them to fill it again.
+  sendOnboardingLink(orgSlug, employeeId, { resend = false } = {}) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/send-onboarding-link`, {
       method: 'POST',
+      body: JSON.stringify(resend ? { resend: true } : {}),
     });
   },
 

@@ -760,7 +760,22 @@ export default function EmployeeDetail() {
     if (!currentOrg?.slug || !employeeId || sendingOnboardingLink) return;
     setSendingOnboardingLink(true);
     try {
-      const res = await employeeApi.sendOnboardingLink(currentOrg.slug, employeeId);
+      let res;
+      try {
+        res = await employeeApi.sendOnboardingLink(currentOrg.slug, employeeId);
+      } catch (err) {
+        // Already filled in — ask before emailing again (2026-11-18). A resend
+        // no longer makes them fill the form again before using the app.
+        if (err.code !== 'ONBOARDING_ALREADY_COMPLETED') throw err;
+        const when = err.completedAt
+          ? ' on ' + new Date(err.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '';
+        if (!window.confirm(
+          `${employee?.fullName || 'This employee'} already completed the onboarding form${when}.\n\n` +
+          'Send the link anyway? They can use it to update their details, but they will NOT be asked to fill the form again.'
+        )) return;
+        res = await employeeApi.sendOnboardingLink(currentOrg.slug, employeeId, { resend: true });
+      }
       if (res.success) {
         alert('Onboarding form link sent successfully to ' + employee?.email);
       } else {
