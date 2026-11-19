@@ -39,6 +39,28 @@ const ENROLLMENT_STATUS = {
   stopped: { text: 'text-dark-400', label: 'Stopped' },
 };
 
+// Company hold (2026-11-19): the engine postpones every contact at a company
+// whose mail filter has blocked us 3+ times in 14 days, for 30 days after the
+// last block — to protect huemot.com's sending reputation. Reps saw nothing
+// going out and reported an outage, because nothing on screen said so.
+function fmtHoldDate(d) {
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+function companyHoldText(h) {
+  return `${h.domain} has blocked ${h.blocks} of our emails in the last 2 weeks, so Rivvra won't email anyone there until ${fmtHoldDate(h.pausedUntil)} — this protects huemot.com's sending reputation. Reach them by phone or LinkedIn meanwhile.`;
+}
+function CompanyHoldChip({ hold }) {
+  return (
+    <span
+      title={companyHoldText(hold)}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded border text-amber-400 bg-amber-500/10 border-amber-500/20 whitespace-nowrap"
+    >
+      <Pause className="w-3 h-3" />
+      Company paused · until {fmtHoldDate(hold.pausedUntil)}
+    </span>
+  );
+}
+
 const PLACEHOLDERS = [
   { label: '{{firstName}}', desc: 'First name' },
   { label: '{{lastName}}', desc: 'Last name' },
@@ -61,6 +83,7 @@ function SequenceDetailPage({ sequenceId, onBack }) {
   const [enrollmentTotal, setEnrollmentTotal] = useState(0);
   const [enrollmentPage, setEnrollmentPage] = useState(1);
   const [ownerCounts, setOwnerCounts] = useState({});
+  const [companyHolds, setCompanyHolds] = useState([]);
 
   // Email log state
   const [emailLog, setEmailLog] = useState([]);
@@ -119,6 +142,7 @@ function SequenceDetailPage({ sequenceId, onBack }) {
         if (res.ownerCounts && Object.keys(res.ownerCounts).length > 0) {
           setOwnerCounts(res.ownerCounts);
         }
+        if (page === 1 && Array.isArray(res.companyHolds)) setCompanyHolds(res.companyHolds);
       }
     } catch (err) {
       console.error('Failed to load enrollments:', err);
@@ -572,6 +596,7 @@ function SequenceDetailPage({ sequenceId, onBack }) {
           enrollments={enrollments}
           enrollmentTotal={enrollmentTotal}
           ownerCounts={ownerCounts}
+          companyHolds={companyHolds}
           user={user}
           onLoadMore={(opts) => loadEnrollments(enrollmentPage + 1, opts)}
           onRemoveEnrollment={handleRemoveEnrollment}
@@ -1225,7 +1250,7 @@ const SortableHeader = memo(function SortableHeader({ label, sortKey, currentSor
 
 // ========================== CONTACTS TAB ==========================
 
-function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user, onLoadMore, onRemoveEnrollment, onPauseEnrollment, onMarkReplied, onReloadEnrollments, onBulkPause, onBulkRemove, onViewContactEmails, persistedFilters, onFilterChange }) {
+function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, companyHolds = [], user, onLoadMore, onRemoveEnrollment, onPauseEnrollment, onMarkReplied, onReloadEnrollments, onBulkPause, onBulkRemove, onViewContactEmails, persistedFilters, onFilterChange }) {
   const [contactSearch, setContactSearch] = useState(persistedFilters?.contactSearch || '');
   const [contactFilter, setContactFilter] = useState(persistedFilters?.contactFilter || 'all');
   const [showContactFilter, setShowContactFilter] = useState(false);
@@ -1661,6 +1686,25 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
         </div>
       </div>
 
+      {/* Contacts held because their company keeps blocking our emails. */}
+      {companyHolds.length > 0 && (
+        <div className="mb-3 flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg border border-amber-500/25 bg-amber-500/10">
+          <Pause className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-xs leading-relaxed">
+            <p className="text-amber-300 font-semibold">
+              {companyHolds.reduce((n, h) => n + h.count, 0)} contact{companyHolds.reduce((n, h) => n + h.count, 0) === 1 ? ' is' : 's are'} on hold — their company is blocking our emails
+            </p>
+            <p className="text-dark-300 mt-0.5">
+              {companyHolds.slice(0, 6).map((h) => `${h.domain} (${h.count}, until ${fmtHoldDate(h.pausedUntil)})`).join(' · ')}
+              {companyHolds.length > 6 ? ` · +${companyHolds.length - 6} more` : ''}
+            </p>
+            <p className="text-dark-400 mt-0.5">
+              A company that blocks 3 of our emails in 2 weeks is paused for 30 days to protect huemot.com's sending reputation. Nothing is stopped — these send automatically when the pause ends. Reach them by phone or LinkedIn meanwhile.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-visible">
         <div className="overflow-x-auto overflow-y-visible">
@@ -1739,6 +1783,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
                           'bg-dark-500'
                         }`} />
                         <span className="text-xs text-dark-300">{enrollStatus.label}</span>
+                        {enrollment.companyHold && <CompanyHoldChip hold={enrollment.companyHold} />}
                       </div>
                     </td>
                     {showOwner && (
@@ -2219,6 +2264,9 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                 {user?.role === 'admin' && enrollment.enrolledByName && enrollment.enrolledByName !== user?.name && (
                   <div className="text-xs text-dark-600 mt-0.5 truncate">by {enrollment.enrolledByName}</div>
                 )}
+                {enrollment.companyHold && (
+                  <div className="mt-1"><CompanyHoldChip hold={enrollment.companyHold} /></div>
+                )}
                 {lastEngaged && (
                   <div className="text-xs text-dark-600 mt-1">Last engaged: {lastEngaged}</div>
                 )}
@@ -2256,7 +2304,7 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                         <span className="text-xs font-semibold text-dark-400">Email {scheduledEmail.emailNumber}</span>
                         <span className="text-sm font-medium text-white truncate max-w-xs">{scheduledEmail.subject || 'No subject'}</span>
                         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border text-amber-400 bg-amber-500/10 border-amber-500/20">
-                          Scheduled
+                          {selectedContact.companyHold ? 'On hold' : 'Scheduled'}
                         </span>
                       </div>
                       <span className="text-xs text-dark-500">
@@ -2266,6 +2314,11 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                         })}
                       </span>
                     </div>
+                    {selectedContact.companyHold && (
+                      <p className="mt-1 mb-2 text-xs text-amber-300/90 leading-relaxed">
+                        {companyHoldText(selectedContact.companyHold)}
+                      </p>
+                    )}
                     {scheduledEmail.body && !isBodyEmpty(scheduledEmail.body) && (
                       <div className="mt-2">
                         <span className="text-xs text-dark-500">Content</span>
