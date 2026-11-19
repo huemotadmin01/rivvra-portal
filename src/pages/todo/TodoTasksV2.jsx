@@ -26,7 +26,7 @@ import todoApi from '../../utils/todoApi';
 import useTodoAssign from '../../hooks/useTodoAssign';
 import TaskCardV2 from '../../components/todo/v2/TaskCardV2';
 import TaskFormModalV2 from '../../components/todo/v2/TaskFormModalV2';
-import { CheckSquare, Plus, CheckCircle2, User, Send, Users, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckSquare, Plus, CheckCircle2, User, Send, Users, Building2, X, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   Button, Callout, ConfirmDialog, EmptyState, Pagination, PageHeader, Panel, SearchInput,
   SelectChip, Spinner, Tabs, BulkActionBar,
@@ -34,7 +34,7 @@ import {
 
 const FONT = "'Inter', system-ui, sans-serif";
 const PAGE_SIZE = 50;
-const VIEWS = ['mine', 'assigned', 'team'];
+const VIEWS = ['mine', 'assigned', 'team', 'everyone'];
 
 const STATUS_TABS_ALL = [
   { key: 'open', label: 'Open' },
@@ -339,6 +339,8 @@ export default function TodoTasksV2() {
   const mine = overview?.mine;
   const assigned = overview?.assigned;
   const team = overview?.team;
+  // Org owners/admins get "Everyone": every employee in the company (2026-11-19).
+  const everyone = overview?.everyone;
   const showAssigned = !!(canAssign || assigned?.total);
   const showTeam = !!team?.size;
   const cards = [
@@ -357,21 +359,30 @@ export default function TodoTasksV2() {
       open: team?.open, overdue: team?.overdue,
       sub: team ? `${team.size} ${team.size === 1 ? 'person' : 'people'} · ${team.doneWeek} done this week` : '',
     },
+    everyone && {
+      key: 'everyone', label: 'Everyone', icon: Building2,
+      open: everyone.open, overdue: everyone.overdue,
+      sub: `${everyone.size} people · ${everyone.doneWeek} done this week`,
+    },
   ].filter(Boolean);
 
   // People for the current view (person filter + People table).
-  const people = view === 'team' ? (team?.people || []) : view === 'assigned' ? (assigned?.people || []) : [];
+  const people = view === 'everyone' ? (everyone?.people || [])
+    : view === 'team' ? (team?.people || [])
+      : view === 'assigned' ? (assigned?.people || []) : [];
   const personName = people.find(p => p.userId === person)?.name;
 
   const statusTabs = STATUS_TABS_ALL.filter(t => !t.mineOnly || view === 'mine');
-  const viewTitle = { mine: 'My tasks', assigned: 'Tasks I assigned', team: 'My team’s tasks' }[view];
+  const viewTitle = { mine: 'My tasks', assigned: 'Tasks I assigned', team: 'My team’s tasks', everyone: 'Everyone’s tasks' }[view];
   const filtersActive = !!(debouncedSearch || priorityFilter || originFilter || person);
 
   return (
     <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1180 }}>
       <PageHeader
         title="Tasks"
-        sub={view === 'team'
+        sub={view === 'everyone'
+          ? 'Every employee in this company (admins only). You can change a task only if you assigned it.'
+          : view === 'team'
           ? 'Everyone in your reporting line. You can change a task only if you assigned it.'
           : view === 'assigned'
             ? 'Work you have given to other people.'
@@ -475,8 +486,8 @@ export default function TodoTasksV2() {
             ? 'Nothing matches these filters — clear them to see everything.'
             : view === 'assigned'
               ? 'Use “New / assign task” and pick a person to delegate work. You can follow it here.'
-              : view === 'team'
-                ? 'No tasks in this list for your team.'
+              : view === 'team' || view === 'everyone'
+                ? 'No tasks in this list.'
                 : 'Add a task, or switch the tab above.'}
         </EmptyState>
       ) : (
@@ -626,7 +637,7 @@ function PeopleTable({ people, view, selected, onSelect }) {
   return (
     <Panel
       flush
-      title={view === 'team' ? 'People in your team' : 'People you assigned work to'}
+      title={view === 'everyone' ? 'Everyone in the company' : view === 'team' ? 'People in your team' : 'People you assigned work to'}
       icon={<Users size={14} />}
       style={{ marginBottom: 16 }}
     >
@@ -657,11 +668,17 @@ function PeopleTable({ people, view, selected, onSelect }) {
                 >
                   <td style={{ ...td, textAlign: 'left' }}>
                     <span style={{ font: `550 12.5px/1.3 ${FONT}`, color: on ? 'var(--brand-ink)' : 'var(--fg)' }}>{p.name}</span>
-                    {(p.designation || (p.depth > 1 && p.managerName)) && (
+                    {(() => {
+                      // Team view: the manager only matters below the first level.
+                      // Everyone view: always say who they report to.
+                      const showMgr = p.managerName && (view === 'everyone' || p.depth > 1);
+                      const bits = [p.designation, showMgr ? `reports to ${p.managerName}` : null].filter(Boolean);
+                      return bits.length > 0 && (
                       <span style={{ display: 'block', font: `450 11px/1.3 ${FONT}`, color: 'var(--fg-4)' }}>
-                        {[p.designation, p.depth > 1 && p.managerName ? `reports to ${p.managerName}` : null].filter(Boolean).join(' · ')}
+                        {bits.join(' · ')}
                       </span>
-                    )}
+                      );
+                    })()}
                   </td>
                   <td style={td}>{p.open || <span style={{ color: 'var(--fg-4)' }}>0</span>}</td>
                   <td style={{ ...td, color: p.overdue ? 'var(--danger)' : 'var(--fg-4)', fontWeight: p.overdue ? 650 : 500 }}>{p.overdue}</td>

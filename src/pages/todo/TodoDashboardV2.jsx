@@ -39,7 +39,7 @@ import SuggestionsBanner from '../../components/todo/SuggestionsBanner';
 import ScanStatus from '../../components/todo/ScanStatus';
 import {
   Plus, CheckSquare, Clock, AlertTriangle,
-  ListTodo, CheckCircle2, ArrowUpCircle, Users, Send, ChevronRight,
+  ListTodo, CheckCircle2, ArrowUpCircle, Users, Send, ChevronRight, Building2,
 } from 'lucide-react';
 import { Button, EmptyState, PageHeader, Panel, Spinner, Stat } from '../../components/ds';
 
@@ -296,7 +296,16 @@ export default function TodoDashboardV2() {
 
         {/* Scan Status (+ team panels for managers) */}
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {overview?.team?.size > 0 && (
+          {/* Admins: the whole company; managers: their reporting line. */}
+          {overview?.everyone?.size > 0 ? (
+            <PeoplePanel
+              title="Everyone"
+              icon={<Building2 size={14} />}
+              totals={overview.everyone}
+              people={overview.everyone.people}
+              onOpen={(person) => navigate(orgPath(`/todo/tasks?view=everyone${person ? `&person=${person}` : ''}`))}
+            />
+          ) : overview?.team?.size > 0 && (
             <PeoplePanel
               title="My team"
               icon={<Users size={14} />}
