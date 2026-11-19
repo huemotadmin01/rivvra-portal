@@ -620,18 +620,23 @@ function ViewCard({ card, active, onClick }) {
   );
 }
 
-const PEOPLE_PREVIEW = 6;
+// 19 Nov: the full list was mostly rows of zeros. Only people with work
+// (open, or done this week) are listed; the rest fold into one line, and the
+// table scrolls inside a fixed height so the task list stays in view.
+const PEOPLE_MAX_HEIGHT = 330;
 
 function PeopleTable({ people, view, selected, onSelect }) {
-  const [expanded, setExpanded] = useState(false);
-  // Who needs a look first: most overdue, then most open. People with
-  // nothing open and nothing done this week go last.
+  const [showIdle, setShowIdle] = useState(false);
+  // Who needs a look first: most overdue, then most open.
   const sorted = [...people].sort((a, b) =>
     b.overdue - a.overdue || b.open - a.open || b.doneWeek - a.doneWeek || a.name.localeCompare(b.name));
-  const shown = expanded ? sorted : sorted.slice(0, PEOPLE_PREVIEW);
+  const isIdle = (p) => !p.open && !p.doneWeek;
+  const idle = sorted.filter(p => isIdle(p) && p.userId !== selected);
+  const shown = showIdle ? sorted : sorted.filter(p => !idle.includes(p));
   const th = {
     textAlign: 'right', padding: '7px 10px', font: `600 10px/1 ${FONT}`, color: 'var(--fg-4)',
     textTransform: 'uppercase', letterSpacing: '.07em', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap',
+    position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface-1)', boxShadow: 'inset 0 -1px 0 var(--line)',
   };
   const td = { textAlign: 'right', padding: '7px 10px', font: `500 12.5px/1.3 ${FONT}`, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' };
   return (
@@ -641,7 +646,7 @@ function PeopleTable({ people, view, selected, onSelect }) {
       icon={<Users size={14} />}
       style={{ marginBottom: 16 }}
     >
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflow: 'auto', maxHeight: PEOPLE_MAX_HEIGHT }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
           <thead>
             <tr>
@@ -691,17 +696,25 @@ function PeopleTable({ people, view, selected, onSelect }) {
           </tbody>
         </table>
       </div>
-      {sorted.length > PEOPLE_PREVIEW && (
+      {shown.length === 0 && !showIdle && (
+        <div style={{ padding: '10px 12px', font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-4)' }}>
+          Nobody has open tasks right now.
+        </div>
+      )}
+      {idle.length > 0 && (
         <button
           type="button"
-          onClick={() => setExpanded(v => !v)}
+          onClick={() => setShowIdle(v => !v)}
+          title={showIdle ? undefined : idle.map(p => p.name).join(', ')}
           style={{
             display: 'flex', alignItems: 'center', gap: 5, width: '100%', justifyContent: 'center',
             padding: '8px 10px', border: 'none', borderTop: '1px solid var(--line)', background: 'transparent',
-            cursor: 'pointer', font: `550 12px/1 ${FONT}`, color: 'var(--brand-ink)',
+            cursor: 'pointer', font: `550 12px/1 ${FONT}`, color: 'var(--fg-3)',
           }}
         >
-          {expanded ? <><ChevronUp size={13} /> Show fewer</> : <><ChevronDown size={13} /> Show all {sorted.length} people</>}
+          {showIdle
+            ? <><ChevronUp size={13} /> Hide people with no tasks</>
+            : <><ChevronDown size={13} /> {idle.length} {idle.length === 1 ? 'person has' : 'people have'} no open tasks — show</>}
         </button>
       )}
     </Panel>
