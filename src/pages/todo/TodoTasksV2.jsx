@@ -110,13 +110,24 @@ export default function TodoTasksV2() {
   const [loadError, setLoadError] = useState('');
   const [tasks, setTasks] = useState([]);
   const [total, setTotal] = useState(0);
-  const [overview, setOverview] = useState(null);
+  // The counts take ~1 s on a cold load; without them the view cards and
+  // People table popped in late and shoved the list down (seen live
+  // 2026-11-19). Draw from this viewer's last counts, then refresh.
+  const cacheKey = orgSlug ? `rivvra_todo_overview:${orgSlug}` : null;
+  const [overview, setOverview] = useState(() => {
+    if (!cacheKey) return null;
+    try { return JSON.parse(sessionStorage.getItem(cacheKey) || 'null'); } catch { return null; }
+  });
   const reqSeq = useRef(0);
 
   const loadOverview = useCallback(() => {
     if (!orgSlug) return;
     todoApi.getOverview(orgSlug)
-      .then(res => { if (res?.success) setOverview(res); })
+      .then(res => {
+        if (!res?.success) return;
+        setOverview(res);
+        try { sessionStorage.setItem(`rivvra_todo_overview:${orgSlug}`, JSON.stringify(res)); } catch { /* storage off */ }
+      })
       .catch(() => { /* cards fall back to no counts */ });
   }, [orgSlug]);
 
@@ -161,7 +172,10 @@ export default function TodoTasksV2() {
   const [deletingTask, setDeletingTask] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const { canAssign, assignableEmployees } = useTodoAssign(orgSlug);
+  const { canAssign: canAssignCtx, assignableEmployees } = useTodoAssign(orgSlug);
+  // Either source is enough to label the button and show "Assigned by me"
+  // while the other is still loading.
+  const canAssign = canAssignCtx || !!overview?.canAssign;
 
   // Ask Rivvra draft hand-off (?draft=<key> → sessionStorage): open the
   // create modal prefilled; the key is consumed so a reload does not re-open.
