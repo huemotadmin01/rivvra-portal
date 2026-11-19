@@ -100,7 +100,6 @@ const ExpenseDetailV2 = lazy(() => import('./pages/expenses/ExpenseDetailV2'));
 // Lazy-loaded: To-Do app pages
 const TodoDashboardV2 = lazy(() => import('./pages/todo/TodoDashboardV2'));
 const TodoTasksV2 = lazy(() => import('./pages/todo/TodoTasksV2'));
-const TodoTeamTasksV2 = lazy(() => import('./pages/todo/TodoTeamTasksV2'));
 
 // Lazy-loaded: Timesheet app pages
 
@@ -366,6 +365,13 @@ function OrgPlatformLayout() {
 function InvoicingOverdueRedirect() {
   const { slug } = useParams();
   return <Navigate to={`/org/${slug}/invoicing/invoices?overdue=true`} replace />;
+}
+
+// To-Do Team Tasks became the "Assigned by me" view of the one Tasks screen
+// (2026-11-19). Bell links and e-mails still point at /todo/team.
+function TodoTeamRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/todo/tasks?view=assigned`} replace />;
 }
 
 // Helper: redirect from /org/:slug/settings to /org/:slug/settings/general
@@ -734,7 +740,7 @@ function App() {
               <Route element={<AppAccessGate appId="todo" />}>
                 <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><TodoDashboardV2 /></ErrorBoundary>} />
                 <Route path="/org/:slug/todo/tasks" element={<ErrorBoundary><TodoTasksV2 /></ErrorBoundary>} />
-                <Route path="/org/:slug/todo/team" element={<ErrorBoundary><TodoTeamTasksV2 /></ErrorBoundary>} />
+                <Route path="/org/:slug/todo/team" element={<TodoTeamRedirect />} />
               </Route>
 
               {/* Invoicing app routes — admin only */}

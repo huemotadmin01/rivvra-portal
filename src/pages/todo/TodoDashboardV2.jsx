@@ -39,7 +39,7 @@ import SuggestionsBanner from '../../components/todo/SuggestionsBanner';
 import ScanStatus from '../../components/todo/ScanStatus';
 import {
   Plus, CheckSquare, Clock, AlertTriangle,
-  ListTodo, CheckCircle2, ArrowUpCircle,
+  ListTodo, CheckCircle2, ArrowUpCircle, Users, Send, ChevronRight,
 } from 'lucide-react';
 import { Button, EmptyState, PageHeader, Panel, Spinner, Stat } from '../../components/ds';
 
@@ -61,6 +61,9 @@ export default function TodoDashboardV2() {
   const [lastScan, setLastScan] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [gmailStatus, setGmailStatus] = useState({ connected: false });
+  // Team / assigned-by-me numbers for managers (2026-11-19). Not part of the
+  // page's loading gate: the dashboard renders without them.
+  const [overview, setOverview] = useState(null);
   const { canAssign, assignableEmployees } = useTodoAssign(orgSlug);
   const processedGmailCode = useRef(null);
 
@@ -106,6 +109,9 @@ export default function TodoDashboardV2() {
   async function loadDashboard(silent = false) {
     try {
       if (!silent) setLoading(true);
+      todoApi.getOverview(orgSlug)
+        .then(res => { if (res?.success) setOverview(res); })
+        .catch(() => {});
       const [dashRes, gmailRes] = await Promise.all([
         todoApi.getDashboard(orgSlug),
         todoApi.getGmailStatus(orgSlug),
@@ -180,16 +186,12 @@ export default function TodoDashboardV2() {
     setRecentTasks(prev => prev.map(t =>
       t._id === task._id ? { ...t, status: newStatus } : t
     ));
-    setStats(prev => {
-      const delta = newStatus === 'done' ? 1 : -1;
-      return {
-        ...prev,
-        done: prev.done + delta,
-        pending: prev.pending - delta,
-      };
-    });
     try {
       await todoApi.updateTask(orgSlug, task._id, { status: newStatus });
+      // Counts come from the server: the old optimistic maths took one off
+      // "Pending" even when the task was In Progress, and a repeating task's
+      // next copy never appeared until a full reload.
+      loadDashboard(true);
     } catch {
       // Revert on failure
       setRecentTasks(prev => prev.map(t =>
@@ -209,8 +211,8 @@ export default function TodoDashboardV2() {
   }
 
   const tiles = [
-    { label: 'Total Tasks', value: stats.total, icon: <ListTodo size={14} />, color: 'var(--a-todo)', to: '/todo/tasks' },
-    { label: 'Pending', value: stats.pending, icon: <Clock size={14} />, color: 'var(--warn)', to: '/todo/tasks?status=pending' },
+    { label: 'Total Tasks', value: stats.total, icon: <ListTodo size={14} />, color: 'var(--a-todo)', to: '/todo/tasks?status=all' },
+    { label: 'Not started', value: stats.pending, icon: <Clock size={14} />, color: 'var(--warn)', to: '/todo/tasks?status=pending' },
     { label: 'In Progress', value: stats.inProgress, icon: <ArrowUpCircle size={14} />, color: 'var(--info)', to: '/todo/tasks?status=in-progress' },
     { label: 'Done', value: stats.done, icon: <CheckCircle2 size={14} />, color: 'var(--brand)', to: '/todo/tasks?status=done' },
     { label: 'Overdue', value: stats.overdue, icon: <AlertTriangle size={14} />, color: 'var(--danger)', to: '/todo/tasks?status=overdue' },
@@ -220,7 +222,7 @@ export default function TodoDashboardV2() {
     <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1220 }}>
       <PageHeader
         title="To-Do Dashboard"
-        sub="Manage your tasks and AI-extracted action items"
+        sub="Your own tasks below. Open Tasks to see your team and what you assigned."
         actions={
           <Button iconLeft={<Plus size={15} />} onClick={() => setShowCreateModal(true)}>
             New Task
@@ -292,8 +294,26 @@ export default function TodoDashboardV2() {
           </Panel>
         </div>
 
-        {/* Scan Status */}
-        <div style={{ minWidth: 0 }}>
+        {/* Scan Status (+ team panels for managers) */}
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {overview?.team?.size > 0 && (
+            <PeoplePanel
+              title="My team"
+              icon={<Users size={14} />}
+              totals={overview.team}
+              people={overview.team.people}
+              onOpen={(person) => navigate(orgPath(`/todo/tasks?view=team${person ? `&person=${person}` : ''}`))}
+            />
+          )}
+          {overview?.assigned?.total > 0 && (
+            <PeoplePanel
+              title="Assigned by me"
+              icon={<Send size={14} />}
+              totals={overview.assigned}
+              people={overview.assigned.people}
+              onOpen={(person) => navigate(orgPath(`/todo/tasks?view=assigned${person ? `&person=${person}` : ''}`))}
+            />
+          )}
           <ScanStatus
             orgSlug={orgSlug}
             gmailStatus={gmailStatus}
@@ -313,5 +333,54 @@ export default function TodoDashboardV2() {
         />
       )}
     </div>
+  );
+}
+
+// Compact "who needs a look" list for the dashboard: totals, then the people
+// with the most overdue / open work. Each row opens that person's tasks.
+const PANEL_ROWS = 5;
+function PeoplePanel({ title, icon, totals, people, onOpen }) {
+  const FONT = "'Inter', system-ui, sans-serif";
+  const rows = [...(people || [])]
+    .filter(p => p.open > 0 || p.overdue > 0)
+    .sort((a, b) => b.overdue - a.overdue || b.open - a.open || a.name.localeCompare(b.name))
+    .slice(0, PANEL_ROWS);
+  return (
+    <Panel
+      flush
+      title={title}
+      icon={icon}
+      actions={<Button variant="ghost" size="sm" onClick={() => onOpen('')}>Open</Button>}
+    >
+      <div style={{ display: 'flex', gap: 18, padding: '10px 14px', borderBottom: rows.length ? '1px solid var(--line)' : 'none' }}>
+        <span style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg)' }}>
+          {totals.open}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>open</span>
+        </span>
+        <span style={{ font: `650 18px/1 ${FONT}`, color: totals.overdue ? 'var(--danger)' : 'var(--fg-4)' }}>
+          {totals.overdue}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>overdue</span>
+        </span>
+        <span style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg-2)' }}>
+          {totals.doneWeek}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>done this week</span>
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <p style={{ padding: '10px 14px', font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-4)', margin: 0 }}>Nothing open right now.</p>
+      ) : rows.map((p, i) => (
+        <button
+          key={p.userId}
+          type="button"
+          onClick={() => onOpen(p.userId)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 14px',
+            border: 'none', borderTop: i ? '1px solid var(--line)' : 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <span style={{ flex: 1, minWidth: 0, font: `550 12.5px/1.3 ${FONT}`, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+          <span style={{ font: `500 12px/1 ${FONT}`, color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums' }}>{p.open} open</span>
+          {p.overdue > 0 && <span style={{ font: `600 12px/1 ${FONT}`, color: 'var(--danger)', fontVariantNumeric: 'tabular-nums' }}>{p.overdue} overdue</span>}
+          <ChevronRight size={14} style={{ color: 'var(--fg-4)' }} />
+        </button>
+      ))}
+    </Panel>
   );
 }

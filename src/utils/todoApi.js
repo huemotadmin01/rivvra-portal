@@ -64,6 +64,12 @@ const todoApi = {
     });
   },
 
+  // Counts for the view switcher, the people list and the dashboard:
+  // mine / assigned (by me) / team (my reporting line). 2026-11-19.
+  getOverview(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/todo/overview`);
+  },
+
   // ── Team Tasks (assignment) ────────────────────────────────────────
   getAssignContext(orgSlug) {
     return api.request(`/api/org/${orgSlug}/todo/assign-context`);

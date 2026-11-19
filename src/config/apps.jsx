@@ -534,8 +534,9 @@ export const APP_REGISTRY = {
       const isAdmin = orgAppRole === 'admin';
       return [
         { type: 'item', path: '/todo/dashboard', label: 'Dashboard', icon: Home },
-        { type: 'item', path: '/todo/tasks', label: 'All Tasks', icon: CheckSquare },
-        { type: 'item', path: '/todo/team', label: 'Team Tasks', icon: Users },
+        // One Tasks screen with My tasks / Assigned by me / My team views
+        // (2026-11-19); old /todo/team links redirect into it.
+        { type: 'item', path: '/todo/tasks', label: 'Tasks', icon: CheckSquare },
         ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,

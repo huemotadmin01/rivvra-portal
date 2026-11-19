@@ -82,12 +82,23 @@ export default function TaskCardV2({
   onDismiss,
   showCheckbox,
   teamView,
+  // 2026-11-19: lists other than "My tasks" show whose task it is, and the
+  // server says what this user may do with it (owner / assignee / assigner /
+  // viewer). A viewer — a manager looking at a subordinate's task someone
+  // else gave them — can read it but not change it.
+  showOwner = false,
 }) {
   const { showToast } = useToast();
   const StatusIcon = STATUS_ICONS[task.status] || Circle;
-  const dueInfo = formatDate(task.dueDate);
   const isAiSuggestion = task.source === 'ai' && !task.aiMeta?.accepted;
   const isDone = task.status === 'done';
+  // A finished task is never "overdue" — done rows used to carry a red
+  // "10d overdue" forever (2026-11-19). Show the plain due date instead.
+  const dueInfo = (() => {
+    const d = formatDate(task.dueDate);
+    if (!d || !isDone || !d.overdue) return d;
+    return { text: `Was due ${new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`, overdue: false };
+  })();
 
   // AI guide ("Guide me" coach) — kept in local state so generating/toggling
   // steps doesn't force a full list reload.
@@ -96,16 +107,20 @@ export default function TaskCardV2({
   const [generating, setGenerating] = useState(false);
   useEffect(() => { setGuide(task.guide || null); }, [task.guide]);
 
-  // The guide belongs to the task owner — in the assigner's team view it is
-  // read-only (generate/toggle routes are owner-scoped).
-  const canGuide = !!orgSlug && !isAiSuggestion && !teamView;
+  const isDelegated = task.assignedByUserId && task.assignedByUserId !== task.userId;
+  // Older responses carry no `access`; fall back to the old two-way rule.
+  const access = task.access || (teamView ? 'assigner' : (isDelegated ? 'assignee' : 'owner'));
+  const readOnly = access === 'viewer';
+  const notMine = access === 'assigner' || access === 'viewer';
+
+  // The guide belongs to the task owner — read-only for anyone else
+  // (generate/toggle routes are owner-scoped).
+  const canGuide = !!orgSlug && !isAiSuggestion && !notMine;
   const guideDone = guide?.steps?.filter(s => s.done).length || 0;
 
   // Delegated task in the assignee's list: content edits/deletes belong to the
   // assigner (server enforces; hide the buttons so users don't hit 403s).
-  // `teamView` renders the assigner's perspective (Team Tasks tab).
-  const isDelegated = task.assignedByUserId && task.assignedByUserId !== task.userId;
-  const lockedForAssignee = isDelegated && !teamView;
+  const lockedForAssignee = access === 'assignee' || readOnly;
 
   async function handleGenerateGuide(regenerate = false) {
     if (generating) return;
@@ -164,11 +179,14 @@ export default function TaskCardV2({
       {/* Status toggle */}
       <button
         type="button"
-        onClick={onToggleStatus}
-        aria-label={isDone ? 'Mark as pending' : 'Mark as done'}
+        onClick={readOnly ? undefined : onToggleStatus}
+        disabled={readOnly}
+        aria-label={readOnly ? `Status: ${task.status}` : (isDone ? 'Mark as pending' : 'Mark as done')}
+        title={readOnly ? 'Only the person it belongs to, or whoever assigned it, can change this task' : undefined}
         style={{
           ...iconBtn, width: 22, height: 22, marginTop: 1,
-          color: isDone ? 'var(--brand)' : 'var(--fg-4)',
+          color: isDone ? 'var(--brand)' : (task.status === 'in-progress' ? 'var(--info)' : 'var(--fg-4)'),
+          cursor: readOnly ? 'default' : 'pointer',
         }}
       >
         <StatusIcon size={19} />
@@ -204,8 +222,25 @@ export default function TaskCardV2({
             </Chip>
           )}
 
+          {/* Whose task (any list other than my own) */}
+          {showOwner && (
+            <Chip tone="brand" title={access === 'assigner' ? 'You assigned this to' : 'Belongs to'}>
+              <ArrowRight size={10} />
+              {task.ownerName || task.assigneeName || 'Team member'}
+            </Chip>
+          )}
+          {showOwner && isDelegated && access !== 'assigner' && (
+            <Chip tone="neutral" title="Assigned by">by {task.assignedByName || 'someone'}</Chip>
+          )}
+          {showOwner && !isDelegated && (
+            <Chip tone="neutral" title="They added this themselves">own task</Chip>
+          )}
+          {task.status === 'in-progress' && (
+            <Chip tone="info">In progress</Chip>
+          )}
+
           {/* Assignment badge */}
-          {isDelegated && (
+          {!showOwner && isDelegated && (
             teamView ? (
               <Chip tone="brand" title="Assigned to">
                 <ArrowRight size={10} />
@@ -283,11 +318,11 @@ export default function TaskCardV2({
                 borderLeft: '2px solid var(--brand-soft)',
               }}>
                 {guide.steps.map((step, i) => (
-                  <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: teamView ? 'default' : 'pointer' }}>
+                  <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: (teamView || notMine) ? 'default' : 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={!!step.done}
-                      disabled={teamView}
+                      disabled={teamView || notMine}
                       onChange={() => handleToggleStep(i)}
                       style={{ marginTop: 2, width: 13, height: 13, flexShrink: 0, accentColor: 'var(--brand)' }}
                     />
@@ -300,7 +335,7 @@ export default function TaskCardV2({
                     </span>
                   </label>
                 ))}
-                {!teamView && (
+                {!teamView && !notMine && (
                   <button
                     type="button"
                     onClick={() => handleGenerateGuide(true)}
@@ -352,7 +387,7 @@ export default function TaskCardV2({
 
         {/* Start / pause — the only other way to reach "In Progress" was the Edit
             form, which is hidden on tasks someone else assigned you (2026-10-16). */}
-        {onSetStatus && !isDone && !isAiSuggestion && (
+        {onSetStatus && !readOnly && !isDone && !isAiSuggestion && (
           task.status === 'in-progress' ? (
             <button type="button" onClick={() => onSetStatus('pending')} title="Pause (back to pending)" aria-label="Pause task" style={iconBtn}>
               <Pause size={15} />
@@ -366,7 +401,7 @@ export default function TaskCardV2({
 
         {/* End repeat — open to the assignee too: a delegated daily task used to
             be impossible to stop from either side (2026-10-15). */}
-        {onEndSeries && task.recurrence?.freq && !task.recurrence.ended && (
+        {onEndSeries && !readOnly && task.recurrence?.freq && !task.recurrence.ended && (
           <button type="button" onClick={onEndSeries} title="Stop repeating" aria-label="Stop repeating" style={iconBtn}>
             <CircleStop size={15} />
           </button>
