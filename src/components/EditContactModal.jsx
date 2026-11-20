@@ -150,8 +150,13 @@ function EditContactModal({ lead, isOpen, onClose, onLeadUpdate }) {
             <select
               value={form.outreachStatus}
               onChange={(e) => handleChange('outreachStatus', e.target.value)}
+              disabled={form.outreachStatus === 'do_not_work_with'}
               className="w-full px-3 py-2.5 bg-dark-800 border border-dark-600 rounded-xl text-white text-sm focus:outline-none focus:border-rivvra-500 transition-colors appearance-none cursor-pointer"
             >
+              {/* Set by the company block (2026-11-20) — shown, never picked. */}
+              {form.outreachStatus === 'do_not_work_with' && (
+                <option value="do_not_work_with" disabled>Do Not Work With (company blocked)</option>
+              )}
               {OUTREACH_STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}

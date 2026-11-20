@@ -79,6 +79,8 @@ const STATUS_CONFIG = {
   // 2026-11-09: counted in Total Leads but had no slice/card — the donut
   // slices didn't add up to the total.
   converted: { label: 'Converted', color: '#a855f7' },
+  // 2026-11-20: contacts at a company we don't work with.
+  do_not_work_with: { label: 'Do Not Work With', color: '#e11d48' },
 };
 
 // Helper: format date as YYYY-MM-DD for input[type=date] using LOCAL time (not UTC)
@@ -115,6 +117,7 @@ const STATUS_LIGHT = {
   bounced:                '#ea580c',
   lost_no_response:       '#64748b',
   converted:              '#7e22ce',
+  do_not_work_with:       '#9f1239',
 };
 
 /** True while the document is in the light theme. Charts take real colour

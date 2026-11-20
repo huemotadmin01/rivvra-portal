@@ -21,7 +21,7 @@ const CSV_COLUMNS = [
     return type.charAt(0).toUpperCase() + type.slice(1);
   }},
   { header: 'Outreach Status', field: (lead) => {
-    const STATUS_LABELS = { in_sequence: 'In Sequence', replied: 'Interested', replied_not_interested: 'Not Interested', no_response: 'No Response', bounced: 'Bounced' };
+    const STATUS_LABELS = { in_sequence: 'In Sequence', replied: 'Interested', replied_not_interested: 'Not Interested', no_response: 'No Response', bounced: 'Bounced', converted: 'Converted', do_not_work_with: 'Do Not Work With' };
     return STATUS_LABELS[lead.outreachStatus] || 'Not Contacted';
   }},
   { header: 'LinkedIn URL', field: (lead) => lead.linkedinUrl || '' },

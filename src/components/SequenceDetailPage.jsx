@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   ArrowLeft, Mail, Clock, Users, Send, Eye, MessageSquare,
   AlertTriangle, XCircle, ChevronDown, ChevronUp, ThumbsDown, Loader2,
-  Calendar, MoreVertical, Search, Linkedin, UserPlus, Pause, Play,
+  Calendar, MoreVertical, Search, Linkedin, UserPlus, Pause, Play, Ban,
   ArrowUpDown, ChevronLeft, ChevronRight, Save, Check, X, Edit3, Trash2,
   UserMinus, Zap, Filter, Info, Plus, Share2, Paperclip, FileText, Reply
 } from 'lucide-react';
@@ -57,6 +57,19 @@ function CompanyHoldChip({ hold }) {
     >
       <Pause className="w-3 h-3" />
       Company paused · until {fmtHoldDate(hold.pausedUntil)}
+    </span>
+  );
+}
+
+// 2026-11-20: chain stopped because the owner/an admin blocked the company.
+function CompanyBlockedChip() {
+  return (
+    <span
+      title="The owner or an admin marked this company “Do not work with”. Nobody there can be emailed. See Settings → Outreach."
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded border text-red-400 bg-red-500/10 border-red-500/20 whitespace-nowrap"
+    >
+      <Ban className="w-3 h-3" />
+      Company blocked by us
     </span>
   );
 }
@@ -1784,6 +1797,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, comp
                         }`} />
                         <span className="text-xs text-dark-300">{enrollStatus.label}</span>
                         {enrollment.companyHold && <CompanyHoldChip hold={enrollment.companyHold} />}
+                        {enrollment.stopReason === 'company_blocked' && <CompanyBlockedChip />}
                       </div>
                     </td>
                     {showOwner && (
@@ -2266,6 +2280,9 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                 )}
                 {enrollment.companyHold && (
                   <div className="mt-1"><CompanyHoldChip hold={enrollment.companyHold} /></div>
+                )}
+                {enrollment.stopReason === 'company_blocked' && (
+                  <div className="mt-1"><CompanyBlockedChip /></div>
                 )}
                 {lastEngaged && (
                   <div className="text-xs text-dark-600 mt-1">Last engaged: {lastEngaged}</div>

@@ -3,11 +3,15 @@ import {
   X, Linkedin, Mail, Phone, Building2, MapPin, Briefcase,
   Calendar, Globe, StickyNote, Plus, Trash2, ExternalLink,
   Clock, Tag, RefreshCw, Reply, ChevronDown, ChevronUp, MessageSquareText,
-  Copy, Check, Archive, UserRound, Eye
+  Copy, Check, Archive, UserRound, Eye, Ban
 } from 'lucide-react';
 import api from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { Avatar } from './ds';
+import { BlockCompanyDialog } from './outreach/CompanyBlock';
+import {
+  BLOCK_STATUS, useCompanyBlocks, blockForEmail, fmtBlockDate, domainOfEmail,
+} from './outreach/companyBlocks';
 
 /* 2026-11-04 panel pass. Fixed here (see also portal-leads.js):
    - Bounced (11k contacts) and other system statuses showed as "Not
@@ -34,6 +38,8 @@ const STATUS_LABELS = {
   lost_no_response: 'Lost - No Response',
   bounced: 'Bounced',
   converted: 'Converted',
+  // 2026-11-20: set by the company block (owner/admins), never picked here.
+  do_not_work_with: 'Do Not Work With',
 };
 
 // Statuses a rep may set by hand (same as the bulk "Change status" dialog).
@@ -167,6 +173,8 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
   const [loadingReply, setLoadingReply] = useState(false);
   const [replyExpanded, setReplyExpanded] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const companyBlocks = useCompanyBlocks();
   // Latest lead, for async handlers that finish after the user switched contact.
   const leadIdRef = useRef(lead?._id);
   leadIdRef.current = lead?._id;
@@ -337,6 +345,13 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
   // a legacy value) — show it, disabled, instead of falling back to the first
   // option ("Not Contacted"), which is what the old select displayed.
   const statusIsManual = MANUAL_STATUSES.includes(outreachStatus);
+  // "Do not work with" company (2026-11-20): status is locked; owner/admins
+  // can block the company from here (public mailbox domains excluded).
+  const companyBlock = blockForEmail(companyBlocks.blocks, lead.email);
+  const isBlocked = outreachStatus === BLOCK_STATUS || !!companyBlock;
+  const PUBLIC_MAIL = /^(gmail|googlemail|outlook|hotmail|live|msn|yahoo|ymail|icloud|me|aol|proton|protonmail|rediffmail|zoho|gmx|mail|yandex)\./;
+  const canBlock = companyBlocks.canManage && !isBlocked && !archived
+    && !!domainOfEmail(lead.email) && !PUBLIC_MAIL.test(domainOfEmail(lead.email));
   const selectCls = 'w-full px-2.5 py-1.5 bg-dark-800 border border-dark-600 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 
   // Newest first; keep the stored index for delete.
@@ -437,7 +452,7 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
               <select
                 aria-label="Outreach status"
                 value={outreachStatus}
-                disabled={locked || savingOutreachStatus}
+                disabled={locked || savingOutreachStatus || outreachStatus === BLOCK_STATUS}
                 onChange={(e) => handleOutreachStatusChange(e.target.value)}
                 className={selectCls}
               >
@@ -464,13 +479,51 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
               </select>
             </div>
           </div>
+          {isBlocked && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              <Ban className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="font-semibold">We don&apos;t work with {companyBlock?.companyName || company || companyBlock?.domain || 'this company'}</div>
+                {companyBlock?.reason && <div className="mt-0.5 text-red-200/90 break-words">{companyBlock.reason}</div>}
+                {companyBlock && (
+                  <div className="mt-0.5 text-red-300/70">
+                    Blocked{companyBlock.blockedByName ? ` by ${companyBlock.blockedByName}` : ''} on {fmtBlockDate(companyBlock.blockedAt)} · no one at {companyBlock.domain} can be added to a sequence.
+                    {companyBlocks.canManage ? ' Unblock it in Settings → Outreach.' : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {!isBlocked && (
           <p className="text-[11px] text-dark-500 mt-2 leading-relaxed">
             {outreachStatus === 'bounced'
               ? 'Their email bounced. Correct the email (Edit contact) and they can be added to a sequence again.'
               : outreachStatus === 'in_sequence'
                 ? 'In a sequence now. Setting Interested, Not Interested, No Response or Converted stops it.'
-                : 'Use this when they reply on LinkedIn or by phone. Interested, Not Interested, No Response and Converted also stop any active sequence.'}
+                : 'Use this when they reply on LinkedIn or by phone. Interested, Not Interested, No Response and Converted also stop any active sequence. Not Interested also stops every rep from emailing them again.'}
           </p>
+          )}
+          {canBlock && (
+            <button
+              type="button"
+              onClick={() => setBlockOpen(true)}
+              className="mt-2 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-red-400 hover:text-red-300"
+            >
+              <Ban className="w-3.5 h-3.5" /> Don&apos;t work with this company
+            </button>
+          )}
+          <BlockCompanyDialog
+            open={blockOpen}
+            onClose={() => setBlockOpen(false)}
+            initial={lead.email || ''}
+            companyName={company}
+            onDone={(res) => {
+              setOutreachStatus(BLOCK_STATUS);
+              const lists = [...(lead.lists || []).filter((l) => !['Hot Leads', 'Not Interested', 'No Response', 'Converted', 'Follow Up Later'].includes(l)), 'Do Not Work With'];
+              onUpdate?.({ ...lead, outreachStatus: BLOCK_STATUS, lists });
+              showToast(`Company blocked · ${res.stoppedSequences || 0} sequence${res.stoppedSequences === 1 ? '' : 's'} stopped · ${res.contactsMarked || 0} contact${res.contactsMarked === 1 ? '' : 's'} marked`);
+            }}
+          />
         </div>
 
         {/* Latest Reply — shown for replied leads */}

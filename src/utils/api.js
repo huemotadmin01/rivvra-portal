@@ -889,6 +889,27 @@ class ApiClient {
     });
   }
 
+  // "Do not work with" companies (2026-11-20) — owner/org admins block a
+  // whole company (email domain) from outreach.
+  async getCompanyBlocks() {
+    return this.request('/api/outreach/company-blocks');
+  }
+
+  async previewCompanyBlock(domainOrEmail) {
+    return this.request(`/api/outreach/company-blocks/preview?domain=${encodeURIComponent(domainOrEmail)}`);
+  }
+
+  async blockCompany({ domain, reason, companyName }) {
+    return this.request('/api/outreach/company-blocks', {
+      method: 'POST',
+      body: JSON.stringify({ domain, reason, companyName }),
+    });
+  }
+
+  async unblockCompany(id) {
+    return this.request(`/api/outreach/company-blocks/${id}/unblock`, { method: 'POST' });
+  }
+
   async removeSuppression(id) {
     return this.request(`/api/engage/suppressions/${id}`, {
       method: 'DELETE',

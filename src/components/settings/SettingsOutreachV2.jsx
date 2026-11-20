@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Mail, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import api from '../../utils/api';
 import EngageSettingsV2 from '../EngageSettingsV2';
+import { CompanyBlocksPanel } from '../outreach/CompanyBlock';
 import { Panel, Button, PageSpinner } from '../ds';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +78,9 @@ export default function SettingsOutreachV2() {
 
       {/* Engage Settings (send limits, unsubscribe, signature) */}
       <EngageSettingsV2 gmailStatus={gmailStatus} />
+
+      {/* Companies we don't work with (2026-11-20) */}
+      <CompanyBlocksPanel />
     </div>
   );
 }
