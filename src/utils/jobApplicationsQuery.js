@@ -26,7 +26,7 @@ const STATUS_VALUES = new Set(APP_STATUS_FILTER_OPTIONS.map((o) => o.value));
 
 export function buildJobApplicationsParams({
   jobId, page = 1, limit = 15, sort = 'fit',
-  search = '', stageId = '', rateConfirmation = '', status = '',
+  search = '', stageId = '', rateConfirmation = '', status = '', recruiterId = '',
 } = {}) {
   const params = {
     jobId,
@@ -41,9 +41,11 @@ export function buildJobApplicationsParams({
   if (stageId) params.stageId = String(stageId);
   if (RC_VALUES.has(rateConfirmation)) params.rateConfirmation = rateConfirmation;
   if (STATUS_VALUES.has(status)) params.applicationStatus = status;
+  // 2026-11-20: Recruiter filter (employee id — what applications store).
+  if (recruiterId) params.recruiterId = String(recruiterId);
   return params;
 }
 
-export function hasActiveJobAppFilters({ search = '', stageId = '', rateConfirmation = '', status = '' } = {}) {
-  return !!(String(search || '').trim() || stageId || rateConfirmation || status);
+export function hasActiveJobAppFilters({ search = '', stageId = '', rateConfirmation = '', status = '', recruiterId = '' } = {}) {
+  return !!(String(search || '').trim() || stageId || rateConfirmation || status || recruiterId);
 }

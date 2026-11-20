@@ -13,7 +13,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 import PersonLookup from '../../components/shared/PersonLookup';
-import { InlineField, Panel, RecordMeta } from '../../components/ds';
+import { ComboBox, InlineField, Panel, RecordMeta } from '../../components/ds';
 import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
@@ -485,6 +485,9 @@ export default function AtsJobDetail() {
   const [appsStage, setAppsStage] = useState('');
   const [appsRc, setAppsRc] = useState('');
   const [appsStatus, setAppsStatus] = useState('');
+  // 2026-11-20: Recruiter filter (searchable employee picker).
+  const [appsRecruiter, setAppsRecruiter] = useState('');
+  const [recruiterOptions, setRecruiterOptions] = useState([]);
   const [jobStages, setJobStages] = useState([]);
   const [rescoringAppId, setRescoringAppId] = useState(null);
   const [appsLoading, setAppsLoading] = useState(false);
@@ -716,7 +719,7 @@ export default function AtsJobDetail() {
       // by default) — shown as the hover title on the AI Fit badge.
       const res = await atsApi.listApplications(orgSlug, buildJobApplicationsParams({
         jobId, page: appsPage, limit: 15, sort: appsSort,
-        search: appsSearch, stageId: appsStage, rateConfirmation: appsRc, status: appsStatus,
+        search: appsSearch, stageId: appsStage, rateConfirmation: appsRc, status: appsStatus, recruiterId: appsRecruiter,
       }));
       if (res.success) {
         setApplications(res.applications || []);
@@ -730,7 +733,7 @@ export default function AtsJobDetail() {
       if (!silent) setAppsLoading(false);
     }
     return null;
-  }, [orgSlug, jobId, appsPage, appsSort, appsSearch, appsStage, appsRc, appsStatus]);
+  }, [orgSlug, jobId, appsPage, appsSort, appsSearch, appsStage, appsRc, appsStatus, appsRecruiter]);
 
   // 2026-09-23: editing the JD (name / description / experience / skills)
   // bumps job.aiJobStamp and the API re-scores every ongoing application in
@@ -825,7 +828,7 @@ export default function AtsJobDetail() {
   // could land past the new job's last page (blank table).
   useEffect(() => {
     setAppsPage(1);
-    setAppsSearchInput(''); setAppsSearch(''); setAppsStage(''); setAppsRc(''); setAppsStatus('');
+    setAppsSearchInput(''); setAppsSearch(''); setAppsStage(''); setAppsRc(''); setAppsStatus(''); setAppsRecruiter('');
   }, [jobId]);
 
   // Debounce the search box; any filter change goes back to page 1.
@@ -836,7 +839,25 @@ export default function AtsJobDetail() {
     }, 350);
     return () => clearTimeout(t);
   }, [appsSearchInput]);
-  useEffect(() => { setAppsPage(1); }, [appsSearch, appsStage, appsRc, appsStatus]);
+  useEffect(() => { setAppsPage(1); }, [appsSearch, appsStage, appsRc, appsStatus, appsRecruiter]);
+
+  // Recruiter options — same list the Applications page filters on.
+  useEffect(() => {
+    if (!orgSlug) return undefined;
+    let alive = true;
+    atsApi.listRecruiters(orgSlug)
+      .then((res) => {
+        if (!alive || !res?.success) return;
+        const rows = res.recruiters || res.members || [];
+        setRecruiterOptions([
+          { value: '', label: 'All recruiters' },
+          ...rows.map((r) => ({ value: String(r._id), label: r.name || r.email || 'Unnamed', sub: r.name ? r.email : undefined }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        ]);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [orgSlug]);
 
   // Stage options for the filter — this job's resolved pipeline.
   useEffect(() => {
@@ -847,8 +868,8 @@ export default function AtsJobDetail() {
       .catch(() => { if (alive) setJobStages([]); });
     return () => { alive = false; };
   }, [orgSlug, jobId]);
-  const appsFiltered = hasActiveJobAppFilters({ search: appsSearch, stageId: appsStage, rateConfirmation: appsRc, status: appsStatus });
-  const clearAppFilters = () => { setAppsSearchInput(''); setAppsSearch(''); setAppsStage(''); setAppsRc(''); setAppsStatus(''); };
+  const appsFiltered = hasActiveJobAppFilters({ search: appsSearch, stageId: appsStage, rateConfirmation: appsRc, status: appsStatus, recruiterId: appsRecruiter });
+  const clearAppFilters = () => { setAppsSearchInput(''); setAppsSearch(''); setAppsStage(''); setAppsRc(''); setAppsStatus(''); setAppsRecruiter(''); };
 
   // 2026-07-18 audit D12: Escape dismisses the Archive/Delete confirmation
   // modals (backdrop click added on the overlays below). Blocked while the
@@ -1994,6 +2015,16 @@ export default function AtsJobDetail() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            <div style={{ minWidth: 200 }}>
+              <ComboBox
+                aria-label="Filter by recruiter"
+                value={appsRecruiter}
+                onChange={(v) => setAppsRecruiter(v || '')}
+                options={recruiterOptions}
+                emptyLabel="All recruiters"
+                placeholder="Search recruiter…"
+              />
+            </div>
             {(appsFiltered || appsSearchInput) && (
               <button
                 type="button"
