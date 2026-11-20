@@ -1310,6 +1310,15 @@ class ApiClient {
     return this.request('/api/superadmin/stats');
   }
 
+  // Platform Health (2026-11-20) — read-only report; refresh re-runs every check.
+  async getPlatformHealth(refresh = false) {
+    return this.request(`/api/superadmin/health${refresh ? '?refresh=1' : ''}`);
+  }
+
+  async getPlatformHealthSummary() {
+    return this.request('/api/superadmin/health/summary');
+  }
+
   // New-workspace registration toggle (super-admin)
   async getRegistrationSetting() {
     return this.request('/api/superadmin/registration');

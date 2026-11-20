@@ -3,12 +3,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useState } from 'react';
 import {
   LayoutDashboard, Building2, Mail, LogOut, ShieldCheck,
-  Settings, Calculator, Users, ChevronDown, ChevronRight, Megaphone, BookOpen
+  Settings, Calculator, Users, ChevronDown, ChevronRight, Megaphone, BookOpen, Activity
 } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 
 const navItems = [
   { label: 'Overview', path: '/admin', icon: LayoutDashboard },
+  { label: 'Platform Health', path: '/admin/health', icon: Activity },
   { label: 'Workspaces', path: '/admin/workspaces', icon: Building2 },
   { label: 'Email Templates', path: '/admin/email-templates', icon: Mail },
   { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },

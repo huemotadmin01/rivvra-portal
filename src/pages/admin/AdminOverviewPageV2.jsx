@@ -27,11 +27,13 @@ import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import {
   Building2, Users, CreditCard, TrendingUp, Loader2, ChevronRight,
+  CheckCircle2, AlertTriangle, XCircle,
 } from 'lucide-react';
 import {
   Panel, Button, Callout, Stat, Meter, EmptyState, Spinner,
 } from '../../components/ds';
 import { PlanBadge } from './adminShared';
+import { STATUS, headline, relTime } from './healthShared';
 
 // ── Shared render tokens ────────────────────────────────────────────────────
 const microStyle = { font: "450 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' };
@@ -70,10 +72,17 @@ function AdminOverviewPageV2() {
   const [regOpen, setRegOpen] = useState(null);
   const [regSaving, setRegSaving] = useState(false);
 
+  // Platform Health strip (2026-11-20). null = not loaded / failed → hidden,
+  // never a guessed "all fine".
+  const [health, setHealth] = useState(null);
+
   useEffect(() => {
     loadData();
     api.getRegistrationSetting()
       .then(r => setRegOpen(r?.open !== false))
+      .catch(() => {});
+    api.getPlatformHealthSummary()
+      .then(r => { if (r?.success) setHealth(r); })
       .catch(() => {});
   }, []);
 
@@ -130,6 +139,32 @@ function AdminOverviewPageV2() {
         <h1 style={{ font: "700 22px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>Dashboard</h1>
         <p style={{ ...microStyle, marginTop: 4, fontSize: 12.5 }}>Rivvra platform overview</p>
       </div>
+
+      {/* Platform Health — the one-line verdict, linking to the full report. */}
+      {health?.overall && (() => {
+        const o = health.overall;
+        const st = STATUS[o.status] || STATUS.ok;
+        const Icon = o.status === 'bad' ? XCircle : o.status === 'warn' ? AlertTriangle : CheckCircle2;
+        const h = headline(o);
+        return (
+          <Link
+            to="/admin/health"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', textDecoration: 'none',
+              borderRadius: 'var(--r-3, 16px)', background: st.soft, boxShadow: `0 0 0 1px ${st.ring}`,
+            }}
+          >
+            <Icon size={20} style={{ color: st.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', font: "600 13.5px/1.35 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>Platform health — {h.title}</span>
+              <span style={{ ...microStyle, display: 'block' }}>{h.sub} Checked {relTime(health.generatedAt)}.</span>
+            </span>
+            <span style={{ ...microStyle, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--fg-2)', flexShrink: 0 }}>
+              See details <ChevronRight size={14} />
+            </span>
+          </Link>
+        );
+      })()}
 
       {/* Registration toggle. `regOpen === null` means still loading — the
           block is hidden rather than guessing a state, because rendering

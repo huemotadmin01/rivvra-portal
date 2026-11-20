@@ -264,6 +264,7 @@ const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPageV2'));
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
 const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPageV2'));
+const AdminHealthPage = lazy(() => import('./pages/admin/AdminHealthPageV2'));
 // /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
@@ -862,6 +863,7 @@ function App() {
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route element={<SuperAdminRoute><AdminLayout /></SuperAdminRoute>}>
               <Route path="/admin" element={<AdminOverviewPage />} />
+              <Route path="/admin/health" element={<AdminHealthPage />} />
               <Route path="/admin/workspaces" element={<AdminWorkspacesPage />} />
               <Route path="/admin/workspaces/:orgId" element={<AdminWorkspaceDetailPage />} />
               <Route path="/admin/email-templates" element={<AdminEmailTemplatesPage />} />
