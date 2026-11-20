@@ -89,7 +89,7 @@ function SystemLock({ isSystem }) {
 
 /** "Not configured" is the same message in all three sections. */
 function NotConfigured() {
-  return <p style={{ ...microStyle, padding: '16px 0' }}>Not configured. Run migration from Payroll Config page.</p>;
+  return <p style={{ ...microStyle, padding: '16px 0' }}>Not set up yet. Run the settings migration from the Payroll rules page.</p>;
 }
 
 const PAYROLL_MODE_OPTIONS = [
@@ -110,6 +110,7 @@ function AdminEmployeeSettingsPageV2() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const [empTypes, setEmpTypes] = useState(null);
   const [sepReasons, setSepReasons] = useState(null);
@@ -120,18 +121,24 @@ function AdminEmployeeSettingsPageV2() {
   }, []);
 
   const loadData = async () => {
+    const missingOk = (err) => { if (err?.status === 404) return null; throw err; };
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [empRes, sepRes, idRes] = await Promise.all([
-        getPlatformSetting('employment_types').catch(() => null),
-        getPlatformSetting('separation_reasons').catch(() => null),
-        getPlatformSetting('id_field_schemas').catch(() => null),
+        // Only "not found" means "not set up yet". Any other failure used to
+        // be swallowed and shown as "Not configured. Run migration" — telling
+        // the admin to re-run a migration over settings that do exist.
+        getPlatformSetting('employment_types').catch(missingOk),
+        getPlatformSetting('separation_reasons').catch(missingOk),
+        getPlatformSetting('id_field_schemas').catch(missingOk),
       ]);
       if (empRes?.setting) setEmpTypes(empRes.setting);
       if (sepRes?.setting) setSepReasons(sepRes.setting);
       if (idRes?.setting) setIdSchemas(idRes.setting);
     } catch (err) {
-      setError(err.message);
+      setLoadFailed(true);
+      setError(`Could not load the employee settings: ${err.message}. Nothing has been changed — reload the page.`);
     } finally {
       setLoading(false);
     }
@@ -147,7 +154,8 @@ function AdminEmployeeSettingsPageV2() {
       setSaving(true);
       setError('');
       await updatePlatformSetting(category, data);
-      showSuccess(`${category.replace('_', ' ')} saved successfully`);
+      const NAMES = { employment_types: 'Employment types', separation_reasons: 'Separation reasons', id_field_schemas: 'Country ID fields' };
+      showSuccess(`${NAMES[category] || category} saved.`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -157,7 +165,7 @@ function AdminEmployeeSettingsPageV2() {
 
   if (loading) {
     return (
-      <div data-theme="dark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
         <Spinner size={28} />
       </div>
     );
@@ -165,16 +173,12 @@ function AdminEmployeeSettingsPageV2() {
 
   const empGrid = { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr)) 40px', gap: 10, alignItems: 'center', minWidth: 620 };
   const idGrid = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr)) 40px', gap: 10, alignItems: 'center', minWidth: 560 };
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute, so without this the page inherits
-  // whatever a previous org-app visit left on <html>.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1024, margin: '0 auto' }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ font: "700 22px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>
-          Employee Configuration
+          Employee rules
         </h1>
         <p style={{ ...microStyle, marginTop: 4, fontSize: 12.5 }}>Platform-wide settings for employee management</p>
       </div>

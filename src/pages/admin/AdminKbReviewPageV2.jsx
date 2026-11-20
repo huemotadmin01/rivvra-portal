@@ -27,6 +27,7 @@
 // ============================================================================
 
 import { useEffect, useState, useCallback } from 'react';
+import { fmtDate } from './adminFormat';
 import {
   BookOpen, Loader2, RefreshCw, Check, X, ChevronDown, ChevronRight,
   Clock, FileWarning, Inbox,
@@ -48,7 +49,6 @@ const codeBlock = {
 };
 
 const appName = (id) => (id === 'general' ? 'General' : (getAppById(id)?.name || id));
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
 
 // Lightweight line diff: mark lines added (in proposed, not in current) and
 // removed (in current, not in proposed). Set-based, so it's an at-a-glance aid,
@@ -189,11 +189,8 @@ function AdminKbReviewPageV2() {
       setBusyId(null);
     }
   };
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1024, margin: '0 auto', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{
@@ -205,7 +202,7 @@ function AdminKbReviewPageV2() {
           </span>
           <div>
             <h1 style={{ font: "700 21px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>
-              Knowledge Base — Review Queue
+              Help Articles — review queue
             </h1>
             <p style={{ ...microStyle, marginTop: 3, fontSize: 12.5 }}>
               Approve regenerated platform docs and see which canonical articles are due for review.

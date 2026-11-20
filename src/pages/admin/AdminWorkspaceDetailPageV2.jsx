@@ -54,12 +54,12 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import {
   Building2, ArrowLeft, Loader2, Save, Users, Shield,
-  AlertCircle, Database, RotateCcw, Trash2, Download, LogIn,
+  AlertCircle, Database, LogIn, Search,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import {
@@ -71,19 +71,22 @@ import {
 const microStyle = { font: "450 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' };
 const labelStyle = { display: 'block', font: "550 10.5px/1.4 'Inter', system-ui, sans-serif", letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--fg-4)', marginBottom: 6 };
 
-const ALL_APPS = ['outreach', 'timesheet', 'employee', 'contacts', 'crm', 'ats'];
-const PLAN_OPTIONS = ['free', 'core', 'all_apps', 'pro', 'enterprise'];
-
-// Lifted verbatim out of legacy's backup row loop. `dateStr` is not only
-// displayed — it is interpolated into the restore confirmation the admin reads
-// before overwriting an org, so the table cell and the warning must be the
-// same string. Sharing one helper keeps that true by construction.
-const backupDateStr = (b) => new Date(b.createdAt).toLocaleDateString('en-US', {
-  year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-});
-const backupSizeStr = (b) => (b.sizeBytes >= 1048576
-  ? `${(b.sizeBytes / 1048576).toFixed(1)} MB`
-  : `${Math.round(b.sizeBytes / 1024)} KB`);
+// Every app on the platform (must match VALID_APP_IDS in the API's org.js).
+// 2026-11-20: this list had 6 of the 14, so 8 apps could not be switched on or
+// off here at all — and saving re-sent the short list (see handleSave).
+const APP_LABELS = {
+  outreach: 'Outreach', crm: 'CRM', contacts: 'Contacts', ats: 'ATS', sign: 'Sign',
+  employee: 'Employee', timesheet: 'Timesheet', payroll: 'Payroll', expenses: 'Expenses',
+  invoicing: 'Invoicing', incentive: 'Incentives', todo: 'To-Do', documents: 'Documents',
+  knowledgeBase: 'Help Center',
+};
+const ALL_APPS = Object.keys(APP_LABELS);
+const appLabel = (id) => APP_LABELS[id] || id;
+const PLAN_LABELS = { free: 'Free', growth: 'Growth', scale: 'Scale', core: 'Core', all_apps: 'All Apps', pro: 'Pro', enterprise: 'Enterprise' };
+const PLAN_OPTIONS = Object.keys(PLAN_LABELS);
+const STATUS_LABELS = { active: 'Active', alumni: 'Alumni', invited: 'Invited', archived: 'Archived', inactive: 'Inactive', deactivated: 'Deactivated' };
+const STATUS_TONE = { active: 'brand', alumni: 'info', invited: 'warn' };
+const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
 
 const ROLE_TONE = { owner: 'purple', admin: 'warn', member: 'neutral' };
 
@@ -116,13 +119,10 @@ function AdminWorkspaceDetailPageV2() {
   const [editApps, setEditApps] = useState([]);
   const [editUiV2, setEditUiV2] = useState(false);
 
-  // Backup state
-  const [backups, setBackups] = useState([]);
-  const [backupsLoading, setBackupsLoading] = useState(false);
-  const [creatingBackup, setCreatingBackup] = useState(false);
-  const [restoringId, setRestoringId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [backupError, setBackupError] = useState('');
+  // Members list: search + status filter (114 rows had neither).
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberStatus, setMemberStatus] = useState('active');
+  const [impersonateError, setImpersonateError] = useState('');
 
   useEffect(() => {
     loadWorkspace();
@@ -130,7 +130,9 @@ function AdminWorkspaceDetailPageV2() {
 
   const loadWorkspace = async () => {
     try {
-      setLoading(true);
+      // Spinner only on the first load. Re-loading after a save used to blank
+      // the whole page and throw the admin back to the top.
+      if (!workspace || String(workspace._id) !== String(orgId)) setLoading(true);
       setError('');
       const res = await api.getSuperAdminWorkspace(orgId);
       setWorkspace(res.workspace);
@@ -150,86 +152,39 @@ function AdminWorkspaceDetailPageV2() {
     }
   };
 
-  // Load backups for this org
-  const loadBackups = async () => {
-    try {
-      setBackupsLoading(true);
-      setBackupError('');
-      const res = await api.request(`/api/superadmin/backups/${orgId}`);
-      setBackups(res.backups || []);
-    } catch (err) {
-      setBackupError(err.message || 'Failed to load backups');
-    } finally {
-      setBackupsLoading(false);
-    }
+  // What the admin actually changed. Only these fields are sent — the page
+  // used to re-send plan, seats and the whole app list on every save, so
+  // flipping one switch could rewrite the others (and, with the old 6-app
+  // list, silently remove apps the page did not show).
+  const pendingChanges = () => {
+    if (!workspace) return {};
+    const out = {};
+    if (editPlan !== (workspace.plan || 'free')) out.plan = editPlan;
+    const seats = seatsOrOne(editSeats);
+    if ((workspace.billing?.seatsTotal || 0) !== seats && String(editSeats) !== String(workspace.billing?.seatsTotal || 0)) out.billing = { seatsTotal: seats };
+    if (!sameSet(editApps, workspace.enabledApps || [])) out.enabledApps = editApps;
+    if (editUiV2 !== (workspace.uiV2 === true)) out.uiV2 = editUiV2;
+    return out;
   };
-
-  useEffect(() => {
-    if (orgId) loadBackups();
-  }, [orgId]);
-
-  const handleCreateBackup = async () => {
-    try {
-      setCreatingBackup(true);
-      setBackupError('');
-      await api.request(`/api/superadmin/backups/${orgId}/create`, { method: 'POST' });
-      await loadBackups();
-    } catch (err) {
-      setBackupError(err.message || 'Failed to create backup');
-    } finally {
-      setCreatingBackup(false);
-    }
-  };
-
-  const handleRestoreBackup = async (backupId, backupDate) => {
-    const first = window.confirm(`Restore backup from ${backupDate}? This will overwrite all current data for this organization.`);
-    if (!first) return;
-    const second = window.confirm('Are you absolutely sure? This action cannot be undone. All current data will be replaced with the backup data.');
-    if (!second) return;
-
-    try {
-      setRestoringId(backupId);
-      setBackupError('');
-      await api.request(`/api/superadmin/backups/${backupId}/restore`, { method: 'POST' });
-      await loadWorkspace();
-      await loadBackups();
-    } catch (err) {
-      setBackupError(err.message || 'Failed to restore backup');
-    } finally {
-      setRestoringId(null);
-    }
-  };
-
-  const handleDeleteBackup = async (backupId) => {
-    if (!window.confirm('Delete this backup? This cannot be undone.')) return;
-    try {
-      setDeletingId(backupId);
-      setBackupError('');
-      await api.request(`/api/superadmin/backups/${backupId}`, { method: 'DELETE' });
-      await loadBackups();
-    } catch (err) {
-      setBackupError(err.message || 'Failed to delete backup');
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const changes = pendingChanges();
+  const dirty = Object.keys(changes).length > 0;
+  const seatsUsed = workspace?.billing?.seatsUsed || 0;
 
   const handleSave = async () => {
+    if (!dirty || saving) return;
+    if (changes.enabledApps && changes.enabledApps.length === 0) { setError('A workspace needs at least one app.'); return; }
+    const removed = changes.enabledApps ? (workspace.enabledApps || []).filter((a) => !changes.enabledApps.includes(a)) : [];
+    if (removed.length && !window.confirm(`Turn off ${removed.map(appLabel).join(', ')} for "${workspace.name}"?\n\nEvery member of this workspace loses access to ${removed.length === 1 ? 'this app' : 'these apps'}. Their data is kept.`)) return;
+    if (changes.billing && changes.billing.seatsTotal < seatsUsed && !window.confirm(`This workspace already uses ${seatsUsed} seats. Setting the total to ${changes.billing.seatsTotal} stops it inviting anyone new. Continue?`)) return;
     try {
       setSaving(true);
       setError('');
       setSaveSuccess('');
-
-      await api.updateSuperAdminWorkspace(orgId, {
-        plan: editPlan,
-        billing: { seatsTotal: seatsOrOne(editSeats) },
-        enabledApps: editApps,
-        uiV2: editUiV2,
-      });
-
-      setSaveSuccess('Workspace updated successfully');
+      const res = await api.updateSuperAdminWorkspace(orgId, changes);
+      if (res && res.success === false) throw new Error(res.error || 'Failed to update workspace');
+      setSaveSuccess('Saved.');
       await loadWorkspace();
-      setTimeout(() => setSaveSuccess(''), 3000);
+      setTimeout(() => setSaveSuccess(''), 4000);
     } catch (err) {
       setError(err.message || 'Failed to update workspace');
     } finally {
@@ -250,6 +205,7 @@ function AdminWorkspaceDetailPageV2() {
   const handleImpersonate = async (m) => {
     if (!window.confirm(`Log in as ${m.name || m.email} in "${workspace?.name || 'this workspace'}"?\n\nThis is a Rivvra super-admin action and is recorded in the audit log.`)) return;
     setImpersonatingId(m.id);
+    setImpersonateError('');
     const res = await superImpersonate(orgId, m.id);
     if (res.success) {
       const slug = res.org?.slug || res.user?.defaultOrgSlug;
@@ -258,13 +214,13 @@ function AdminWorkspaceDetailPageV2() {
       window.location.assign(slug ? `/org/${slug}/home` : '/');
     } else {
       setImpersonatingId(null);
-      alert(res.error || 'Failed to log in as this user');
+      setImpersonateError(res.error || 'Could not log in as this user');
     }
   };
 
   if (loading) {
     return (
-      <div data-theme="dark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
         <Spinner size={28} />
       </div>
     );
@@ -272,7 +228,7 @@ function AdminWorkspaceDetailPageV2() {
 
   if (error && !workspace) {
     return (
-      <div data-theme="dark" style={{ padding: 24, display: 'grid', gap: 16 }}>
+      <div style={{ display: 'grid', gap: 16 }}>
         <div>
           <BackToWorkspaces />
         </div>
@@ -288,8 +244,8 @@ function AdminWorkspaceDetailPageV2() {
       width: 240,
       render: (m) => (
         <span style={{ display: 'block', minWidth: 0 }}>
-          <span style={{ display: 'block', color: 'var(--fg)', fontWeight: 550 }}>{m.name || '—'}</span>
-          <span style={{ ...microStyle, display: 'block' }}>{m.email}</span>
+          <span title={m.name || ''} style={{ display: 'block', color: 'var(--fg)', fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name || '—'}</span>
+          <span title={m.email} style={{ ...microStyle, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</span>
         </span>
       ),
     },
@@ -312,9 +268,12 @@ function AdminWorkspaceDetailPageV2() {
         if (on.length === 0) return <span style={microStyle}>None</span>;
         return (
           <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {on.map(([appId, v]) => (
-              <Chip key={appId}>{appId}:{v.role || 'member'}</Chip>
-            ))}
+            {on.map(([appId, v]) => {
+              // `.admin` is the live flag; `.role` is kept only as a fallback
+              // for older records.
+              const isAdmin = v.admin === true || v.role === 'admin';
+              return <Chip key={appId} tone={isAdmin ? 'warn' : 'neutral'}>{appLabel(appId)}{isAdmin ? ' · Admin' : ''}</Chip>;
+            })}
           </span>
         );
       },
@@ -324,7 +283,7 @@ function AdminWorkspaceDetailPageV2() {
       header: 'Status',
       width: 100,
       render: (m) => (
-        <Chip tone={m.status === 'active' ? 'brand' : 'warn'}>{m.status || 'active'}</Chip>
+        <Chip tone={STATUS_TONE[m.status || 'active'] || 'neutral'}>{STATUS_LABELS[m.status || 'active'] || m.status}</Chip>
       ),
     },
     {
@@ -338,13 +297,13 @@ function AdminWorkspaceDetailPageV2() {
       key: 'actions',
       header: '',
       align: 'right',
-      width: 120,
-      render: (m) => (m.id ? (
+      width: 140,
+      render: (m) => (m.id && ['active', 'alumni'].includes(m.status || 'active') ? (
         <Button
           variant="secondary"
           size="sm"
           onClick={() => handleImpersonate(m)}
-          disabled={impersonatingId === m.id}
+          disabled={impersonatingId !== null}
           title="Log in as this user (super-admin)"
           iconLeft={impersonatingId === m.id
             ? <Loader2 size={14} className="animate-spin" />
@@ -356,55 +315,16 @@ function AdminWorkspaceDetailPageV2() {
     },
   ];
 
-  const backupColumns = [
-    { key: 'date', header: 'Date', width: 190, render: (b) => backupDateStr(b) },
-    { key: 'size', header: 'Size', width: 100, muted: true, render: (b) => backupSizeStr(b) },
-    { key: 'collectionCount', header: 'Collections', width: 120, muted: true, render: (b) => b.collectionCount ?? '—' },
-    { key: 'documentCount', header: 'Documents', width: 120, muted: true, render: (b) => b.documentCount ?? '—' },
-    {
-      key: 'actions',
-      header: '',
-      align: 'right',
-      width: 190,
-      render: (b) => {
-        const id = b._id || b.id;
-        return (
-          <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handleRestoreBackup(id, backupDateStr(b))}
-              disabled={restoringId === id}
-              iconLeft={restoringId === id
-                ? <Loader2 size={12} className="animate-spin" />
-                : <RotateCcw size={12} />}
-            >
-              Restore
-            </Button>
-            {/* `danger`, not `secondary`: this is the only visual signal that
-                the two buttons do very different things. */}
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => handleDeleteBackup(id)}
-              disabled={deletingId === id}
-              iconLeft={deletingId === id
-                ? <Loader2 size={12} className="animate-spin" />
-                : <Trash2 size={12} />}
-            >
-              Delete
-            </Button>
-          </span>
-        );
-      },
-    },
-  ];
+  const q = memberSearch.trim().toLowerCase();
+  const statusCounts = members.reduce((acc, m) => { const k = m.status || 'active'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const shownMembers = members
+    .filter((m) => memberStatus === 'all' || (m.status || 'active') === memberStatus)
+    .filter((m) => !q || `${m.name} ${m.email}`.toLowerCase().includes(q))
+    .sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email)));
+  const otherMembers = members.length - (statusCounts.active || 0) - (statusCounts.alumni || 0) - (statusCounts.invited || 0);
 
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute, so without this the page inherits
-  // whatever a previous org-app visit left on <html>.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       {/* Back + Header */}
       <div>
         <div style={{ marginBottom: 10 }}>
@@ -433,22 +353,22 @@ function AdminWorkspaceDetailPageV2() {
       {error && <Callout tone="danger" icon={<AlertCircle size={16} />}>{error}</Callout>}
       {saveSuccess && <Callout tone="brand">{saveSuccess}</Callout>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 18, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 18, alignItems: 'start' }}>
         {/* Org Info — editable */}
-        <Panel title="Organization Settings" icon={<Building2 size={16} />}>
+        <Panel title="Workspace settings" icon={<Building2 size={16} />}>
           <div style={{ display: 'grid', gap: 18 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
               <Field label="Plan" htmlFor="ws-plan">
                 <Select id="ws-plan" value={editPlan} onChange={(e) => setEditPlan(e.target.value)}>
                   {PLAN_OPTIONS.map(p => (
-                    <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                    <option key={p} value={p}>{PLAN_LABELS[p]}</option>
                   ))}
                 </Select>
               </Field>
               {/* min={1} is legacy's. The `|| 1` coercion that used to sit in
                   onChange now runs on blur via seatsOrOne — see the note there
                   for why it cannot run per keystroke. */}
-              <Field label="Total Seats" htmlFor="ws-seats">
+              <Field label="Total seats" htmlFor="ws-seats" hint={`${seatsUsed} in use`}>
                 <Input
                   id="ws-seats"
                   type="number"
@@ -461,7 +381,7 @@ function AdminWorkspaceDetailPageV2() {
             </div>
 
             <div>
-              <span style={labelStyle}>Enabled Apps</span>
+              <span style={labelStyle}>Apps switched on for this workspace</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {ALL_APPS.map(appId => (
                   <Button
@@ -471,10 +391,13 @@ function AdminWorkspaceDetailPageV2() {
                     aria-pressed={editApps.includes(appId)}
                     onClick={() => toggleApp(appId)}
                   >
-                    {appId.charAt(0).toUpperCase() + appId.slice(1)}
+                    {appLabel(appId)}
                   </Button>
                 ))}
               </div>
+              <p style={{ ...microStyle, marginTop: 6 }}>
+                {editApps.length} of {ALL_APPS.length} on. Turning an app off removes it from every member of this workspace.
+              </p>
             </div>
 
             {/* Redesign rollout flag — the switch every PageSwitch in this
@@ -491,10 +414,11 @@ function AdminWorkspaceDetailPageV2() {
               )}
             />
 
-            <div>
-              <Button onClick={handleSave} disabled={saving} iconLeft={saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}>
-                Save Changes
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <Button onClick={handleSave} disabled={saving || !dirty} iconLeft={saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}>
+                {saving ? 'Saving…' : 'Save changes'}
               </Button>
+              <span style={microStyle}>{dirty ? 'You have unsaved changes.' : 'No changes to save.'}</span>
             </div>
           </div>
         </Panel>
@@ -505,69 +429,75 @@ function AdminWorkspaceDetailPageV2() {
             {owner ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
                 <InfoRow label="Name" value={owner.name || '—'} />
-                <InfoRow label="Email" value={owner.email || '—'} />
-                <InfoRow label="Joined" value={formatDate(owner.createdAt)} />
-                <InfoRow label="Last Login" value={formatDate(owner.lastLogin)} />
+                <InfoRow label="Joined Rivvra" value={formatDate(owner.createdAt)} />
+                <InfoRow label="Last login" value={formatDate(owner.lastLogin)} />
+                {/* Full row: a long address used to run into the next column. */}
+                <div style={{ gridColumn: '1 / -1' }}><InfoRow label="Email" value={owner.email || '—'} /></div>
               </div>
             ) : (
               <p style={microStyle}>No owner found</p>
             )}
           </Panel>
 
-          <Panel title="Stats" icon={<Users size={16} />}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
-              <Stat label="Total Members" value={stats?.totalMembers || 0} />
+          {/* "Total Members 114" beside a Workspaces list saying 68 read as a
+              contradiction: 114 counts everyone ever added, including people
+              who have left. Now split so each number says what it counts. */}
+          <Panel title="People" icon={<Users size={16} />}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>
               <Stat label="Active" value={stats?.activeMembers || 0} />
-              <Stat label="Pending" value={stats?.pendingInvites || 0} />
+              <Stat label="Alumni" value={statusCounts.alumni || 0} />
+              <Stat label="Invited" value={stats?.pendingInvites || 0} />
+              <Stat label="Left / archived" value={otherMembers} />
             </div>
+            <p style={{ ...microStyle, marginTop: 8 }}>{members.length} records in total, including people who have left.</p>
           </Panel>
         </div>
       </div>
 
       {/* Members */}
-      <Panel title="Members" icon={<Users size={16} />} actions={<Chip>{members.length}</Chip>} flush>
-        <DataTable
-          columns={memberColumns}
-          rows={members}
-          rowKey={(m, i) => m.id || i}
-          empty={<EmptyState icon={<Users size={24} />} title="No members" compact>Nobody has joined this workspace yet.</EmptyState>}
-        />
-      </Panel>
-
-      {/* Backups */}
-      <Panel
-        title="Backups"
-        icon={<Database size={16} />}
-        actions={(
-          <Button
-            size="sm"
-            onClick={handleCreateBackup}
-            disabled={creatingBackup}
-            iconLeft={creatingBackup ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-          >
-            Create Backup
-          </Button>
-        )}
-        flush
-      >
-        {backupError && (
+      <Panel title="Members" icon={<Users size={16} />} actions={<Chip>{shownMembers.length} of {members.length}</Chip>} flush>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '12px 16px', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ flex: '1 1 220px', minWidth: 0, position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4)', pointerEvents: 'none' }} />
+            <Input
+              aria-label="Search members by name or email"
+              placeholder="Search by name or email…"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              style={{ paddingLeft: 30 }}
+            />
+          </div>
+          <div style={{ flex: '0 1 200px' }}>
+            <Select aria-label="Filter members by status" value={memberStatus} onChange={(e) => setMemberStatus(e.target.value)}>
+              <option value="active">Active ({statusCounts.active || 0})</option>
+              {Object.keys(statusCounts).filter((k) => k !== 'active').sort().map((k) => (
+                <option key={k} value={k}>{STATUS_LABELS[k] || k} ({statusCounts[k]})</option>
+              ))}
+              <option value="all">Everyone ({members.length})</option>
+            </Select>
+          </div>
+        </div>
+        {impersonateError && (
           <div style={{ padding: '12px 16px' }}>
-            <Callout tone="danger" icon={<AlertCircle size={16} />}>{backupError}</Callout>
+            <Callout tone="danger" icon={<AlertCircle size={16} />}>{impersonateError}</Callout>
           </div>
         )}
         <DataTable
-          columns={backupColumns}
-          rows={backups}
-          rowKey={(b) => b._id || b.id}
-          loading={backupsLoading}
-          loadingRows={3}
-          empty={(
-            <EmptyState icon={<Database size={24} />} title="No backups yet" compact>
-              Create one to get started.
-            </EmptyState>
-          )}
+          columns={memberColumns}
+          rows={shownMembers}
+          rowKey={(m, i) => m.id || `${m.email}-${i}`}
+          empty={<EmptyState icon={<Users size={24} />} title={members.length ? 'No one matches' : 'No members'} compact>{members.length ? 'Try a different search or status.' : 'Nobody has joined this workspace yet.'}</EmptyState>}
         />
       </Panel>
+
+      {/* Backups. The old "Create Backup" button here wrote a copy of the
+          workspace INTO the same database — that is what filled the database
+          and stopped the platform in June, and it has been switched off since.
+          The real backup is the nightly copy of everything to Cloudflare R2. */}
+      <Callout tone="neutral" icon={<Database size={16} />} title="Backups">
+        This workspace is backed up with the rest of the platform: the whole database is copied to Cloudflare R2 every night and kept for 30 days, and uploaded files are copied there too. There is no per-workspace backup button.{' '}
+        <Link to="/admin/health" style={{ color: 'var(--brand)' }}>See backup status on Platform Health</Link>.
+      </Callout>
     </div>
   );
 }
@@ -595,9 +525,9 @@ function BackToWorkspaces() {
 
 function InfoRow({ label, value }) {
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
       <span style={microStyle}>{label}</span>
-      <p style={{ font: "550 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', margin: '2px 0 0' }}>
+      <p style={{ font: "550 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', margin: '2px 0 0', overflowWrap: 'anywhere' }}>
         {value || '—'}
       </p>
     </div>

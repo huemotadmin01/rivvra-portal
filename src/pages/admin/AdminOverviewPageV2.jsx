@@ -40,10 +40,10 @@ const microStyle = { font: "450 11.5px/1.4 'Inter', system-ui, sans-serif", colo
 
 const statCards = [
   { key: 'totalOrgs', label: 'Total Workspaces', icon: Building2, color: 'blue' },
-  { key: 'paidOrgs', label: 'Paid Orgs', icon: CreditCard, color: 'emerald' },
-  { key: 'freeOrgs', label: 'Free Orgs', icon: Building2, color: 'green' },
+  { key: 'paidOrgs', label: 'Paid Workspaces', icon: CreditCard, color: 'emerald' },
+  { key: 'freeOrgs', label: 'Free Workspaces', icon: Building2, color: 'green' },
   { key: 'totalUsers', label: 'Total Users', icon: Users, color: 'purple' },
-  { key: 'orgsCreatedThisMonth', label: 'New Orgs This Month', icon: TrendingUp, color: 'cyan' },
+  { key: 'orgsCreatedThisMonth', label: 'New Workspaces This Month', icon: TrendingUp, color: 'cyan' },
   { key: 'usersCreatedThisMonth', label: 'New Users This Month', icon: TrendingUp, color: 'indigo' },
 ];
 
@@ -71,6 +71,7 @@ function AdminOverviewPageV2() {
   // New-workspace registration toggle. null = loading.
   const [regOpen, setRegOpen] = useState(null);
   const [regSaving, setRegSaving] = useState(false);
+  const [regError, setRegError] = useState('');
 
   // Platform Health strip (2026-11-20). null = not loaded / failed → hidden,
   // never a guessed "all fine".
@@ -88,12 +89,18 @@ function AdminOverviewPageV2() {
 
   const toggleRegistration = async () => {
     if (regSaving) return;
+    // Closing stops anyone in the world creating a workspace — ask first.
+    if (regOpen && !window.confirm('Close new workspace registration?\n\nNobody will be able to sign up and create a new workspace until you open it again. Existing customers and team invites are not affected.')) return;
     setRegSaving(true);
+    setRegError('');
     try {
       const res = await api.setRegistrationSetting(!regOpen);
-      if (res?.success) setRegOpen(res.open);
+      if (!res?.success) throw new Error(res?.error || 'The server did not confirm the change');
+      setRegOpen(res.open);
     } catch (e) {
-      setError(e.message || 'Failed to update registration setting');
+      // Shown beside the toggle. This used to set the page-level error, which
+      // replaced the whole dashboard with one red box and no way back.
+      setRegError(`Registration was not changed: ${e.message || 'unknown error'}`);
     } finally {
       setRegSaving(false);
     }
@@ -117,7 +124,7 @@ function AdminOverviewPageV2() {
 
   if (loading) {
     return (
-      <div data-theme="dark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
         <Spinner size={28} />
       </div>
     );
@@ -125,25 +132,22 @@ function AdminOverviewPageV2() {
 
   if (error) {
     return (
-      <div data-theme="dark" style={{ padding: 24 }}>
-        <Callout tone="danger">{error}</Callout>
+      <div>
+        <Callout tone="danger" actions={<Button variant="secondary" size="sm" onClick={() => { setError(''); loadData(); }}>Try again</Button>}>{error}</Callout>
       </div>
     );
   }
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       <div>
-        <h1 style={{ font: "700 22px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>Dashboard</h1>
+        <h1 style={{ font: "700 22px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>Overview</h1>
         <p style={{ ...microStyle, marginTop: 4, fontSize: 12.5 }}>Rivvra platform overview</p>
       </div>
 
       {/* Platform Health — the one-line verdict, linking to the full report. */}
       {health?.overall && (() => {
         const o = health.overall;
-        const st = STATUS[o.status] || STATUS.ok;
+        const st = STATUS[o.status] || STATUS.off;
         const Icon = o.status === 'bad' ? XCircle : o.status === 'warn' ? AlertTriangle : CheckCircle2;
         const hp = headline(o.platform || o);
         const hw = o.workspaces ? headline(o.workspaces) : null;
@@ -192,6 +196,7 @@ function AdminOverviewPageV2() {
           {regOpen
             ? 'Anyone can sign up and create a new workspace.'
             : 'Self-service sign-ups are blocked. Existing customers and team invites are unaffected.'}
+          {regError && <span role="alert" style={{ display: 'block', marginTop: 6, color: 'var(--danger)' }}>{regError}</span>}
         </Callout>
       )}
 
@@ -230,9 +235,9 @@ function AdminOverviewPageV2() {
       <Panel
         title="Recent Workspaces"
         actions={(
-          <Button as="a" href="/admin/workspaces" variant="ghost" size="sm" iconRight={<ChevronRight size={14} />}>
-            View all
-          </Button>
+          <Link to="/admin/workspaces" style={{ ...microStyle, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--fg-2)', textDecoration: 'none' }}>
+            View all <ChevronRight size={14} />
+          </Link>
         )}
         flush
       >
@@ -263,7 +268,7 @@ function AdminOverviewPageV2() {
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', font: "550 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
-                  <span style={{ ...microStyle, display: 'block' }}>{ws.slug} · {ws.ownerEmail || 'No owner'}</span>
+                  <span style={{ ...microStyle, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.slug} · {ws.ownerEmail || 'No owner'}</span>
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                   <PlanBadge plan={ws.plan} />

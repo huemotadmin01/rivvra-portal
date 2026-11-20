@@ -145,7 +145,7 @@ function Row({ status, title, sub, right, note, errors, link, first }) {
 }
 
 /** One of the two verdicts at the top; also the switch between the two views. */
-function VerdictTile({ icon, title, sub, tally, active, onClick }) {
+function VerdictTile({ icon, title, sub, tally, note, active, onClick }) {
   const TitleIcon = icon;
   const st = STATUS[tally.status] || STATUS.ok;
   const SIcon = ICONS[tally.status] || CheckCircle2;
@@ -167,14 +167,16 @@ function VerdictTile({ icon, title, sub, tally, active, onClick }) {
       </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <SIcon size={22} style={{ color: st.color, flexShrink: 0 }} />
-        <span style={{ font: `650 16px/1.3 ${FONT}`, color: 'var(--fg)' }}>{headline(tally).title}</span>
+        <span style={{ font: `650 16px/1.3 ${FONT}`, color: 'var(--fg)' }}>{note ? 'Could not be checked' : headline(tally).title}</span>
       </span>
-      <span style={{ ...micro, color: 'var(--fg-3)' }}>{sub}</span>
-      <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {tally.bad > 0 && <Chip tone="danger">{tally.bad} not working</Chip>}
-        {tally.warn > 0 && <Chip tone="warn">{tally.warn} to look at</Chip>}
-        <Chip tone="brand">{tally.ok} working</Chip>
-      </span>
+      <span style={{ ...micro, color: 'var(--fg-3)' }}>{note || sub}</span>
+      {!note && (
+        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {tally.bad > 0 && <Chip tone="danger">{tally.bad} not working</Chip>}
+          {tally.warn > 0 && <Chip tone="warn">{tally.warn} to look at</Chip>}
+          <Chip tone="brand">{tally.ok} working</Chip>
+        </span>
+      )}
     </button>
   );
 }
@@ -264,7 +266,7 @@ export default function AdminHealthPageV2() {
 
   if (loading) {
     return (
-      <div data-theme="dark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
         <Spinner size={28} />
       </div>
     );
@@ -277,7 +279,7 @@ export default function AdminHealthPageV2() {
   const waiting = jobs.filter((j) => j.status === 'off').length;
 
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ font: `700 22px/1.25 ${FONT}`, color: 'var(--fg)', margin: 0 }}>Platform Health</h1>
@@ -318,6 +320,7 @@ export default function AdminHealthPageV2() {
               title={`Workspaces (${report.workspaces.length})`}
               sub="Each customer's own data: its people, Gmail mailboxes, emails, AI results and payroll runs."
               tally={o.workspaces}
+              note={o.workspaces.error}
               active={view === 'workspaces'}
               onClick={() => setView('workspaces')}
             />

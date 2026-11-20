@@ -66,6 +66,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+import { fmtDate } from './adminFormat';
 import announcementsApi from '../../utils/announcementsApi';
 import {
   Megaphone, Plus, Pencil, Trash2, X, Loader2, ArrowRight, Eye, Power,
@@ -79,7 +80,7 @@ import {
 const microStyle = { font: "450 11.5px/1.45 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' };
 
 const AUDIENCE_OPTIONS = [
-  { value: 'app-not-started', label: "App users who haven't started", hint: 'Users with app access but no activity yet — auto-stops as they adopt' },
+  { value: 'app-not-started', label: "App users who haven't started", hint: 'Users with app access but no activity yet — auto-stops as they adopt. Works for the To-Do app only (app id "todo"); for any other app nobody is shown the banner.' },
   { value: 'app-users', label: 'All users of the app', hint: 'Everyone whose membership has the target app enabled' },
   { value: 'all-members', label: 'Everyone in the workspace', hint: 'All members, regardless of app access' },
 ];
@@ -172,6 +173,10 @@ function AdminAnnouncementsPageV2() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // List-level problems (load / on-off / delete). These used to go only to
+  // the browser console, so a failed load looked like "No announcements yet".
+  const [listError, setListError] = useState('');
+  const [busyId, setBusyId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   useEffect(() => { load(); }, []);
@@ -180,12 +185,13 @@ function AdminAnnouncementsPageV2() {
     try {
       setLoading(true);
       const res = await announcementsApi.adminList();
-      if (res.success) {
-        setItems(res.announcements || []);
-        setDismissCounts(res.dismissCounts || {});
-      }
+      if (!res.success) throw new Error(res.error || 'The server did not return the list');
+      setItems(res.announcements || []);
+      setDismissCounts(res.dismissCounts || {});
+      setListError('');
     } catch (err) {
       console.error('Announcements load error:', err);
+      setListError(`Could not load announcements: ${err.message || 'unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -212,10 +218,9 @@ function AdminAnnouncementsPageV2() {
       const res = editing === 'new'
         ? await announcementsApi.adminCreate(payload)
         : await announcementsApi.adminUpdate(editing._id, payload);
-      if (res.success) {
-        setEditing(null);
-        load();
-      }
+      if (!res.success) throw new Error(res.error || 'The server did not save it');
+      setEditing(null);
+      load();
     } catch (err) {
       setError(err.message || 'Failed to save announcement');
     } finally {
@@ -224,11 +229,17 @@ function AdminAnnouncementsPageV2() {
   }
 
   async function handleToggleActive(a) {
+    if (busyId) return; // one change at a time — a double click flipped it twice
+    setBusyId(a._id);
+    setListError('');
     try {
-      await announcementsApi.adminUpdate(a._id, { ...toPayload(toForm(a)), active: !a.active });
-      load();
+      const res = await announcementsApi.adminUpdate(a._id, { ...toPayload(toForm(a)), active: !a.active });
+      if (res && res.success === false) throw new Error(res.error || 'not saved');
+      await load();
     } catch (err) {
-      console.error('Toggle error:', err);
+      setListError(`Could not turn "${a.title}" ${a.active ? 'off' : 'on'}: ${err.message || 'unknown error'}`);
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -240,20 +251,17 @@ function AdminAnnouncementsPageV2() {
     }
     setConfirmDeleteId(null);
     try {
+      setListError('');
       await announcementsApi.adminDelete(id);
       setItems(prev => prev.filter(a => a._id !== id));
     } catch (err) {
-      console.error('Delete error:', err);
+      setListError(`Could not delete the announcement: ${err.message || 'unknown error'}`);
     }
   }
 
   const needsApp = form.audience !== 'all-members';
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute, so without this the page inherits
-  // whatever a previous org-app visit left on <html>.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1024, margin: '0 auto', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       {/* Header */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
         <div>
@@ -268,12 +276,14 @@ function AdminAnnouncementsPageV2() {
         <Button onClick={openCreate} iconLeft={<Plus size={16} />}>New Announcement</Button>
       </div>
 
+      {listError && <Callout tone="danger">{listError}</Callout>}
+
       {/* List */}
       {loading ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
           <Spinner size={26} />
         </div>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && listError ? null : items.length === 0 ? (
         <Panel>
           <EmptyState icon={<Megaphone size={26} />} title="No announcements yet">
             Create one to show a launch banner across workspaces.
@@ -298,7 +308,7 @@ function AdminAnnouncementsPageV2() {
                       {AUDIENCE_OPTIONS.find(o => o.value === a.audience)?.label || a.audience}
                       {' · '}
                       {a.orgSlugs?.length ? `Workspaces: ${a.orgSlugs.join(', ')}` : 'All workspaces'}
-                      {a.activeUntil ? ` · until ${new Date(a.activeUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                      {a.activeUntil ? ` · until ${fmtDate(a.activeUntil)}` : ''}
                       {' · '}
                       {dismissCounts[a.key] || 0} dismissed
                     </p>
@@ -462,16 +472,15 @@ function AdminAnnouncementsPageV2() {
               does not drive — so the row itself carries the click, and the
               visible text is aria-hidden to avoid being announced twice
               alongside the Switch's own accessible name. */}
-          <div
-            onClick={() => setForm(f => ({ ...f, active: !f.active }))}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', width: 'fit-content' }}
-          >
+          {/* The wrapper used to toggle too, so a click on the switch fired
+              twice and nothing changed. Only the switch and the text toggle now. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: 'fit-content' }}>
             <Switch
               checked={form.active}
               onChange={next => setForm(f => ({ ...f, active: next }))}
               label="Active (visible to targeted users)"
             />
-            <span aria-hidden style={{ font: "450 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+            <span aria-hidden onClick={() => setForm(f => ({ ...f, active: !f.active }))} style={{ font: "450 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', cursor: 'pointer' }}>
               Active (visible to targeted users)
             </span>
           </div>

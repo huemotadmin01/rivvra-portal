@@ -27,7 +27,8 @@
 // Not triggered: nothing on this page writes.
 // ============================================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { fmtDate } from './adminFormat';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { Building2, Users } from 'lucide-react';
@@ -61,7 +62,11 @@ function AdminWorkspacesPageV2() {
   const [sort, setSort] = useState('createdAt');
   const [order, setOrder] = useState('desc');
 
+  // Only the newest request may write its answer: a slow earlier search used
+  // to land after a faster later one and replace the rows under the search box.
+  const reqSeq = useRef(0);
   const loadWorkspaces = useCallback(async () => {
+    const seq = ++reqSeq.current;
     try {
       setLoading(true);
       setError('');
@@ -70,13 +75,15 @@ function AdminWorkspacesPageV2() {
       if (status !== 'all') params.status = status;
 
       const res = await api.getSuperAdminWorkspaces(params);
+      if (seq !== reqSeq.current) return;
       setWorkspaces(res.workspaces || []);
       setTotal(res.total || 0);
       setTotalPages(res.totalPages || 0);
     } catch (err) {
+      if (seq !== reqSeq.current) return;
       setError(err.message || 'Failed to load workspaces');
     } finally {
-      setLoading(false);
+      if (seq === reqSeq.current) setLoading(false);
     }
   }, [page, search, status, sort, order]);
 
@@ -109,7 +116,7 @@ function AdminWorkspacesPageV2() {
       key: 'name',
       header: 'Name',
       sortable: true,
-      width: 260,
+      width: 320,
       render: (ws) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <span style={{
@@ -120,8 +127,8 @@ function AdminWorkspacesPageV2() {
             <Building2 size={15} />
           </span>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', color: 'var(--fg)', fontWeight: 550 }}>{ws.name}</span>
-            <span style={{ ...microStyle, display: 'block' }}>{ws.slug}</span>
+            <span title={ws.name} style={{ display: 'block', color: 'var(--fg)', fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+            <span title={ws.slug} style={{ ...microStyle, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.slug}</span>
           </span>
         </span>
       ),
@@ -140,25 +147,22 @@ function AdminWorkspacesPageV2() {
     },
     {
       key: 'seats',
-      header: 'Seats',
+      header: 'Seats used',
       width: 100,
       render: (ws) => `${ws.billing?.seatsUsed || 0}/${ws.billing?.seatsTotal || 0}`,
     },
-    { key: 'owner', header: 'Owner', width: 200, muted: true, render: (ws) => ws.ownerEmail || '—' },
+    { key: 'owner', header: 'Owner', width: 240, muted: true, render: (ws) => <span title={ws.ownerEmail || ''} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.ownerEmail || '—'}</span> },
     {
       key: 'createdAt',
       header: 'Created',
       sortable: true,
       width: 130,
       muted: true,
-      render: (ws) => (ws.createdAt ? new Date(ws.createdAt).toLocaleDateString() : '—'),
+      render: (ws) => fmtDate(ws.createdAt),
     },
   ];
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       <div>
         <h1 style={{ font: "700 22px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>Workspaces</h1>
         <p style={{ ...microStyle, marginTop: 4, fontSize: 12.5 }}>Manage all customer organizations</p>

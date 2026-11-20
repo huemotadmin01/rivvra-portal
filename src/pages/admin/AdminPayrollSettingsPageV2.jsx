@@ -46,7 +46,7 @@
 // seed PT master, copy FY, run migration, verify migration.
 // ============================================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Loader2, ChevronDown, ChevronRight, Save, RefreshCw, Copy,
   Calculator, Shield, MapPin, Briefcase, FileText, AlertCircle,
@@ -177,7 +177,7 @@ function SlabEditor({ slabs, onChange, rateMode = false }) {
             ariaLabel={`Slab ${idx + 1} min`}
             min="0"
             value={slab.min}
-            onChange={e => updateSlab(idx, 'min', Number(e.target.value))}
+            onChange={e => updateSlab(idx, 'min', numOrBlank(e))}
           />
           <NumField
             ariaLabel={`Slab ${idx + 1} max`}
@@ -193,7 +193,7 @@ function SlabEditor({ slabs, onChange, rateMode = false }) {
             min="0"
             step={rateMode ? '0.01' : '1'}
             value={slab[rateMode ? 'rate' : 'tax']}
-            onChange={e => updateSlab(idx, rateMode ? 'rate' : 'tax', Number(e.target.value))}
+            onChange={e => updateSlab(idx, rateMode ? 'rate' : 'tax', numOrBlank(e))}
           />
           <Button
             variant="ghost"
@@ -300,6 +300,24 @@ function PfCeilingScheduleSection({ onError, onSuccess }) {
   );
 }
 
+// A cleared number field stays BLANK in the form (and blocks the save) — it
+// used to become 0 the moment it was emptied, and 0 is a valid-looking value
+// for a tax slab, a rebate limit or a deduction. (2026-11-20)
+const numOrBlank = (e) => (e.target.value === '' ? '' : Number(e.target.value));
+/** First blank / not-a-number field in a config about to be saved, or null. */
+function findBlank(value, path = '') {
+  if (value === '' || (typeof value === 'number' && Number.isNaN(value))) return path || 'a field';
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) { const hit = findBlank(value[i], `${path} row ${i + 1}`); if (hit) return hit; }
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      if (typeof v === 'string' && v !== '') continue; // names, codes, notes
+      const hit = findBlank(v, path ? `${path} → ${k}` : k); if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 function AdminPayrollSettingsPageV2() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -310,6 +328,10 @@ function AdminPayrollSettingsPageV2() {
   const [fyList, setFyList] = useState([]);
   const [selectedFy, setSelectedFy] = useState('2025-26');
   const [fyConfig, setFyConfig] = useState(null);
+  // 'loading' | 'ready' | 'missing' (really not set up) | 'error' (could not
+  // be read — NOT the same as missing, and nothing may be saved over it).
+  const [fyState, setFyState] = useState('loading');
+  const fySeq = useRef(0);
   const [copyTargetFy, setCopyTargetFy] = useState('');
 
   // PT Master
@@ -356,14 +378,21 @@ function AdminPayrollSettingsPageV2() {
     if (selectedPtState && selectedFy) loadPtState(selectedFy, selectedPtState);
   }, [selectedPtState]);
 
-  const loadData = async () => {
+  // `quiet`: refresh after Seed / Copy / Migrate without swapping the page for
+  // a spinner, which remounted every section and wiped unsaved edits.
+  const loadData = async (quiet = false) => {
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
+      // Only "not found" means "not set up yet". Any other failure is an
+      // error the admin must see — the page used to treat every failure as
+      // "not configured", show built-in defaults, and let Save overwrite the
+      // real stored values with them.
+      const missingOk = (fallback) => (err) => { if (err?.status === 404) return fallback; throw err; };
       const [fyRes, salaryRes, modesRes, taxRes] = await Promise.all([
-        getFYConfigs().catch(() => ({ configs: [] })),
-        getPlatformSetting('default_salary_structure').catch(() => null),
-        getPlatformSetting('payroll_modes').catch(() => null),
-        getPlatformSetting('tax_declaration_sections').catch(() => null),
+        getFYConfigs(),
+        getPlatformSetting('default_salary_structure').catch(missingOk(null)),
+        getPlatformSetting('payroll_modes').catch(missingOk(null)),
+        getPlatformSetting('tax_declaration_sections').catch(missingOk(null)),
       ]);
 
       setFyList(fyRes.configs || []);
@@ -379,18 +408,28 @@ function AdminPayrollSettingsPageV2() {
         loadFyConfig('2025-26');
       }
     } catch (err) {
-      setError(err.message);
+      setError(`Could not load the payroll settings: ${err.message}. Nothing has been changed — reload the page before editing.`);
     } finally {
       setLoading(false);
     }
   };
 
+  // Only the newest request may fill the form. Without this, switching year
+  // quickly (or the first-load requests landing out of order) left year A's
+  // numbers on screen under year B's name — and Save wrote A's slabs into B.
   const loadFyConfig = async (fy) => {
+    const seq = ++fySeq.current;
+    setFyState('loading');
     try {
       const res = await getFYConfig(fy);
-      setFyConfig(res.config);
-    } catch {
+      if (seq !== fySeq.current) return;
+      setFyConfig(res.config || null);
+      setFyState(res.config ? 'ready' : 'missing');
+    } catch (err) {
+      if (seq !== fySeq.current) return;
       setFyConfig(null);
+      if (err?.status === 404) setFyState('missing');
+      else { setFyState('error'); setError(`Could not load the ${fy} settings: ${err.message}`); }
     }
   };
 
@@ -409,7 +448,14 @@ function AdminPayrollSettingsPageV2() {
   };
 
   const saveFyConfig = async () => {
-    if (!fyConfig) return;
+    if (!fyConfig || saving) return;
+    // The form must hold THIS year's numbers.
+    if (fyState !== 'ready' || (fyConfig.financialYear && fyConfig.financialYear !== selectedFy)) {
+      setError(`The form is not showing ${selectedFy} — nothing was saved. Pick the year again and wait for it to load.`);
+      return;
+    }
+    const blank = findBlank(fyConfig);
+    if (blank) { setError(`"${blank}" is empty. Fill in every number (type 0 if it really is zero) — nothing was saved.`); return; }
     const slabErr =
       validateSlabs(fyConfig.surchargeSlabs || [], 'Surcharge slabs') ||
       validateSlabs(fyConfig.newRegimeSlabs || [], 'New regime slabs') ||
@@ -450,7 +496,7 @@ function AdminPayrollSettingsPageV2() {
     try {
       setSaving(true);
       await seedFYConfig();
-      await loadData();
+      await loadData(true);
       showSuccess('FY 2025-26 config seeded');
     } catch (err) {
       setError(err.message);
@@ -464,7 +510,7 @@ function AdminPayrollSettingsPageV2() {
     try {
       setSaving(true);
       await copyFYConfig(copyTargetFy, selectedFy);
-      await loadData();
+      await loadData(true);
       showSuccess(`Copied ${selectedFy} to ${copyTargetFy}`);
       setCopyTargetFy('');
     } catch (err) {
@@ -475,12 +521,19 @@ function AdminPayrollSettingsPageV2() {
   };
 
   const savePtState = async () => {
-    if (!ptConfig || !selectedPtState) return;
+    if (!ptConfig || !selectedPtState || saving) return;
+    if (ptConfig.financialYear && ptConfig.financialYear !== selectedFy) {
+      setError(`These slabs belong to ${ptConfig.financialYear}, not ${selectedFy} — nothing was saved. Pick the state again.`);
+      return;
+    }
+    const ptBlank = findBlank({ slabs: ptConfig.slabs, annualCap: ptConfig.annualCap });
+    if (ptBlank) { setError(`"${ptBlank}" is empty. Fill in every number (type 0 if it really is zero) — nothing was saved.`); return; }
     const slabErr = validateSlabs(ptConfig.slabs || [], `PT slabs (${selectedPtState})`);
     if (slabErr) { setError(slabErr); return; }
     if ((ptConfig.annualCap ?? 0) < 0) { setError('Annual cap cannot be negative'); return; }
     try {
       setSaving(true);
+      setError('');
       const { _id, createdAt, updatedAt, updatedBy, ...data } = ptConfig;
       await updatePlatformPTState(selectedFy, selectedPtState, data);
       const ptRes = await getPlatformPTMaster(selectedFy);
@@ -508,9 +561,12 @@ function AdminPayrollSettingsPageV2() {
   };
 
   const saveSalaryStructure = async () => {
-    if (!salaryStructure) return;
+    if (!salaryStructure || saving) return;
+    const ssBlank = findBlank(salaryStructure);
+    if (ssBlank) { setError(`"${ssBlank}" is empty. Fill in every number — nothing was saved.`); return; }
     try {
       setSaving(true);
+      setError('');
       await updatePlatformSetting('default_salary_structure', salaryStructure);
       showSuccess('Default salary structure saved');
     } catch (err) {
@@ -521,11 +577,12 @@ function AdminPayrollSettingsPageV2() {
   };
 
   const handleMigrate = async () => {
+    if (!window.confirm('Run the settings migration?\n\nThis writes the platform payroll settings into the database from the built-in defaults where they are missing. It is meant to be run once.')) return;
     try {
       setSaving(true);
       const res = await runPlatformMigration();
       setMigrationResult(res.results);
-      await loadData();
+      await loadData(true);
       showSuccess('Migration completed');
     } catch (err) {
       setError(err.message);
@@ -549,31 +606,29 @@ function AdminPayrollSettingsPageV2() {
 
   if (loading) {
     return (
-      <div data-theme="dark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
         <Loader2 size={32} className="animate-spin" style={{ color: 'var(--warn-ink)' }} />
       </div>
     );
   }
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute, so without this the page inherits
-  // whatever a previous org-app visit left on <html>.
   return (
-    <div data-theme="dark" style={{ maxWidth: 1024, margin: '0 auto', padding: 32 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
+      <div>
         <h1 style={{ font: "700 22px/1.25 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>
-          Payroll Configuration
+          Payroll rules
         </h1>
         <p style={{ ...metaStyle, marginTop: 4, fontSize: 13 }}>
-          Platform-wide statutory settings for payroll processing
+          Statutory settings used by every workspace's payroll (PF, ESI, income-tax slabs, professional tax). Rates are entered as fractions: 0.12 means 12%.
         </p>
       </div>
 
       {/* Status Messages */}
+      {/* Sticky: every Save button on this long page reports here, so the
+          message must be visible wherever the admin has scrolled to. */}
       {error && (
-        <div style={{ marginBottom: 16 }}>
-          <Callout tone="danger" icon={<AlertCircle size={16} />}>
+        <div role="alert" style={{ position: 'sticky', top: 64, zIndex: 5 }}>
+          <Callout tone="danger" icon={<AlertCircle size={16} />} style={{ boxShadow: '0 6px 20px rgba(0,0,0,.18)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ flex: 1 }}>{error}</span>
               <Button variant="ghost" size="sm" onClick={() => setError('')} aria-label="Dismiss error">×</Button>
@@ -581,9 +636,9 @@ function AdminPayrollSettingsPageV2() {
           </Callout>
         </div>
       )}
-      {success && (
-        <div style={{ marginBottom: 16 }}>
-          <Callout tone="brand" icon={<CheckCircle size={16} />}>{success}</Callout>
+      {success && !error && (
+        <div style={{ position: 'sticky', top: 64, zIndex: 5 }}>
+          <Callout tone="brand" icon={<CheckCircle size={16} />} style={{ boxShadow: '0 6px 20px rgba(0,0,0,.18)' }}>{success}</Callout>
         </div>
       )}
 
@@ -660,7 +715,7 @@ function AdminPayrollSettingsPageV2() {
                         min="0"
                         step="0.0001"
                         value={fyConfig[f.key] ?? ''}
-                        onChange={e => setFyConfig({ ...fyConfig, [f.key]: Number(e.target.value) })}
+                        onChange={e => setFyConfig({ ...fyConfig, [f.key]: numOrBlank(e) })}
                       />
                     ))}
                   </div>
@@ -681,7 +736,7 @@ function AdminPayrollSettingsPageV2() {
                         min="0"
                         step="0.0001"
                         value={fyConfig[f.key] ?? ''}
-                        onChange={e => setFyConfig({ ...fyConfig, [f.key]: Number(e.target.value) })}
+                        onChange={e => setFyConfig({ ...fyConfig, [f.key]: numOrBlank(e) })}
                       />
                     ))}
                   </div>
@@ -696,7 +751,7 @@ function AdminPayrollSettingsPageV2() {
                       label="Cess Rate"
                       step="0.01"
                       value={fyConfig.cessRate ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, cessRate: Number(e.target.value) })}
+                      onChange={e => setFyConfig({ ...fyConfig, cessRate: numOrBlank(e) })}
                     />
                   </div>
                   <label style={{ ...labelStyle, marginBottom: 8 }}>Surcharge Slabs</label>
@@ -709,11 +764,11 @@ function AdminPayrollSettingsPageV2() {
                   <h4 style={h4Style}>New Tax Regime</h4>
                   <div style={{ ...grid(180), marginBottom: 12 }}>
                     <NumField label="Standard Deduction" value={fyConfig.newRegimeStdDeduction ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, newRegimeStdDeduction: Number(e.target.value) })} />
+                      onChange={e => setFyConfig({ ...fyConfig, newRegimeStdDeduction: numOrBlank(e) })} />
                     <NumField label="Rebate Limit" value={fyConfig.newRegimeRebateLimit ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, newRegimeRebateLimit: Number(e.target.value) })} />
+                      onChange={e => setFyConfig({ ...fyConfig, newRegimeRebateLimit: numOrBlank(e) })} />
                     <NumField label="Rebate Max" value={fyConfig.newRegimeRebateMax ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, newRegimeRebateMax: Number(e.target.value) })} />
+                      onChange={e => setFyConfig({ ...fyConfig, newRegimeRebateMax: numOrBlank(e) })} />
                   </div>
                   <label style={{ ...labelStyle, marginBottom: 8 }}>Tax Slabs (New Regime)</label>
                   <SlabEditor slabs={fyConfig.newRegimeSlabs || []} rateMode
@@ -725,11 +780,11 @@ function AdminPayrollSettingsPageV2() {
                   <h4 style={h4Style}>Old Tax Regime</h4>
                   <div style={{ ...grid(180), marginBottom: 12 }}>
                     <NumField label="Standard Deduction" value={fyConfig.oldRegimeStdDeduction ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, oldRegimeStdDeduction: Number(e.target.value) })} />
+                      onChange={e => setFyConfig({ ...fyConfig, oldRegimeStdDeduction: numOrBlank(e) })} />
                     <NumField label="Rebate Limit" value={fyConfig.oldRegimeRebateLimit ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, oldRegimeRebateLimit: Number(e.target.value) })} />
+                      onChange={e => setFyConfig({ ...fyConfig, oldRegimeRebateLimit: numOrBlank(e) })} />
                     <NumField label="Rebate Max" value={fyConfig.oldRegimeRebateMax ?? ''}
-                      onChange={e => setFyConfig({ ...fyConfig, oldRegimeRebateMax: Number(e.target.value) })} />
+                      onChange={e => setFyConfig({ ...fyConfig, oldRegimeRebateMax: numOrBlank(e) })} />
                   </div>
                   <label style={{ ...labelStyle, marginBottom: 8 }}>Tax Slabs (Old Regime)</label>
                   <SlabEditor slabs={fyConfig.oldRegimeSlabs || []} rateMode
@@ -745,7 +800,9 @@ function AdminPayrollSettingsPageV2() {
               </>
             ) : (
               <p style={{ ...metaStyle, fontSize: 13, padding: '16px 0' }}>
-                No config found for FY {selectedFy}. Click &quot;Seed 2025-26&quot; to create defaults.
+                {fyState === 'loading' && `Loading ${selectedFy}…`}
+                {fyState === 'error' && `The ${selectedFy} settings could not be loaded. Nothing is shown so nothing can be overwritten — reload the page.`}
+                {fyState === 'missing' && `No settings exist for ${selectedFy} yet. Use “Seed 2025-26” to create the defaults, or copy another year.`}
               </p>
             )}
           </div>
@@ -782,7 +839,7 @@ function AdminPayrollSettingsPageV2() {
                     label="Annual Cap"
                     min="0"
                     value={ptConfig.annualCap ?? 2500}
-                    onChange={e => setPtConfig({ ...ptConfig, annualCap: Number(e.target.value) })}
+                    onChange={e => setPtConfig({ ...ptConfig, annualCap: numOrBlank(e) })}
                   />
                   <label style={{ display: 'flex', alignItems: 'flex-end', gap: 8, cursor: 'pointer', font: "450 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>
                     <input type="checkbox" checked={ptConfig.februaryAdjustment || false}
@@ -832,7 +889,7 @@ function AdminPayrollSettingsPageV2() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Input type="number" value={comp.percentOfGross} aria-label={`Component ${idx + 1} percent of gross`} onChange={e => {
                           const updated = [...salaryStructure.components];
-                          updated[idx] = { ...updated[idx], percentOfGross: Number(e.target.value) };
+                          updated[idx] = { ...updated[idx], percentOfGross: numOrBlank(e) };
                           setSalaryStructure({ ...salaryStructure, components: updated });
                         }} style={{ height: 32, fontSize: 13, width: 72 }} />
                         <span style={metaStyle}>%</span>

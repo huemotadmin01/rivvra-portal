@@ -124,7 +124,9 @@ function AdminLoginPageV2() {
         });
         window.google.accounts.id.renderButton(
           document.getElementById('admin-google-signin-button'),
-          { theme: 'filled_black', size: 'large', width: 400, text: 'signin_with' }
+          // 340: the card is 420 wide with 24px padding, and narrower on phones —
+          // 400 overflowed it.
+          { theme: 'filled_black', size: 'large', width: Math.min(340, Math.max(220, window.innerWidth - 84)), text: 'signin_with' }
         );
       }
     };
@@ -204,14 +206,16 @@ function AdminLoginPageV2() {
           {/* Google renders its own button into this id — the id IS the
               contract with the GSI script initialised above. */}
           <div style={{ display: 'flex', justifyContent: 'center', minHeight: 44 }}>
-            {googleLoading
-              ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <Loader2 size={18} className="animate-spin" style={{ color: 'var(--fg-4)' }} />
-                  <span style={microStyle}>Verifying with Google...</span>
-                </span>
-              )
-              : <div id="admin-google-signin-button" />}
+            {googleLoading && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={18} className="animate-spin" style={{ color: 'var(--fg-4)' }} />
+                <span style={microStyle}>Verifying with Google...</span>
+              </span>
+            )}
+            {/* Kept mounted and only hidden while verifying. Google draws its
+                button into this element ONCE; unmounting it meant that after
+                one failed attempt the button was gone until a page reload. */}
+            <div id="admin-google-signin-button" style={{ display: googleLoading ? 'none' : 'block' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
             <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />

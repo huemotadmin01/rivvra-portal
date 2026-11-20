@@ -1367,10 +1367,11 @@ class ApiClient {
     });
   }
 
-  async previewEmailTemplate(key, sampleData) {
+  // `draft` = { subject, htmlBody } being edited, so the preview shows unsaved changes.
+  async previewEmailTemplate(key, sampleData, draft = {}) {
     return this.request(`/api/superadmin/email-templates/${key}/preview`, {
       method: 'POST',
-      body: JSON.stringify({ sampleData }),
+      body: JSON.stringify({ sampleData, ...draft }),
     });
   }
 

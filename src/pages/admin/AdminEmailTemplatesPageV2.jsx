@@ -50,7 +50,8 @@
 // Not triggered: save template. (Preview is a POST and is also not triggered.)
 // ============================================================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { fmtDate } from './adminFormat';
 import { api } from '../../utils/api';
 import {
   Mail, Edit3, Save, X, Eye, Loader2, AlertCircle, Code,
@@ -143,6 +144,12 @@ function AdminEmailTemplatesPageV2() {
   const [editHtmlBody, setEditHtmlBody] = useState('');
   const [editPlaceholders, setEditPlaceholders] = useState([]);
   const [saving, setSaving] = useState(false);
+  // Editor safety (2026-11-20): the fields are only "ready" once THIS
+  // template's own text has loaded, and `original` is what was loaded, so
+  // unsaved edits can be detected before they are thrown away.
+  const [editorReady, setEditorReady] = useState(false);
+  const [original, setOriginal] = useState({ subject: '', htmlBody: '' });
+  const loadSeq = useRef(0);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
 
@@ -154,9 +161,11 @@ function AdminEmailTemplatesPageV2() {
 
   useEffect(() => { loadTemplates(); }, []);
 
-  const loadTemplates = async () => {
+  // `quiet` refreshes the list without swapping the whole page for a spinner
+  // (which lost the scroll position and the "saved" message after every save).
+  const loadTemplates = async (quiet = false) => {
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       setError('');
       const res = await api.getEmailTemplates();
       setTemplates(res.templates || []);
@@ -200,25 +209,45 @@ function AdminEmailTemplatesPageV2() {
     });
   };
 
+  const isDirty = editorReady && (editSubject !== original.subject || editHtmlBody !== original.htmlBody);
+  const okToDiscard = () => !isDirty || window.confirm('You have changes to this template that are not saved. Discard them?');
+
   const startEditing = async (key) => {
+    if (key === editingKey) return;
+    if (!okToDiscard()) return;
+    // Clear first: the editor used to keep the PREVIOUS template's text while
+    // the new one loaded (or failed to), with Save enabled — one click could
+    // write template A's body into template B.
+    const seq = ++loadSeq.current;
+    setEditingKey(key);
+    setEditorReady(false);
+    setEditSubject('');
+    setEditHtmlBody('');
+    setEditPlaceholders([]);
+    setSaveError('');
+    setSaveSuccess('');
+    setShowPreview(false);
+    setPreviewHtml('');
     try {
-      setEditingKey(key);
-      setSaveError('');
-      setSaveSuccess('');
-      setShowPreview(false);
-      setPreviewHtml('');
       const res = await api.getEmailTemplate(key);
-      const t = res.template;
+      if (seq !== loadSeq.current) return; // a newer click won
+      const t = res.template || {};
       setEditSubject(t.subject || '');
       setEditHtmlBody(t.htmlBody || '');
       setEditPlaceholders(t.placeholders || []);
+      setOriginal({ subject: t.subject || '', htmlBody: t.htmlBody || '' });
+      setEditorReady(true);
     } catch (err) {
-      setSaveError('Failed to load template: ' + err.message);
+      if (seq !== loadSeq.current) return;
+      setSaveError('Could not load this template: ' + err.message + '. Nothing can be saved until it loads — close and open it again.');
     }
   };
 
   const cancelEditing = () => {
+    if (!okToDiscard()) return;
+    loadSeq.current++;
     setEditingKey(null);
+    setEditorReady(false);
     setEditSubject('');
     setEditHtmlBody('');
     setEditPlaceholders([]);
@@ -229,6 +258,7 @@ function AdminEmailTemplatesPageV2() {
   };
 
   const handleSave = async () => {
+    if (!editorReady || saving) return;
     if (!editSubject.trim() || !editHtmlBody.trim()) {
       setSaveError('Subject and HTML body are required');
       return;
@@ -242,9 +272,10 @@ function AdminEmailTemplatesPageV2() {
         htmlBody: editHtmlBody,
         placeholders: editPlaceholders,
       });
-      setSaveSuccess('Template saved successfully');
-      await loadTemplates();
-      setTimeout(() => setSaveSuccess(''), 3000);
+      setOriginal({ subject: editSubject, htmlBody: editHtmlBody });
+      setSaveSuccess('Saved. Emails sent from now on use this version.');
+      await loadTemplates(true);
+      setTimeout(() => setSaveSuccess(''), 5000);
     } catch (err) {
       setSaveError(err.message || 'Failed to save template');
     } finally {
@@ -258,7 +289,10 @@ function AdminEmailTemplatesPageV2() {
       setShowPreview(true);
       const sampleData = {};
       for (const p of editPlaceholders) sampleData[p] = getSampleValue(p);
-      const res = await api.previewEmailTemplate(editingKey, sampleData);
+      // Sends the text in the editor, so the preview shows the EDITS — it used
+      // to render the saved template, so a change could only be seen after
+      // publishing it to customers.
+      const res = await api.previewEmailTemplate(editingKey, sampleData, { subject: editSubject, htmlBody: editHtmlBody });
       setPreviewSubject(res.subject || '');
       setPreviewHtml(res.html || '');
     } catch (err) {
@@ -270,17 +304,13 @@ function AdminEmailTemplatesPageV2() {
 
   if (loading) {
     return (
-      <div data-theme="dark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 384 }}>
         <Spinner size={28} />
       </div>
     );
   }
-
-  // `data-theme="dark"` is pinned: AdminLayout is a hard-dark legacy shell and
-  // nothing on /admin/* writes the attribute, so without this the page inherits
-  // whatever a previous org-app visit left on <html>.
   return (
-    <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', display: 'grid', gap: 18 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
       {/* Header + Search */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
         <div>
@@ -367,7 +397,7 @@ function AdminEmailTemplatesPageV2() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                           {t.updatedAt && (
                             <span style={microStyle} className="max-sm:!hidden">
-                              {new Date(t.updatedAt).toLocaleDateString()}
+                              {fmtDate(t.updatedAt)}
                             </span>
                           )}
                           {isEditing ? (
@@ -434,7 +464,7 @@ function AdminEmailTemplatesPageV2() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                             <Button
                               onClick={handleSave}
-                              disabled={saving}
+                              disabled={saving || !editorReady || !isDirty}
                               iconLeft={saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                             >
                               Save Template
@@ -442,7 +472,7 @@ function AdminEmailTemplatesPageV2() {
                             <Button
                               variant="secondary"
                               onClick={handlePreview}
-                              disabled={previewLoading}
+                              disabled={previewLoading || !editorReady}
                               iconLeft={previewLoading ? <Loader2 size={16} className="animate-spin" /> : <Eye size={16} />}
                             >
                               Preview
@@ -562,7 +592,9 @@ function getSampleValue(placeholder) {
     department: 'IT',
     changedByName: 'Jane Smith',
   };
-  return samples[placeholder] || `[${placeholder}]`;
+  // `in`, not `||`: an intentionally empty sample (isPasswordAuth: '') must
+  // stay empty, or both branches of that template's condition render.
+  return placeholder in samples ? samples[placeholder] : `[${placeholder}]`;
 }
 
 export default AdminEmailTemplatesPageV2;
