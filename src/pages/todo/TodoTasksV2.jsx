@@ -164,6 +164,12 @@ export default function TodoTasksV2() {
   useEffect(() => { loadTasks(); }, [loadTasks]);
   useEffect(() => { loadOverview(); }, [loadOverview]);
   const refresh = () => { loadTasks(); loadOverview(); };
+  // Everyone is owner-only (20 Nov). Anyone else arriving on an old
+  // ?view=everyone link goes back to My tasks instead of seeing an error.
+  useEffect(() => {
+    if (view === 'everyone' && overview?.success && !overview.everyone) patchParams({ view: '', person: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, overview]);
 
   // ── Modals ───────────────────────────────────────────────────────────
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -339,7 +345,7 @@ export default function TodoTasksV2() {
   const mine = overview?.mine;
   const assigned = overview?.assigned;
   const team = overview?.team;
-  // Org owners/admins get "Everyone": every employee in the company (2026-11-19).
+  // The org owner gets "Everyone" (owner only since 20 Nov): every employee in the company (2026-11-19).
   const everyone = overview?.everyone;
   const showAssigned = !!(canAssign || assigned?.total);
   const showTeam = !!team?.size;
@@ -381,7 +387,7 @@ export default function TodoTasksV2() {
       <PageHeader
         title="Tasks"
         sub={view === 'everyone'
-          ? 'Every employee in this company (admins only). You can change a task only if you assigned it.'
+          ? 'Every employee in this company (owner only). You can change a task only if you assigned it.'
           : view === 'team'
           ? 'Everyone in your reporting line. You can change a task only if you assigned it.'
           : view === 'assigned'
