@@ -14,6 +14,13 @@
 //
 // Status words from the server: ok (green) · warn (amber) · bad (red) ·
 // off (grey — not set up, or nothing to judge yet; never counted as a problem).
+//
+// TWO views, never mixed (owner, 20 Nov: "distinguish between individual
+// workspace data and Rivvra as platform data"):
+//   • Rivvra platform — what every workspace shares: the server, the database,
+//     backups, the accounts Rivvra pays for, the background jobs.
+//   • Workspaces — what belongs to one customer: its people, its Gmail
+//     mailboxes, its emails, its AI failures, its payroll runs.
 // ============================================================================
 
 import { useCallback, useEffect, useState } from 'react';
@@ -21,7 +28,7 @@ import { Link } from 'react-router-dom';
 import {
   CheckCircle2, AlertTriangle, XCircle, MinusCircle, RefreshCw, ExternalLink,
   ChevronDown, ChevronRight, Building2, Server, Database, Cloud, Mail, Sparkles,
-  Github, CreditCard, HardDrive, Inbox,
+  Github, CreditCard, HardDrive, Layers,
 } from 'lucide-react';
 import { api } from '../../utils/api';
 import { Panel, Button, Callout, Chip, Meter, Spinner } from '../../components/ds';
@@ -36,7 +43,7 @@ const strong = { font: `600 13px/1.35 ${FONT}`, color: 'var(--fg)' };
 const ICONS = { ok: CheckCircle2, warn: AlertTriangle, bad: XCircle, off: MinusCircle };
 const SERVICE_ICON = {
   server: Server, mongodb: Database, r2: HardDrive, cloudinary: Cloud, resend: Mail,
-  gmail: Inbox, openai: Sparkles, github: Github, stripe: CreditCard,
+  openai: Sparkles, github: Github, stripe: CreditCard,
 };
 
 function StatusIcon({ status, size = 16 }) {
@@ -137,6 +144,86 @@ function Row({ status, title, sub, right, note, errors, link, first }) {
   );
 }
 
+/** One of the two verdicts at the top; also the switch between the two views. */
+function VerdictTile({ icon, title, sub, tally, active, onClick }) {
+  const TitleIcon = icon;
+  const st = STATUS[tally.status] || STATUS.ok;
+  const SIcon = ICONS[tally.status] || CheckCircle2;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      style={{
+        textAlign: 'left', cursor: 'pointer', border: 'none', padding: '14px 16px', display: 'grid', gap: 8,
+        borderRadius: 'var(--r-3, 16px)', background: active ? st.soft : 'var(--surface-1)',
+        boxShadow: `0 0 0 ${active ? 2 : 1}px ${active ? st.color : 'var(--line)'}`,
+        opacity: active ? 1 : 0.78,
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, ...micro, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>
+        <TitleIcon size={14} /> {title}
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <SIcon size={22} style={{ color: st.color, flexShrink: 0 }} />
+        <span style={{ font: `650 16px/1.3 ${FONT}`, color: 'var(--fg)' }}>{headline(tally).title}</span>
+      </span>
+      <span style={{ ...micro, color: 'var(--fg-3)' }}>{sub}</span>
+      <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {tally.bad > 0 && <Chip tone="danger">{tally.bad} not working</Chip>}
+        {tally.warn > 0 && <Chip tone="warn">{tally.warn} to look at</Chip>}
+        <Chip tone="brand">{tally.ok} working</Chip>
+      </span>
+    </button>
+  );
+}
+
+/** One customer workspace: its own numbers, then its own problems. */
+function WorkspaceCard({ w }) {
+  const tone = STATUS[w.status] || STATUS.ok;
+  return (
+    <div style={{
+      background: 'var(--surface-1)', borderRadius: 'var(--r-3, 16px)', padding: 16, display: 'grid', gap: 12,
+      boxShadow: `0 0 0 1px ${w.status === 'ok' ? 'var(--line)' : tone.ring}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <StatusIcon status={w.status} size={18} />
+        <span style={{ flex: '1 1 200px', minWidth: 0 }}>
+          <Link to={`/admin/workspaces/${w.orgId}`} style={{ font: `650 14.5px/1.3 ${FONT}`, color: 'var(--fg)', textDecoration: 'none' }}>{w.name}</Link>
+          <span style={{ ...micro, display: 'block' }}>{w.slug}</span>
+        </span>
+        {w.quiet && <Chip tone="neutral">No activity in 30 days</Chip>}
+        <PlanBadge plan={w.plan} />
+        <Chip tone={tone.tone}>{w.issues.length ? `${w.issues.length} problem${w.issues.length === 1 ? '' : 's'}` : 'No problems found'}</Chip>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+        {w.facts.map((f) => (
+          <div key={f.label} style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-2, 10px)', padding: '8px 10px' }}>
+            <div style={micro}>{f.label}</div>
+            <div style={{ font: `650 14px/1.35 ${FONT}`, color: f.bad ? 'var(--warn-ink)' : 'var(--fg)' }} title={f.type === 'time' ? exactTime(f.value) : undefined}>
+              {f.type === 'time' ? (f.value ? relTime(f.value) : 'Never') : f.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      {w.issues.length > 0 && (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+          {w.issues.map((it, k) => (
+            <li key={k} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <StatusIcon status={it.status} size={14} />
+              <span style={{ minWidth: 0 }}>
+                <span style={body}><b style={{ color: 'var(--fg)', fontWeight: 600 }}>{it.area}:</b> {it.text}</span>
+                {it.detail && <span style={{ ...micro, display: 'block', wordBreak: 'break-word' }}>{it.detail}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function SectionCount({ rows }) {
   const bad = rows.filter((r) => r.status === 'bad').length;
   const warn = rows.filter((r) => r.status === 'warn').length;
@@ -156,6 +243,7 @@ export default function AdminHealthPageV2() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
   const [showQuietJobs, setShowQuietJobs] = useState(false);
+  const [view, setView] = useState('platform'); // 'platform' | 'workspaces'
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setChecking(true);
@@ -183,12 +271,10 @@ export default function AdminHealthPageV2() {
   }
 
   const o = report?.overall;
-  const h = o ? headline(o) : null;
   const jobs = report?.jobs || [];
   const loudJobs = jobs.filter((j) => j.status === 'bad' || j.status === 'warn');
   const quietJobs = jobs.filter((j) => j.status === 'ok' || j.status === 'off');
   const waiting = jobs.filter((j) => j.status === 'off').length;
-  const BannerIcon = ICONS[o?.status] || CheckCircle2;
 
   return (
     <div data-theme="dark" style={{ padding: 'clamp(12px, 2vw, 24px)', display: 'grid', gap: 18 }}>
@@ -196,7 +282,7 @@ export default function AdminHealthPageV2() {
         <div>
           <h1 style={{ font: `700 22px/1.25 ${FONT}`, color: 'var(--fg)', margin: 0 }}>Platform Health</h1>
           <p style={{ ...micro, marginTop: 4, fontSize: 12.5 }}>
-            What is working and what is not, across every workspace. Read-only — nothing here changes anything.
+            What is working and what is not — for Rivvra itself, and for each workspace on it. Read-only: nothing here changes anything.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -217,28 +303,31 @@ export default function AdminHealthPageV2() {
 
       {report && (
         <>
-          {/* Overall verdict */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', flexWrap: 'wrap',
-            borderRadius: 'var(--r-3, 16px)', background: STATUS[o.status].soft,
-            boxShadow: `0 0 0 1px ${STATUS[o.status].ring}`,
-          }}>
-            <BannerIcon size={28} style={{ color: STATUS[o.status].color, flexShrink: 0 }} />
-            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-              <div style={{ font: `650 16px/1.3 ${FONT}`, color: 'var(--fg)' }}>{h.title}</div>
-              <div style={{ ...body, marginTop: 2 }}>{h.sub}</div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {o.bad > 0 && <Chip tone="danger">{o.bad} not working</Chip>}
-              {o.warn > 0 && <Chip tone="warn">{o.warn} to look at</Chip>}
-              <Chip tone="brand">{o.ok} working</Chip>
-            </div>
+          {/* Two verdicts — Rivvra itself, and the workspaces on it. They also switch the view. */}
+          <div role="tablist" aria-label="Health view" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+            <VerdictTile
+              icon={Layers}
+              title="Rivvra platform"
+              sub="Shared by every workspace: server, database, backups, connected accounts, background jobs."
+              tally={o.platform}
+              active={view === 'platform'}
+              onClick={() => setView('platform')}
+            />
+            <VerdictTile
+              icon={Building2}
+              title={`Workspaces (${report.workspaces.length})`}
+              sub="Each customer's own data: its people, Gmail mailboxes, emails, AI results and payroll runs."
+              tally={o.workspaces}
+              active={view === 'workspaces'}
+              onClick={() => setView('workspaces')}
+            />
           </div>
 
+          {view === 'platform' && (<>
           {/* Connected services */}
           <section style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <h2 style={{ font: `650 14px/1.3 ${FONT}`, color: 'var(--fg)', margin: 0 }}>Connected services</h2>
+              <h2 style={{ font: `650 14px/1.3 ${FONT}`, color: 'var(--fg)', margin: 0 }}>Rivvra's own services</h2>
               <SectionCount rows={report.services} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -256,42 +345,10 @@ export default function AdminHealthPageV2() {
             )}
           </section>
 
-          {/* Workspaces */}
-          <Panel title="Workspaces" icon={<Building2 size={14} />} actions={<SectionCount rows={report.workspaces} />} flush>
-            {report.workspaces.map((w, i) => (
-              <div key={w.orgId} style={{ borderTop: i > 0 ? '1px solid var(--line)' : 'none', padding: '11px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <StatusIcon status={w.status} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <Link to={`/admin/workspaces/${w.orgId}`} style={{ ...strong, textDecoration: 'none' }}>{w.name}</Link>
-                    <span style={{ ...micro, display: 'block' }}>{w.slug}</span>
-                  </span>
-                  <PlanBadge plan={w.plan} />
-                  <span style={{ ...body, color: w.issues.length ? 'var(--warn-ink)' : 'var(--fg-3)', minWidth: 120, textAlign: 'right' }}>
-                    {w.issues.length ? `${w.issues.length} problem${w.issues.length === 1 ? '' : 's'}` : 'No problems found'}
-                  </span>
-                </div>
-                {w.issues.length > 0 && (
-                  <ul style={{ listStyle: 'none', margin: '8px 0 0 28px', padding: 0, display: 'grid', gap: 6 }}>
-                    {w.issues.map((it, k) => (
-                      <li key={k} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <StatusIcon status={it.status} size={14} />
-                        <span style={{ minWidth: 0 }}>
-                          <span style={body}><b style={{ color: 'var(--fg)', fontWeight: 600 }}>{it.area}:</b> {it.text}</span>
-                          {it.detail && <span style={{ ...micro, display: 'block', wordBreak: 'break-word' }}>{it.detail}</span>}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </Panel>
-
           {/* Background jobs */}
           <Panel title="Background jobs" actions={<SectionCount rows={jobs} />} flush>
             <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--line)' }}>
-              Work Rivvra does on its own, on a timer. A job turns amber when it logs an error and red when it stops or runs late. Click a row with errors to read them.
+              Work Rivvra does on its own, on a timer, for all workspaces. A job turns amber when it logs an error and red when it stops or runs late. Click a row with errors to read them.
             </div>
             {loudJobs.length === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
@@ -373,6 +430,16 @@ export default function AdminHealthPageV2() {
               </div>
             ))}
           </Panel>
+          </>)}
+
+          {view === 'workspaces' && (
+            <section style={{ display: 'grid', gap: 12 }}>
+              <div style={micro}>
+                Numbers below belong to that workspace only. A problem with Rivvra itself (for example the database or the email account) is shown under “Rivvra platform”, not here.
+              </div>
+              {report.workspaces.map((w) => <WorkspaceCard key={w.orgId} w={w} />)}
+            </section>
+          )}
         </>
       )}
     </div>

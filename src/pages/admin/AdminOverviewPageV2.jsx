@@ -145,7 +145,8 @@ function AdminOverviewPageV2() {
         const o = health.overall;
         const st = STATUS[o.status] || STATUS.ok;
         const Icon = o.status === 'bad' ? XCircle : o.status === 'warn' ? AlertTriangle : CheckCircle2;
-        const h = headline(o);
+        const hp = headline(o.platform || o);
+        const hw = o.workspaces ? headline(o.workspaces) : null;
         return (
           <Link
             to="/admin/health"
@@ -156,8 +157,10 @@ function AdminOverviewPageV2() {
           >
             <Icon size={20} style={{ color: st.color, flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', font: "600 13.5px/1.35 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>Platform health — {h.title}</span>
-              <span style={{ ...microStyle, display: 'block' }}>{h.sub} Checked {relTime(health.generatedAt)}.</span>
+              <span style={{ display: 'block', font: "600 13.5px/1.35 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>Rivvra platform — {hp.title}</span>
+              <span style={{ ...microStyle, display: 'block' }}>
+                {hw ? `Workspaces — ${hw.title}. ` : ''}Checked {relTime(health.generatedAt)}.
+              </span>
             </span>
             <span style={{ ...microStyle, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--fg-2)', flexShrink: 0 }}>
               See details <ChevronRight size={14} />
