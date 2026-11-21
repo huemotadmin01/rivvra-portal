@@ -40,13 +40,16 @@ const STATUS_LABELS = {
   converted: 'Converted',
   // 2026-11-20: set by the company block (owner/admins), never picked here.
   do_not_work_with: 'Do Not Work With',
+  // 2026-11-21: OUR decision not to email this person; any rep can set it.
+  do_not_contact: 'Do Not Contact',
 };
 
 // Statuses a rep may set by hand (same as the bulk "Change status" dialog).
 // In Sequence and Bounced are set by the system.
-const MANUAL_STATUSES = ['not_contacted', 'replied', 'replied_not_interested', 'no_response', 'converted'];
+const MANUAL_STATUSES = ['not_contacted', 'replied', 'replied_not_interested', 'no_response', 'converted', 'do_not_contact'];
+const DNC_STATUS = 'do_not_contact';
 // Same list as the API's AUTO_STOP_STATUSES.
-const STOPS_SEQUENCES = new Set(['replied', 'replied_not_interested', 'no_response', 'converted']);
+const STOPS_SEQUENCES = new Set(['replied', 'replied_not_interested', 'no_response', 'converted', 'do_not_contact']);
 
 const REPLY_INTENT_LABELS = {
   interested: 'Interested', referral: 'Referral', later: 'Follow up later',
@@ -294,6 +297,8 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
       showToast(parts.join(' · '));
 
       const updatedLead = { ...lead, outreachStatus: newStatus };
+      if (newStatus === DNC_STATUS) updatedLead.doNotContact = { byName: 'you', at: new Date().toISOString() };
+      else delete updatedLead.doNotContact;
       // The server also removes the OTHER default lists; use what it stored.
       if (Array.isArray(res?.lists)) updatedLead.lists = res.lists;
       else if (res?.autoAddedToList && !(lead.lists || []).includes(res.autoAddedToList)) {
@@ -494,14 +499,41 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
               </div>
             </div>
           )}
-          {!isBlocked && (
+          {!isBlocked && outreachStatus === DNC_STATUS && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              <Ban className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="font-semibold">Do not contact this person</div>
+                <div className="mt-0.5 text-red-300/80">
+                  {lead.doNotContact?.at ? `Marked${lead.doNotContact.byName ? ` by ${lead.doNotContact.byName}` : ''} on ${fmtBlockDate(lead.doNotContact.at)}. ` : ''}
+                  {lead.email ? 'No rep can add this email to a sequence. ' : 'This contact has no email, so only this record is marked. '}
+                  Pick another status to allow contact again.
+                </div>
+              </div>
+            </div>
+          )}
+          {!isBlocked && outreachStatus !== DNC_STATUS && (
           <p className="text-[11px] text-dark-500 mt-2 leading-relaxed">
             {outreachStatus === 'bounced'
               ? 'Their email bounced. Correct the email (Edit contact) and they can be added to a sequence again.'
               : outreachStatus === 'in_sequence'
-                ? 'In a sequence now. Setting Interested, Not Interested, No Response or Converted stops it.'
-                : 'Use this when they reply on LinkedIn or by phone. Interested, Not Interested, No Response and Converted also stop any active sequence. Not Interested also stops every rep from emailing them again.'}
+                ? 'In a sequence now. Setting Interested, Not Interested, No Response, Converted or Do Not Contact stops it.'
+                : 'Use this when they reply on LinkedIn or by phone. Interested, Not Interested, No Response and Converted also stop any active sequence. Not Interested and Do Not Contact also stop every rep from emailing them again.'}
           </p>
+          )}
+          {!locked && !isBlocked && outreachStatus !== DNC_STATUS && (
+            <button
+              type="button"
+              disabled={savingOutreachStatus}
+              onClick={() => {
+                const who = lead.name || 'this person';
+                const seq = outreachStatus === 'in_sequence' ? ' Their current sequence will stop.' : '';
+                if (window.confirm(`Don't contact ${who}?\n\nNo rep will be able to add ${lead.email || 'them'} to a sequence.${seq} You can undo this by picking another status.`)) handleOutreachStatusChange(DNC_STATUS);
+              }}
+              className="mt-2 mr-4 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-red-400 hover:text-red-300 disabled:opacity-50"
+            >
+              <Ban className="w-3.5 h-3.5" /> Don&apos;t contact this person
+            </button>
           )}
           {canBlock && (
             <button

@@ -8,6 +8,7 @@ const OUTREACH_STATUS_OPTIONS = [
   { value: 'replied', label: 'Interested', cls: 'bg-emerald-500/10 text-emerald-400' },
   { value: 'replied_not_interested', label: 'Not Interested', cls: 'bg-purple-500/10 text-purple-400' },
   { value: 'no_response', label: 'No Response', cls: 'bg-orange-500/10 text-orange-400' },
+  { value: 'do_not_contact', label: 'Do Not Contact', cls: 'bg-red-500/10 text-red-400' },
 ];
 
 function EditContactModal({ lead, isOpen, onClose, onLeadUpdate }) {

@@ -49,6 +49,7 @@ export const OUTREACH_STATUS_OPTIONS = [
   { value: 'no_response', label: 'No Response' },
   { value: 'bounced', label: 'Bounced' },
   { value: 'converted', label: 'Converted' },
+  { value: 'do_not_contact', label: 'Do Not Contact' },
   { value: 'do_not_work_with', label: 'Do Not Work With' },
   // 2026-11-09: the Team Dashboard's "Lost / No Response" card links here;
   // without the option the list opened with no visible filter.
@@ -64,6 +65,7 @@ const STATUS_CHIP = {
   lost_no_response: { tone: 'neutral', label: 'Lost - No Response' },
   bounced: { tone: 'danger', label: 'Bounced' },
   converted: { tone: 'brand', label: 'Converted' },
+  do_not_contact: { tone: 'danger', label: 'Do Not Contact' },
   do_not_work_with: { tone: 'danger', label: 'Do Not Work With' },
 };
 

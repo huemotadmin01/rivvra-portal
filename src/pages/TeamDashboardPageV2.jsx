@@ -81,6 +81,8 @@ const STATUS_CONFIG = {
   converted: { label: 'Converted', color: '#a855f7' },
   // 2026-11-20: contacts at a company we don't work with.
   do_not_work_with: { label: 'Do Not Work With', color: '#e11d48' },
+  // 2026-11-21: contacts a rep marked Do Not Contact.
+  do_not_contact: { label: 'Do Not Contact', color: '#be123c' },
 };
 
 // Helper: format date as YYYY-MM-DD for input[type=date] using LOCAL time (not UTC)
@@ -118,6 +120,7 @@ const STATUS_LIGHT = {
   lost_no_response:       '#64748b',
   converted:              '#7e22ce',
   do_not_work_with:       '#9f1239',
+  do_not_contact:         '#881337',
 };
 
 /** True while the document is in the light theme. Charts take real colour

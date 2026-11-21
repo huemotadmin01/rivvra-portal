@@ -16,11 +16,12 @@ const MANUAL_STATUS_OPTIONS = [
   { value: 'replied_not_interested', label: 'Not Interested' },
   { value: 'no_response', label: 'No Response' },
   { value: 'converted', label: 'Converted' },
+  { value: 'do_not_contact', label: 'Do Not Contact' },
 ];
 
 // Same list as the API's AUTO_STOP_STATUSES (portal-leads.js): setting one of
 // these by hand stops any active / paused sequence for that contact.
-const STOPS_SEQUENCES = new Set(['replied', 'replied_not_interested', 'no_response', 'converted']);
+const STOPS_SEQUENCES = new Set(['replied', 'replied_not_interested', 'no_response', 'converted', 'do_not_contact']);
 
 // Run `fn` over items, `size` at a time, collecting ok / failed counts.
 async function inBatches(items, size, fn) {
