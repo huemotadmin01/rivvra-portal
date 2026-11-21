@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Plus, Check, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
-import { isAutomaticList } from '../utils/outreachLists';
+import { isAutomaticList, isStatusOnlyList } from '../utils/outreachLists';
 import { useToast } from '../context/ToastContext';
 
 const LIST_COLORS = [
@@ -56,6 +56,11 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
   );
 
   const toggleList = (listName) => {
+    // 2026-11-21: a list that mirrors a status is never ticked by hand.
+    if (isStatusOnlyList(listName)) {
+      showToast(`"${listName}" follows the contact's status — change the status to move it`, 'warning');
+      return;
+    }
     // 2026-11-17: an automatic list the contact is on is left by a status
     // change only (the server keeps it either way).
     if (isAutomaticList(listName) && (lead.lists || []).includes(listName)) {
@@ -108,8 +113,8 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.updateLeadLists(lead._id, selectedLists);
-      const updatedLead = { ...lead, lists: selectedLists };
+      const res = await api.updateLeadLists(lead._id, selectedLists);
+      const updatedLead = { ...lead, lists: Array.isArray(res?.lists) ? res.lists : selectedLists };
       onLeadUpdate(updatedLead);
       onClose();
     } catch (err) {
@@ -234,11 +239,13 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
                         <button
                           key={list._id}
                           onClick={() => toggleList(list.name)}
+                          aria-disabled={isStatusOnlyList(list.name) || undefined}
+                          title={isStatusOnlyList(list.name) ? 'Filled by the contact\'s status — change the status to move the contact' : undefined}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                             isSelected
                               ? 'bg-rivvra-500/10 border border-rivvra-500/30'
-                              : 'hover:bg-dark-800 border border-transparent'
-                          }`}
+                              : isStatusOnlyList(list.name) ? 'border border-transparent' : 'hover:bg-dark-800 border border-transparent'
+                          } ${isStatusOnlyList(list.name) ? 'cursor-not-allowed' : ''} ${isStatusOnlyList(list.name) && !isSelected ? 'opacity-55' : ''}`}
                         >
                           <div className={`w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center flex-shrink-0`}>
                             <span className="text-white text-sm font-bold">{initial}</span>
@@ -246,7 +253,7 @@ function AddToListModal({ isOpen, onClose, lead, onLeadUpdate }) {
                           <span className={`text-sm font-medium flex-1 ${isSelected ? 'text-white' : 'text-dark-200'}`}>
                             {list.name}
                           </span>
-                          {isSelected && (lead.lists || []).includes(list.name) && isAutomaticList(list.name) && (
+                          {(isStatusOnlyList(list.name) || (isSelected && (lead.lists || []).includes(list.name) && isAutomaticList(list.name))) && (
                             <span className="text-[11px] text-dark-500 flex-shrink-0">set by status</span>
                           )}
                           {isSelected && (

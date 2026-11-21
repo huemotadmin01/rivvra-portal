@@ -551,7 +551,7 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
             companyName={company}
             onDone={(res) => {
               setOutreachStatus(BLOCK_STATUS);
-              const lists = [...(lead.lists || []).filter((l) => !['Hot Leads', 'Not Interested', 'No Response', 'Converted', 'Follow Up Later'].includes(l)), 'Do Not Work With'];
+              const lists = [...(lead.lists || []).filter((l) => !['Hot Leads', 'Not Interested', 'No Response', 'Converted', 'Follow Up Later', 'Do Not Contact'].includes(l)), 'Do Not Work With'];
               onUpdate?.({ ...lead, outreachStatus: BLOCK_STATUS, lists });
               showToast(`Company blocked · ${res.stoppedSequences || 0} sequence${res.stoppedSequences === 1 ? '' : 's'} stopped · ${res.contactsMarked || 0} contact${res.contactsMarked === 1 ? '' : 's'} marked`);
             }}

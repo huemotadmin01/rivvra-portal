@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../../utils/api';
+import { isStatusOnlyList } from '../../../utils/outreachLists';
 import { Modal, Button, Field, Input, Select } from '../../ds';
 
 /* 2026-11-03: bulk actions for the contacts table — the bulk bar used to offer
@@ -44,7 +45,8 @@ export function BulkAddToListModal({ open, onClose, leads = [], onDone, showToas
     if (!open) return;
     setChoice(''); setNewName(''); setBusy(false);
     api.getLists()
-      .then((res) => setLists(Array.isArray(res?.lists) ? res.lists : []))
+      // 2026-11-21: lists that mirror a status are not offered — the status fills them.
+      .then((res) => setLists((Array.isArray(res?.lists) ? res.lists : []).filter((l) => !isStatusOnlyList(l.name || l))))
       .catch(() => setLists([]));
   }, [open]);
 
