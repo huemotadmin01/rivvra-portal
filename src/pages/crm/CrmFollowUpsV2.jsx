@@ -1,0 +1,323 @@
+// ============================================================================
+// CrmFollowUpsV2.jsx — the rep's working screen (2026-11-23)
+// ============================================================================
+//
+// Owner: "after converting a lead to opportunity, my team is not properly
+// using CRM to track the deal till won". Measured 25 Sep–23 Nov: 67 real
+// leads, 0 notes, 0 logged activities, 0 stage moves, and 11 of 13 wins were
+// created on the day they were won — the CRM recorded outcomes, not the
+// journey.
+//
+// One list, grouped by urgency, instead of a board with one working column:
+//   • New replies   — Outreach contacts marked Interested, not in the CRM yet
+//   • Overdue / Today / This week / Later / No date — open opportunities
+// One click says what happened (Called / Emailed / Met / No answer); the only
+// thing a rep types is the next step, and a date is always set with it.
+//
+// Data: GET /crm/follow-ups · POST /crm/opportunities/:id/follow-up.
+// ============================================================================
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Phone, Mail, Users, PhoneOff, ArrowRight, RefreshCw, AlertCircle, Inbox, Sparkles, CheckCircle2 } from 'lucide-react';
+import { useOrg } from '../../context/OrgContext';
+import { usePlatform } from '../../context/PlatformContext';
+import { useToast } from '../../context/ToastContext';
+import crmApi from '../../utils/crmApi';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import ExportToCRMModal from '../../components/ExportToCRMModal';
+import { Panel, Button, Chip, Callout, Input, Select, Spinner, EmptyState } from '../../components/ds';
+import { PageHeaderV2 } from '../../components/platform/v2/listkit';
+import { dueLabel, dueState } from '../../components/crm/nextStep';
+
+const micro = { font: "450 12px/1.45 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' };
+const OUTCOMES = [
+  { value: 'called', label: 'Called', Icon: Phone },
+  { value: 'emailed', label: 'Emailed', Icon: Mail },
+  { value: 'met', label: 'Met', Icon: Users },
+  { value: 'no_answer', label: 'No answer', Icon: PhoneOff },
+];
+const GROUPS = [
+  { key: 'overdue', label: 'Overdue', tone: 'danger' },
+  { key: 'today', label: 'Today', tone: 'warn' },
+  { key: 'week', label: 'This week', tone: 'neutral' },
+  { key: 'later', label: 'Later', tone: 'neutral' },
+  { key: 'noDate', label: 'No next step set', tone: 'neutral' },
+];
+const DUE_TONE = { overdue: 'var(--danger)', today: 'var(--warn-ink, #b45309)', upcoming: 'var(--fg-3)', none: 'var(--fg-4)' };
+
+// A due date is a calendar day. Send YYYY-MM-DD of the viewer's local day; the
+// API stores it at UTC midnight, same as the opportunity page.
+function ymdInDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  // Skip the weekend: a follow-up "tomorrow" on a Friday means Monday.
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const DUE_CHOICES = [
+  { value: '1', label: 'Tomorrow' },
+  { value: '3', label: 'In 3 days' },
+  { value: '7', label: 'Next week' },
+  { value: '14', label: 'In 2 weeks' },
+];
+
+function Counter({ label, value, tone }) {
+  const danger = tone === 'danger' && value > 0;
+  return (
+    <div style={{
+      background: danger ? 'var(--danger-soft)' : 'var(--surface-2)', border: '1px solid var(--border)',
+      borderRadius: 'var(--r-3, 12px)', padding: '12px 14px', minWidth: 0,
+    }}>
+      <div style={{ ...micro, color: danger ? 'var(--danger)' : 'var(--fg-3)' }}>{label}</div>
+      <div style={{ font: "650 24px/1.2 'Inter', system-ui, sans-serif", color: danger ? 'var(--danger)' : 'var(--fg)' }}>{value}</div>
+    </div>
+  );
+}
+
+function CrmFollowUpsV2() {
+  const { currentOrg } = useOrg();
+  // orgPath lives on the platform context, not the org context.
+  const { orgPath } = usePlatform();
+  const slug = currentOrg?.slug;
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  usePageTitle('Follow-ups');
+
+  const [scope, setScope] = useState('mine');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  // The row being logged: { id, outcome }. One at a time.
+  const [logging, setLogging] = useState(null);
+  const [nextStep, setNextStep] = useState('');
+  const [dueIn, setDueIn] = useState('3');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [exportLead, setExportLead] = useState(null);
+  const seq = useRef(0);
+
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!slug) return;
+    const mine = ++seq.current;
+    if (!quiet) setLoading(true);
+    try {
+      const res = await crmApi.getFollowUps(slug, { scope, tzOffset: new Date().getTimezoneOffset() });
+      if (mine !== seq.current) return;
+      setData(res); setError('');
+    } catch (err) {
+      if (mine !== seq.current) return;
+      setError(err?.message || 'Could not load follow-ups');
+    } finally {
+      if (mine === seq.current) setLoading(false);
+    }
+  }, [slug, scope]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const startLog = (opp, outcome) => {
+    setLogging({ id: opp._id, outcome });
+    setNextStep(''); setNote(''); setFormError('');
+    setDueIn(outcome === 'no_answer' ? '1' : '3');
+  };
+
+  const saveLog = async (opp) => {
+    if (!nextStep.trim()) { setFormError('Enter the next step first'); return; }
+    setSaving(true); setFormError('');
+    try {
+      await crmApi.logFollowUp(slug, opp._id, {
+        outcome: logging.outcome, note: note.trim(), nextStep: nextStep.trim(), nextStepDueAt: ymdInDays(Number(dueIn)),
+      });
+      showToast(`Saved · next: ${nextStep.trim()}`);
+      setLogging(null);
+      load({ quiet: true });
+    } catch (err) {
+      setFormError(err?.message || 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openOpp = (opp) => navigate(orgPath(`/crm/opportunities/${opp._id}`));
+  const counts = data?.counts || {};
+  const nothing = data && counts.open === 0 && counts.newReplies === 0 && !counts.followUpLater;
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <PageHeaderV2
+        title="Follow-ups"
+        sub={scope === 'mine' ? 'What you owe your prospects today' : 'What your team owes its prospects today'}
+        actions={(
+          <>
+            <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
+              <option value="mine">Mine</option>
+              <option value="team">My team</option>
+            </Select>
+            <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={() => load()}>Refresh</Button>
+          </>
+        )}
+      />
+
+      {error && <Callout tone="danger" icon={<AlertCircle size={16} />}>{error}</Callout>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        <Counter label="New replies to pick up" value={counts.newReplies ?? '–'} />
+        <Counter label="Overdue" value={counts.overdue ?? '–'} tone="danger" />
+        <Counter label="Due today" value={counts.today ?? '–'} />
+        <Counter label="This week" value={counts.week ?? '–'} />
+      </div>
+
+      {counts.followUpLater > 0 && (
+        <Callout tone="neutral" icon={<Inbox size={16} />}>
+          {counts.followUpLater} {counts.followUpLater === 1 ? 'contact' : 'contacts'} replied "contact me later" and {counts.followUpLater === 1 ? 'is' : 'are'} waiting in Outreach.{' '}
+          <a
+            href={orgPath('/outreach/team-lists?list=Follow+Up+Later')}
+            onClick={(e) => { e.preventDefault(); navigate(orgPath('/outreach/team-lists?list=Follow+Up+Later')); }}
+            style={{ color: 'var(--brand)' }}
+          >
+            Open the Follow Up Later list
+          </a>
+        </Callout>
+      )}
+
+      {loading && !data ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...micro, padding: 24 }}><Spinner size={16} /> Loading follow-ups…</div>
+      ) : nothing ? (
+        <Panel>
+          <EmptyState icon={<CheckCircle2 size={24} />} title="Nothing to follow up">
+            No open prospects and no new replies. When an Outreach contact is marked Interested, they appear here.
+          </EmptyState>
+        </Panel>
+      ) : (
+        <>
+          {(data?.newReplies || []).length > 0 && (
+            <Panel
+              title="New replies to pick up"
+              icon={<Sparkles size={16} />}
+              actions={<Chip tone="brand">{data.newReplies.length}</Chip>}
+              flush
+            >
+              <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                These contacts were marked Interested in Outreach but are not being tracked yet. Start tracking to give them a next step.
+              </div>
+              {data.newReplies.map((lead) => (
+                <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                    <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lead.companyName || lead.company || 'Company not set'}
+                    </div>
+                    <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lead.name}{lead.title || lead.headline ? ` · ${lead.title || lead.headline}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ ...micro, flex: '0 1 auto' }}>
+                    {lead.lastReplyAt ? `Replied ${new Date(lead.lastReplyAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : 'Marked interested'}
+                    {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
+                  </div>
+                  <Button size="sm" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
+                </div>
+              ))}
+            </Panel>
+          )}
+
+          {GROUPS.map((g) => {
+            const rows = data?.groups?.[g.key] || [];
+            if (!rows.length) return null;
+            return (
+              <Panel key={g.key} title={g.label} icon={<Inbox size={16} />} actions={<Chip tone={g.tone === 'neutral' ? undefined : g.tone}>{rows.length}</Chip>} flush>
+                {rows.map((opp) => {
+                  const state = dueState(opp.nextStepDueAt);
+                  const open = logging?.id === opp._id;
+                  return (
+                    <div key={opp._id} style={{ borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'grid', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => openOpp(opp)}
+                          title="Open the opportunity"
+                          style={{ flex: '1 1 220px', minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                        >
+                          <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {opp.companyName || opp.name}
+                          </div>
+                          <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {opp.contactName || 'No contact'}{opp.contactTitle ? ` · ${opp.contactTitle}` : ''}
+                            {scope === 'team' && opp.salespersonName ? ` · ${opp.salespersonName}` : ''}
+                          </div>
+                        </button>
+                        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                          <div style={{ font: "450 13.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {opp.nextStep || 'No next step'}
+                          </div>
+                          <div style={{ ...micro, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ color: DUE_TONE[state] }}>{opp.nextStep ? dueLabel(opp.nextStepDueAt) : 'Set one below'}</span>
+                            <Chip>{opp.stageName}</Chip>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {OUTCOMES.map((o) => {
+                            const OutcomeIcon = o.Icon;
+                            return (
+                              <Button
+                                key={o.value}
+                                size="sm"
+                                variant={open && logging.outcome === o.value ? 'primary' : 'secondary'}
+                                iconLeft={<OutcomeIcon size={13} />}
+                                onClick={() => startLog(opp, o.value)}
+                              >
+                                {o.label}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {open && (
+                        <div style={{ display: 'grid', gap: 8, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-2, 10px)', padding: 12 }}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <Input
+                              value={nextStep}
+                              onChange={(e) => { setNextStep(e.target.value); if (formError) setFormError(''); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') saveLog(opp); }}
+                              placeholder="What is the next step? e.g. Send two Java profiles"
+                              aria-label="Next step"
+                              maxLength={200}
+                              autoFocus
+                              style={{ flex: '1 1 260px', minWidth: 0 }}
+                            />
+                            <Select value={dueIn} onChange={(e) => setDueIn(e.target.value)} aria-label="Next step due" style={{ width: 140 }}>
+                              {DUE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            </Select>
+                            <Button size="sm" onClick={() => saveLog(opp)} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setLogging(null)} disabled={saving}>Cancel</Button>
+                          </div>
+                          <Input
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            placeholder="Anything worth remembering? (optional)"
+                            aria-label="Note"
+                            maxLength={2000}
+                          />
+                          {formError && <div style={{ ...micro, color: 'var(--danger)' }}>{formError}</div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </Panel>
+            );
+          })}
+        </>
+      )}
+
+      <ExportToCRMModal
+        isOpen={!!exportLead}
+        onClose={() => setExportLead(null)}
+        lead={exportLead}
+        onSuccess={() => { setExportLead(null); load({ quiet: true }); }}
+      />
+    </div>
+  );
+}
+
+export default CrmFollowUpsV2;

@@ -423,7 +423,9 @@ export const APP_REGISTRY = {
     // monitor metrics, salespeople work the pipeline). Reporting page merged
     // into Dashboard same day, so Dashboard is now the manager landing.
     defaultRoute: (orgAppRole) => (
-      (orgAppRole === 'admin' || orgAppRole === 'team_lead') ? '/crm/dashboard' : '/crm/pipeline'
+      // 2026-11-23: salespeople land on Follow-ups — what they owe today —
+      // instead of the board (one working column, never moved).
+      (orgAppRole === 'admin' || orgAppRole === 'team_lead') ? '/crm/dashboard' : '/crm/follow-ups'
     ),
     derivedRoles: true,
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
@@ -433,6 +435,7 @@ export const APP_REGISTRY = {
       // check the old standalone route had.
       return [
         { type: 'item', path: '/crm/dashboard', label: 'Dashboard', icon: Home },
+        { type: 'item', path: '/crm/follow-ups', label: 'Follow-ups', icon: ClipboardCheck },
         { type: 'item', path: '/crm/pipeline', label: 'Pipeline', icon: Kanban },
         { type: 'item', path: '/crm/opportunities', label: 'Opportunities', icon: Briefcase },
         ...(isAdmin ? [

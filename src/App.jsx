@@ -199,6 +199,7 @@ const AtsDashboardV2 = lazy(() => import('./pages/ats/AtsDashboardV2'));
 const CrmDashboardV2 = lazy(() => import('./pages/crm/CrmDashboardV2'));
 const AssistantPageV2 = lazy(() => import('./pages/assistant/AssistantPageV2'));
 const CrmPipelineV2 = lazy(() => import('./pages/crm/CrmPipelineV2'));
+const CrmFollowUpsV2 = lazy(() => import('./pages/crm/CrmFollowUpsV2'));
 const CrmOpportunityDetailV2 = lazy(() => import('./pages/crm/CrmOpportunityDetailV2'));
 const CrmOpportunityNewV2 = lazy(() => import('./pages/crm/CrmOpportunityNewV2'));
 
@@ -420,7 +421,7 @@ function CrmIndexRedirect() {
   const { slug } = useParams();
   const { getAppRole } = useOrg();
   const target = resolveDefaultRoute(getAppById('crm'), getAppRole('crm'));
-  return <Navigate to={`/org/${slug}${target || '/crm/pipeline'}`} replace />;
+  return <Navigate to={`/org/${slug}${target || '/crm/follow-ups'}`} replace />;
 }
 
 // Helper: redirect old /incentive/settings (relocated into the global
@@ -679,6 +680,7 @@ function App() {
               <Route element={<AppAccessGate appId="crm" />}>
                 <Route path="/org/:slug/crm" element={<CrmIndexRedirect />} />
                 <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><CrmDashboardV2 /></ErrorBoundary>} />
+                <Route path="/org/:slug/crm/follow-ups" element={<ErrorBoundary><CrmFollowUpsV2 /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipelineV2 /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><CrmOpportunitiesV2 /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><CrmOpportunityNewV2 /></ErrorBoundary>} />

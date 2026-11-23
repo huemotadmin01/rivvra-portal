@@ -74,6 +74,14 @@ const crmApi = {
     if (companyName) qs.set('companyName', companyName);
     return api.request(`/api/org/${orgSlug}/crm/convert-lead/preflight?${qs.toString()}`);
   },
+  // Follow-ups (2026-11-23): the rep's working queue + one-click outcome logging.
+  getFollowUps(orgSlug, { scope = 'mine', tzOffset } = {}) {
+    const qs = new URLSearchParams({ scope, ...(tzOffset != null ? { tzOffset: String(tzOffset) } : {}) }).toString();
+    return api.request(`/api/org/${orgSlug}/crm/follow-ups?${qs}`, { _requestKey: 'crm:follow-ups' });
+  },
+  logFollowUp(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/follow-up`, { method: 'POST', body: JSON.stringify(data) });
+  },
   updateOpportunity(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },
