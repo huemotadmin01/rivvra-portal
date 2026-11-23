@@ -17,7 +17,36 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from './OrgContext';
 import { usePlatform } from './PlatformContext';
+import { useAuth } from './AuthContext';
 import api, { getActiveCompanyKey } from '../utils/api';
+
+// ── Companies cache (2026-11-23) ────────────────────────────────────────────
+// PlatformLayout waits for the first /companies answer before it renders any
+// page (it must: the page is keyed on the company id, and rendering before it
+// is known mounted every page twice — see 2026-11-09). That answer takes about
+// a second, so EVERY page in EVERY app started its own data a second late:
+// measured on the CRM, page data began at 1.6–2.2 s although the frame was up
+// at 0.3 s.
+//
+// Same remedy as OrgContext: remember the last list (per user AND workspace),
+// render from it at once, and refresh it in the background. The list changes
+// only when an admin adds or renames a company; a stale copy costs at most one
+// re-render when the fresh one lands.
+const COMPANIES_CACHE_KEY = 'rivvra_companies_cache_v1';
+function readCompaniesCache(identity) {
+  if (!identity || typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(COMPANIES_CACHE_KEY) || 'null');
+    return parsed?.identity === identity && Array.isArray(parsed.companies) ? parsed.companies : null;
+  } catch { return null; }
+}
+function writeCompaniesCache(identity, companies) {
+  if (!identity || typeof window === 'undefined') return;
+  try {
+    // The API already leaves logo / signature images and e-invoice secrets out of this list.
+    window.localStorage.setItem(COMPANIES_CACHE_KEY, JSON.stringify({ identity, companies: companies || [], savedAt: Date.now() }));
+  } catch { /* storage full / blocked — the app still works, just without the head start */ }
+}
 
 const CompanyContext = createContext(null);
 
@@ -48,14 +77,17 @@ export function stripDetailIdFromPath(pathname) {
 export function CompanyProvider({ children }) {
   const { currentOrg, membership, loading: orgLoading } = useOrg();
   const { orgSlug: platformOrgSlug } = usePlatform();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Use org slug from OrgContext (authoritative) with PlatformContext as fallback
   const orgSlug = currentOrg?.slug || platformOrgSlug;
+  // Cache identity: the signed-in user AND the workspace (never one without the other).
+  const cacheIdentity = (user?.email || user?.id) && orgSlug ? `${user.email || user.id}::${orgSlug}` : null;
 
-  const [companies, setCompanies] = useState([]);
+  const [companies, setCompanies] = useState(() => readCompaniesCache(cacheIdentity) || []);
   const [currentCompanyId, setCurrentCompanyId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readCompaniesCache(cacheIdentity));
   const [switching, setSwitching] = useState(false);
   // hydrated = OrgContext has settled and we've reconciled localStorage with
   // membership.currentCompanyId (the server-side preference). Until this is
@@ -85,6 +117,11 @@ export function CompanyProvider({ children }) {
     }
   }, [currentCompany]);
 
+  // Signed out → forget the remembered list (it holds the company's own details).
+  useEffect(() => {
+    if (!user) { try { window.localStorage.removeItem(COMPANIES_CACHE_KEY); } catch { /* ignore */ } }
+  }, [user]);
+
   // Fetch companies when org loads
   useEffect(() => {
     if (!orgSlug) {
@@ -93,13 +130,19 @@ export function CompanyProvider({ children }) {
     }
 
     let cancelled = false;
-    setLoading(true);
+    // A remembered list for THIS user + workspace renders at once; the request
+    // below then refreshes it quietly. No remembered list → wait, as before.
+    const cached = readCompaniesCache(cacheIdentity);
+    if (cached) { setCompanies(cached); setLoading(false); } else { setCompanies([]); setLoading(true); }
 
     api.request(`/api/org/${orgSlug}/companies`)
       .then((res) => {
         if (cancelled) return;
         if (res.success) {
-          setCompanies(res.companies || []);
+          const fresh = res.companies || [];
+          // Keep the same array when nothing changed, so nothing re-renders.
+          setCompanies((prev) => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+          writeCompaniesCache(cacheIdentity, fresh);
         }
       })
       .catch(() => {})
@@ -108,7 +151,7 @@ export function CompanyProvider({ children }) {
       });
 
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, cacheIdentity]);
 
   // Initialize currentCompanyId from membership AND mark hydration complete.
   //
@@ -228,9 +271,9 @@ export function CompanyProvider({ children }) {
     if (!orgSlug) return;
     try {
       const res = await api.request(`/api/org/${orgSlug}/companies`);
-      if (res.success) setCompanies(res.companies || []);
+      if (res.success) { setCompanies(res.companies || []); writeCompaniesCache(cacheIdentity, res.companies || []); }
     } catch {}
-  }, [orgSlug]);
+  }, [orgSlug, cacheIdentity]);
 
   // Derive company country for country-aware forms (India/US/Canada/etc.)
   const companyCountry = useMemo(() => {

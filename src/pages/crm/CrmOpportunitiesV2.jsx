@@ -233,6 +233,9 @@ export default function CrmOpportunitiesV2() {
         sortDir,
         ...filterParams,
         tzOffset: new Date().getTimezoneOffset(),
+        // 2026-11-23: the Open / Won / Lost / Archived counts come back with
+        // the rows — they used to be four more requests on every load.
+        withCounts: 1,
         _requestKey: 'crm:opportunities:list',
       };
       delete params.groupBy;
@@ -241,6 +244,7 @@ export default function CrmOpportunitiesV2() {
       if (res.success) {
         setData(res.opportunities || []);
         setTotal(res.total || 0);
+        if (res.counts) setCounts(res.counts);
       }
     } catch (err) {
       if (err?.name === 'AbortError') { aborted = true; return; }
@@ -253,34 +257,7 @@ export default function CrmOpportunitiesV2() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Per-segment counts — base filters preserved, lifecycle clause varies.
-  useEffect(() => {
-    if (!slug) return;
-    let cancelled = false;
-    const baseParams = { ...filterParams, limit: 1, page: 1 };
-    delete baseParams.groupBy;
-    delete baseParams.archived;
-    delete baseParams.status;
-    delete baseParams.isLost;
-    const variants = {
-      open: { ...baseParams, status: 'active' },
-      won: { ...baseParams, status: 'won' },
-      lost: { ...baseParams, status: 'lost' },
-      archived: { ...baseParams, archived: '1' },
-    };
-    Promise.all(
-      Object.entries(variants).map(([k, p]) =>
-        crmApi.listOpportunities(slug, p)
-          .then(res => [k, res?.success ? (res.total || 0) : null])
-          .catch(() => [k, null])
-      )
-    ).then(entries => {
-      if (cancelled) return;
-      setCounts(Object.fromEntries(entries));
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined, status: undefined, isLost: undefined, groupBy: undefined })]);
+  // Per-segment counts arrive with the list (see fetchData).
 
   const totalPagesForClamp = Math.max(1, Math.ceil(total / limit));
   useEffect(() => {

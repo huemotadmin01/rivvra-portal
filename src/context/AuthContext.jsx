@@ -230,6 +230,8 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('rivvra_user');
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem('rivvra_original_admin');
+    // Remembered company list (CompanyContext, 2026-11-23) — never outlives the session.
+    try { localStorage.removeItem('rivvra_companies_cache_v1'); } catch { /* ignore */ }
 
     window.dispatchEvent(new CustomEvent('rivvra_auth_change', {
       detail: { user: null, token: null }
