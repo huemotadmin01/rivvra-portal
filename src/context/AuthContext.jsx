@@ -46,6 +46,13 @@ export function AuthProvider({ children }) {
         if (storedToken && storedUser) {
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
+          // 2026-11-24: don't hold the whole app behind this check. It took
+          // ~0.5 s on every load, during which nothing else could start, and
+          // it almost always says "yes". Show the app from the remembered
+          // sign-in at once; if the server says the session is no longer
+          // valid, clearAuth() below sends the person to the login page (and
+          // every API call would have answered 401 in the meantime anyway).
+          setLoading(false);
 
           // Verify token is still valid by fetching profile
           try {

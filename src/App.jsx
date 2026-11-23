@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { lazy as reactLazy, Suspense } from 'react';
+import { lazyPage } from './utils/lazyPage';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -11,10 +12,17 @@ import StagingBanner from './components/StagingBanner';
 import PlanLimitListener from './components/PlanLimitListener';
 import WorkspaceSuspendedListener from './components/WorkspaceSuspendedListener';
 import AnalyticsRouteListener from './components/AnalyticsRouteListener';
+// 2026-11-24: every route below is split with lazyPage, not React.lazy — see
+// utils/lazyPage.jsx. React.lazy cost a fixed 300 ms twice on every fresh load
+// (shell, then page) even with the code already cached.
+const lazy = (factory) => lazyPage(factory, <PageLoader />);
 // The app shell is lazy so the public marketing routes never download it.
 const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
+// On a workspace address the shell is certainly needed: start fetching it now,
+// alongside the sign-in check, instead of after it.
+if (typeof window !== 'undefined' && /^\/org\//.test(window.location.pathname)) PlatformLayoutV2.preload();
 // Lazy: the assistant (and DOMPurify) never load on the marketing routes.
-const AssistantPanel = lazy(() => import('./components/assistant/AssistantPanel'));
+const AssistantPanel = reactLazy(() => import('./components/assistant/AssistantPanel'));
 import ProtectedRoute from './components/ProtectedRoute';
 import BootRing from './components/BootRing';
 import OrgRedirect from './components/OrgRedirect';
