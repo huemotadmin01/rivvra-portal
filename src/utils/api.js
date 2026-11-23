@@ -229,6 +229,12 @@ class ApiClient {
           } catch { /* non-browser env */ }
         }
 
+        // 2026-11-23: the workspace was suspended by Rivvra — one clear screen
+        // instead of every page failing in its own way.
+        if (response.status === 403 && data && data.code === 'ORG_SUSPENDED') {
+          try { window.dispatchEvent(new CustomEvent('rivvra:org-suspended', { detail: { error: data.error } })); } catch { /* non-browser env */ }
+        }
+
         // Plan-cap hit: broadcast a global event so a top-level listener can
         // show an "Upgrade to continue" prompt without every call site handling it.
         if (
@@ -1343,6 +1349,23 @@ class ApiClient {
 
   async getSuperAdminWorkspace(orgId) {
     return this.request(`/api/superadmin/workspaces/${orgId}`);
+  }
+
+  // Workspace lifecycle (2026-11-23): suspend · re-activate · delete.
+  async suspendSuperAdminWorkspace(orgId, reason) {
+    return this.request(`/api/superadmin/workspaces/${orgId}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  async reactivateSuperAdminWorkspace(orgId) {
+    return this.request(`/api/superadmin/workspaces/${orgId}/reactivate`, { method: 'POST' });
+  }
+
+  async previewDeleteSuperAdminWorkspace(orgId) {
+    return this.request(`/api/superadmin/workspaces/${orgId}/delete-preview`);
+  }
+
+  async deleteSuperAdminWorkspace(orgId, confirmSlug) {
+    return this.request(`/api/superadmin/workspaces/${orgId}`, { method: 'DELETE', body: JSON.stringify({ confirmSlug }) });
   }
 
   async updateSuperAdminWorkspace(orgId, data) {

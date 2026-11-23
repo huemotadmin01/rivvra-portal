@@ -9,6 +9,7 @@ import { PolicyAckProvider } from './context/PolicyAckContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import StagingBanner from './components/StagingBanner';
 import PlanLimitListener from './components/PlanLimitListener';
+import WorkspaceSuspendedListener from './components/WorkspaceSuspendedListener';
 import AnalyticsRouteListener from './components/AnalyticsRouteListener';
 // The app shell is lazy so the public marketing routes never download it.
 const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
@@ -454,6 +455,7 @@ function App() {
       <StagingBanner />
       <ToastProvider>
       <PlanLimitListener />
+      <WorkspaceSuspendedListener />
       <ErrorBoundary>
       <Router>
         <AnalyticsRouteListener />

@@ -33,7 +33,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { Building2, Users } from 'lucide-react';
 import {
-  Panel, Button, Callout, DataTable, EmptyState, SearchInput, Select,
+  Panel, Button, Callout, Chip, DataTable, EmptyState, SearchInput, Select,
 } from '../../components/ds';
 import { PlanBadge } from './adminShared';
 
@@ -44,6 +44,7 @@ const STATUS_OPTIONS = [
   { value: 'all', label: 'All Plans' },
   { value: 'free', label: 'Free' },
   { value: 'paid', label: 'Paid (Core/All Apps/Pro/Enterprise)' },
+  { value: 'suspended', label: 'Suspended' },
 ];
 
 // ── Main Page ──────────────────────────────────────────────────────────────
@@ -72,7 +73,9 @@ function AdminWorkspacesPageV2() {
       setError('');
       const params = { page, limit: 25, sort, order };
       if (search) params.search = search;
-      if (status !== 'all') params.status = status;
+      // 'suspended' is a workspace state, not a plan (2026-11-23).
+      if (status === 'suspended') params.state = 'suspended';
+      else if (status !== 'all') params.status = status;
 
       const res = await api.getSuperAdminWorkspaces(params);
       if (seq !== reqSeq.current) return;
@@ -127,7 +130,10 @@ function AdminWorkspacesPageV2() {
             <Building2 size={15} />
           </span>
           <span style={{ minWidth: 0 }}>
-            <span title={ws.name} style={{ display: 'block', color: 'var(--fg)', fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+            <span title={ws.name} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--fg)', fontWeight: 550, minWidth: 0 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+              {ws.status === 'suspended' && <Chip tone="danger">Suspended</Chip>}
+            </span>
             <span title={ws.slug} style={{ ...microStyle, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.slug}</span>
           </span>
         </span>
@@ -179,7 +185,7 @@ function AdminWorkspacesPageV2() {
         <Select
           value={status}
           onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-          aria-label="Filter by plan"
+          aria-label="Filter by plan or state"
           style={{ width: 260 }}
         >
           {STATUS_OPTIONS.map(opt => (

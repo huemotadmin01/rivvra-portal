@@ -59,12 +59,12 @@ import { api } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import {
   Building2, ArrowLeft, Loader2, Save, Users, Shield,
-  AlertCircle, Database, LogIn, Search,
+  AlertCircle, Database, LogIn, Search, PauseCircle, PlayCircle, Trash2, ShieldAlert,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import {
   Panel, Button, Chip, Callout, DataTable, EmptyState,
-  Field, Input, Select, Switch, SettingRow, Stat, Spinner,
+  Field, Input, Select, Switch, SettingRow, Stat, Spinner, Modal,
 } from '../../components/ds';
 
 // ── Shared render tokens ────────────────────────────────────────────────────
@@ -123,6 +123,44 @@ function AdminWorkspaceDetailPageV2() {
   const [memberSearch, setMemberSearch] = useState('');
   const [memberStatus, setMemberStatus] = useState('active');
   const [impersonateError, setImpersonateError] = useState('');
+  // Workspace lifecycle (2026-11-23): suspend · re-activate · delete.
+  const navigate = useNavigate();
+  const [lifeBusy, setLifeBusy] = useState(false);
+  const [lifeError, setLifeError] = useState('');
+  const [suspendOpen, setSuspendOpen] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePreview, setDeletePreview] = useState(null);
+  const [deleteSlug, setDeleteSlug] = useState('');
+  const isSuspended = workspace?.status === 'suspended';
+
+  const doSuspend = async () => {
+    if (!suspendReason.trim()) return;
+    setLifeBusy(true); setLifeError('');
+    try {
+      await api.suspendSuperAdminWorkspace(orgId, suspendReason.trim());
+      setSuspendOpen(false); setSuspendReason('');
+      await loadWorkspace();
+    } catch (err) { setLifeError(err.message || 'Could not suspend the workspace'); } finally { setLifeBusy(false); }
+  };
+  const doReactivate = async () => {
+    if (!window.confirm(`Re-activate "${workspace?.name}"?\n\nIts members can sign in and use it again straight away, and held emails resume.`)) return;
+    setLifeBusy(true); setLifeError('');
+    try { await api.reactivateSuperAdminWorkspace(orgId); await loadWorkspace(); }
+    catch (err) { setLifeError(err.message || 'Could not re-activate the workspace'); } finally { setLifeBusy(false); }
+  };
+  const openDelete = async () => {
+    setDeleteOpen(true); setDeletePreview(null); setDeleteSlug(''); setLifeError('');
+    try { setDeletePreview(await api.previewDeleteSuperAdminWorkspace(orgId)); }
+    catch (err) { setLifeError(err.message || 'Could not read the workspace'); }
+  };
+  const doDelete = async () => {
+    setLifeBusy(true); setLifeError('');
+    try {
+      await api.deleteSuperAdminWorkspace(orgId, deleteSlug.trim());
+      navigate('/admin/workspaces', { replace: true });
+    } catch (err) { setLifeError(err.message || 'Could not delete the workspace'); setLifeBusy(false); }
+  };
 
   useEffect(() => {
     loadWorkspace();
@@ -339,8 +377,9 @@ function AdminWorkspaceDetailPageV2() {
             <Building2 size={22} />
           </span>
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ font: "700 22px/1.2 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0 }}>
+            <h1 style={{ font: "700 22px/1.2 'Inter', system-ui, sans-serif", color: 'var(--fg)', margin: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               {workspace?.name}
+              <Chip tone={isSuspended ? 'danger' : 'brand'} dot>{isSuspended ? 'Suspended' : 'Active'}</Chip>
             </h1>
             <p style={{ ...microStyle, marginTop: 3 }}>
               {workspace?.slug} · {workspace?.domain || 'No domain'}
@@ -352,6 +391,13 @@ function AdminWorkspaceDetailPageV2() {
       {/* Messages */}
       {error && <Callout tone="danger" icon={<AlertCircle size={16} />}>{error}</Callout>}
       {saveSuccess && <Callout tone="brand">{saveSuccess}</Callout>}
+      {isSuspended && (
+        <Callout tone="danger" icon={<PauseCircle size={16} />} title="This workspace is suspended">
+          Its members cannot use it, its outreach emails are held and its careers page is hidden. Nothing has been deleted.
+          {workspace?.suspension?.reason ? <> Reason: <strong>{workspace.suspension.reason}</strong>.</> : null}
+          {workspace?.suspension?.at ? <> Suspended{workspace.suspension.byName ? ` by ${workspace.suspension.byName}` : ''} on {formatDateUTC(workspace.suspension.at)}.</> : null}
+        </Callout>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 18, alignItems: 'start' }}>
         {/* Org Info — editable */}
@@ -489,6 +535,118 @@ function AdminWorkspaceDetailPageV2() {
           empty={<EmptyState icon={<Users size={24} />} title={members.length ? 'No one matches' : 'No members'} compact>{members.length ? 'Try a different search or status.' : 'Nobody has joined this workspace yet.'}</EmptyState>}
         />
       </Panel>
+
+      {/* Suspend · re-activate · delete (2026-11-23). */}
+      <Panel title="Suspend or delete" icon={<ShieldAlert size={16} />}>
+        <div style={{ display: 'grid', gap: 16 }}>
+          {lifeError && !suspendOpen && !deleteOpen && <Callout tone="danger" icon={<AlertCircle size={16} />}>{lifeError}</Callout>}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+              <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>{isSuspended ? 'Re-activate this workspace' : 'Suspend this workspace'}</div>
+              <div style={microStyle}>
+                {isSuspended
+                  ? 'Members can use it again straight away and held emails resume.'
+                  : 'Members are locked out, outreach emails are held and the careers page is hidden. Nothing is deleted, and you can re-activate it at any time.'}
+              </div>
+            </div>
+            {isSuspended
+              ? <Button variant="secondary" disabled={lifeBusy} iconLeft={<PlayCircle size={14} />} onClick={doReactivate}>Re-activate</Button>
+              : <Button variant="secondary" disabled={lifeBusy} iconLeft={<PauseCircle size={14} />} onClick={() => { setLifeError(''); setSuspendOpen(true); }}>Suspend</Button>}
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+              <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger)' }}>Delete this workspace</div>
+              <div style={microStyle}>
+                Removes the workspace, all its records and the people who belong to no other workspace. {isSuspended ? 'You will see exactly what goes before confirming.' : 'Suspend it first — only a suspended workspace can be deleted.'}
+              </div>
+            </div>
+            <Button variant="secondary" disabled={lifeBusy || !isSuspended} iconLeft={<Trash2 size={14} />} onClick={openDelete} style={{ color: 'var(--danger)' }}>Delete…</Button>
+          </div>
+        </div>
+      </Panel>
+
+      <Modal
+        open={suspendOpen}
+        onClose={lifeBusy ? undefined : () => setSuspendOpen(false)}
+        size="sm"
+        tone="warn"
+        icon={<PauseCircle size={16} />}
+        title={`Suspend ${workspace?.name || 'workspace'}?`}
+        sub="Its members are locked out until you re-activate it. Nothing is deleted."
+        footer={(
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="ghost" onClick={() => setSuspendOpen(false)} disabled={lifeBusy}>Cancel</Button>
+            <Button variant="primary" onClick={doSuspend} disabled={lifeBusy || !suspendReason.trim()} iconLeft={lifeBusy ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />}>Suspend workspace</Button>
+          </div>
+        )}
+      >
+        <div style={{ display: 'grid', gap: 10 }}>
+          <Field label="Reason (kept in the log, shown on this page)" htmlFor="ws-suspend-reason">
+            <Input id="ws-suspend-reason" value={suspendReason} onChange={(e) => setSuspendReason(e.target.value)} placeholder="e.g. Dummy workspace no longer needed" maxLength={500} autoFocus />
+          </Field>
+          {lifeError && <Callout tone="danger" icon={<AlertCircle size={16} />}>{lifeError}</Callout>}
+        </div>
+      </Modal>
+
+      <Modal
+        open={deleteOpen}
+        onClose={lifeBusy ? undefined : () => setDeleteOpen(false)}
+        size="md"
+        tone="danger"
+        icon={<Trash2 size={16} />}
+        title={`Delete ${workspace?.name || 'workspace'}?`}
+        sub="This removes the workspace from Rivvra for everyone."
+        footer={(
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={lifeBusy}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={doDelete}
+              disabled={lifeBusy || !deletePreview || (deletePreview.blockers || []).length > 0 || deleteSlug.trim() !== workspace?.slug}
+              iconLeft={lifeBusy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+              style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}
+            >
+              {lifeBusy ? 'Deleting…' : 'Delete workspace'}
+            </Button>
+          </div>
+        )}
+      >
+        {!deletePreview ? (
+          lifeError ? <Callout tone="danger" icon={<AlertCircle size={16} />}>{lifeError}</Callout>
+            : <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...microStyle }}><Spinner size={14} /> Counting what would be removed…</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 14, font: "400 13.5px/1.55 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+            {(deletePreview.blockers || []).length > 0 && (
+              <Callout tone="danger" icon={<AlertCircle size={16} />} title="This workspace cannot be deleted yet">
+                {deletePreview.blockers.join(' ')}
+              </Callout>
+            )}
+            <div>
+              <strong style={{ color: 'var(--fg)' }}>{deletePreview.records.toLocaleString()} records</strong> in {deletePreview.collections.length} areas will be removed:
+              <div style={{ ...microStyle, marginTop: 6, maxHeight: 120, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                {deletePreview.collections.map((c) => `${c.name} ${c.count.toLocaleString()}`).join(' · ') || 'No records.'}
+              </div>
+            </div>
+            <div>
+              <strong style={{ color: 'var(--fg)' }}>People</strong>
+              <div style={{ ...microStyle, marginTop: 6 }}>
+                {deletePreview.users.length === 0 ? 'No members.' : deletePreview.users.map((u) => (
+                  <div key={u._id}>
+                    {u.email} — {u.removed ? 'account removed (belongs to no other workspace)' : u.superAdmin ? 'account kept (super admin)' : `account kept (also in ${u.otherWorkspaces} other workspace${u.otherWorkspaces === 1 ? '' : 's'})`}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={microStyle}>
+              The workspace disappears at once. A copy is kept for {deletePreview.retentionDays} days so Rivvra support can restore it, then it is erased for good. Uploaded files are not removed from storage.
+            </div>
+            <Field label={<>Type <strong>{workspace?.slug}</strong> to confirm</>} htmlFor="ws-delete-slug">
+              <Input id="ws-delete-slug" value={deleteSlug} onChange={(e) => setDeleteSlug(e.target.value)} placeholder={workspace?.slug} autoComplete="off" />
+            </Field>
+            {lifeError && <Callout tone="danger" icon={<AlertCircle size={16} />}>{lifeError}</Callout>}
+          </div>
+        )}
+      </Modal>
 
       {/* Backups. The old "Create Backup" button here wrote a copy of the
           workspace INTO the same database — that is what filled the database
