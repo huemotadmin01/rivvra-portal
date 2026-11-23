@@ -65,7 +65,7 @@
 // Not triggered: archive, unarchive, AI re-score, or any inline field save.
 // ============================================================================
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -154,6 +154,27 @@ function AtsCandidateDetailV2() {
       setAiRescoring(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, candidateId]);
+
+  // After a CV is uploaded / marked on the Files panel the server re-reads it
+  // in the background. Pick the new insights up QUIETLY: no page spinner
+  // (the first version called load() twice on timers, which blanked the whole
+  // page twice), and stop as soon as the insights have actually changed.
+  const insightTimers = useRef([]);
+  useEffect(() => () => { insightTimers.current.forEach(clearTimeout); }, []);
+  const refreshInsightsQuietly = useCallback((before) => {
+    insightTimers.current.forEach(clearTimeout);
+    const check = (attempt) => async () => {
+      try {
+        const fresh = await atsApi.getCandidate(slug, candidateId);
+        if (fresh?.success && fresh.candidate) {
+          const changed = String(fresh.candidate.aiProcessedAt || '') !== String(before || '');
+          if (changed) { setCandidate(fresh.candidate); return; }
+        }
+      } catch { /* a missed refresh is harmless — Re-score or a reload shows it */ }
+      if (attempt < 3) insightTimers.current.push(setTimeout(check(attempt + 1), 20000));
+    };
+    insightTimers.current = [setTimeout(check(1), 15000)];
   }, [slug, candidateId]);
 
   usePageTitle(candidate?.name);
@@ -547,7 +568,7 @@ function AtsCandidateDetailV2() {
               candidateId={candidateId}
               readOnly={!canEdit}
               // The server re-reads the CV in the background; pick the result up.
-              onResumeChanged={() => { setTimeout(load, 20000); setTimeout(load, 60000); }}
+              onResumeChanged={() => refreshInsightsQuietly(candidate?.aiProcessedAt)}
             />
           </Panel>
 
