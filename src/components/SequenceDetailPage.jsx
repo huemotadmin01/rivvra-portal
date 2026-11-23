@@ -50,7 +50,16 @@ function companyHoldText(h) {
   // 2026-11-23: a second kind of hold — the company keeps BOUNCING (wrong
   // addresses), and this contact's address could not be checked.
   if (h.reason === 'bounces') {
-    return `${h.bounced} of our emails to ${h.domain} bounced${h.delivered ? ` and only ${h.delivered} went through` : ' and none went through'}, and this address could not be checked — so Rivvra is holding it instead of sending another bounce. It is released automatically once emails to ${h.domain} start getting through or someone there replies. To send now, correct the email (Edit contact) or reach them on LinkedIn.`;
+    const through = h.delivered ? `only ${h.delivered} went through` : 'none went through';
+    // Mostly the company's mail filter refusing us → the address is not the problem.
+    const mostlyBlocks = (h.blocks || 0) * 2 >= h.bounced;
+    const why = mostlyBlocks
+      ? `${h.bounced} of our emails to ${h.domain} bounced (${h.blocks} were refused by their mail filter) and ${through}`
+      : `${h.bounced} of our emails to ${h.domain} bounced and ${through}`;
+    const advice = mostlyBlocks
+      ? 'Reach them by phone or LinkedIn meanwhile.'
+      : 'To send now, correct the email (Edit contact) and have it checked, or reach them on LinkedIn.';
+    return `${why}, and this address could not be checked — so Rivvra is holding the first email instead of sending another bounce. It is released automatically once emails to ${h.domain} start getting through or someone there replies. ${advice}`;
   }
   return `${h.domain} has blocked ${h.blocks} of our emails in the last 2 weeks, so Rivvra won't email anyone there until ${fmtHoldDate(h.pausedUntil)} — this protects huemot.com's sending reputation. Reach them by phone or LinkedIn meanwhile.`;
 }
