@@ -47,6 +47,11 @@ function fmtHoldDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 function companyHoldText(h) {
+  // 2026-11-23: a second kind of hold — the company keeps BOUNCING (wrong
+  // addresses), and this contact's address could not be checked.
+  if (h.reason === 'bounces') {
+    return `${h.bounced} of our emails to ${h.domain} bounced${h.delivered ? ` and only ${h.delivered} went through` : ' and none went through'}, and this address could not be checked — so Rivvra is holding it instead of sending another bounce. It is released automatically once emails to ${h.domain} start getting through or someone there replies. To send now, correct the email (Edit contact) or reach them on LinkedIn.`;
+  }
   return `${h.domain} has blocked ${h.blocks} of our emails in the last 2 weeks, so Rivvra won't email anyone there until ${fmtHoldDate(h.pausedUntil)} — this protects huemot.com's sending reputation. Reach them by phone or LinkedIn meanwhile.`;
 }
 function CompanyHoldChip({ hold }) {
@@ -56,7 +61,7 @@ function CompanyHoldChip({ hold }) {
       className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded border text-amber-400 bg-amber-500/10 border-amber-500/20 whitespace-nowrap"
     >
       <Pause className="w-3 h-3" />
-      Company paused · until {fmtHoldDate(hold.pausedUntil)}
+      {hold.reason === 'bounces' ? 'Held · company keeps bouncing' : `Company paused · until ${fmtHoldDate(hold.pausedUntil)}`}
     </span>
   );
 }
