@@ -172,7 +172,20 @@ export default function MyListsPageV2() {
   });
 
   const handleLeadUpdate = (updated) => {
-    setLeads((prev) => prev.map((l) => (l._id === updated._id ? { ...l, ...updated } : l)));
+    // 2026-11-23: a status change moves the contact between lists — the table
+    // and the list counts follow at once (same as Team Lists).
+    const row = leads.find((l) => l._id === updated._id);
+    const listsChanged = !!row && Array.isArray(updated.lists)
+      && [...updated.lists].sort().join('\u0001') !== [...(row.lists || [])].sort().join('\u0001');
+    const leftThisList = !!row && !!selectedList && Array.isArray(updated.lists) && !updated.lists.includes(selectedList);
+    if (leftThisList) {
+      setLeads((prev) => prev.filter((l) => l._id !== updated._id));
+      setTotalLeads((n) => Math.max(0, n - 1));
+      setSelectedLeads((prev) => prev.filter((id) => id !== updated._id));
+    } else {
+      setLeads((prev) => prev.map((l) => (l._id === updated._id ? { ...l, ...updated } : l)));
+    }
+    if (listsChanged) loadLists(false);
     setSelectedLead((prev) => (prev && prev._id === updated._id ? { ...prev, ...updated } : prev));
   };
 

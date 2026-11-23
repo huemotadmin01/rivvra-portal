@@ -180,7 +180,21 @@ export default function TeamListsPageV2() {
   });
 
   const handleLeadUpdate = (updated) => {
-    setLeads((prev) => prev.map((l) => (l._id === updated._id ? { ...l, ...updated, ownerName: updated.ownerName || l.ownerName } : l)));
+    // 2026-11-23: a status change moves the contact between lists. The table
+    // and the list counts follow at once — no page refresh. The side panel
+    // stays open on the contact even when its row leaves this list.
+    const row = leads.find((l) => l._id === updated._id);
+    const listsChanged = !!row && Array.isArray(updated.lists)
+      && [...updated.lists].sort().join('\u0001') !== [...(row.lists || [])].sort().join('\u0001');
+    const leftThisList = !!row && !!selectedList && Array.isArray(updated.lists) && !updated.lists.includes(selectedList);
+    if (leftThisList) {
+      setLeads((prev) => prev.filter((l) => l._id !== updated._id));
+      setTotalLeads((n) => Math.max(0, n - 1));
+      setSelectedLeads((prev) => prev.filter((id) => id !== updated._id));
+    } else {
+      setLeads((prev) => prev.map((l) => (l._id === updated._id ? { ...l, ...updated, ownerName: updated.ownerName || l.ownerName } : l)));
+    }
+    if (listsChanged) loadLists(false);
     setSelectedLead((prev) => (prev && prev._id === updated._id ? { ...prev, ...updated, ownerName: updated.ownerName || prev.ownerName } : prev));
   };
 
