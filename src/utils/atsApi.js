@@ -730,6 +730,20 @@ const atsApi = {
       body: JSON.stringify({ sourceAttachmentId }),
     });
   },
+  // Candidate-level files (2026-11-23): a CV belongs to the person, and a
+  // refused application is locked. Returns { attachments, fromApplications }.
+  listCandidateAttachments(orgSlug, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${candidateId}/attachments`);
+  },
+  uploadCandidateAttachment(orgSlug, candidateId, file, isResume = false) {
+    if (file && file.size > 10 * 1024 * 1024) {
+      return Promise.reject(new Error(`${file.name || 'File'} is too large — maximum 10 MB per file.`));
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('isResume', String(isResume));
+    return api.uploadFile(`/api/org/${orgSlug}/ats/candidates/${candidateId}/attachments`, formData);
+  },
   toggleResume(orgSlug, attachmentId) {
     return api.request(`/api/org/${orgSlug}/ats/attachments/${attachmentId}/resume`, {
       method: 'PUT',

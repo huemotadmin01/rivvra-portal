@@ -47,8 +47,13 @@ function formatDate(d) {
  *  - orgSlug: string
  *  - applicationId: string
  *  - readOnly: boolean (optional)
+ *  - candidateId: string (optional, 2026-11-23) — candidate mode: the panel
+ *    holds the CANDIDATE's own files and lists the files on their
+ *    applications below, read-only. Pass this INSTEAD of applicationId.
+ *  - onResumeChanged: () => void (optional) — a CV was added / marked here.
  */
-export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = false }) {
+export default function AttachmentsPanel({ orgSlug, applicationId, candidateId, readOnly = false, onResumeChanged }) {
+  const candidateMode = !!candidateId;
   const { showToast } = useToast();
   const fileInputRef = useRef(null);
   const [attachments, setAttachments] = useState([]);
@@ -62,19 +67,28 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
   // utils/resumeHeuristics. { att, reason } | null.
   const [confirmResume, setConfirmResume] = useState(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  // Candidate mode only: files on the candidate's applications (read-only),
+  // and whether the next upload is the CV.
+  const [fromApplications, setFromApplications] = useState([]);
+  const [asResume, setAsResume] = useState(true);
 
   const fetchAttachments = useCallback(async () => {
-    if (!orgSlug || !applicationId) return;
+    if (!orgSlug || !(applicationId || candidateId)) return;
     try {
       setLoading(true);
-      const res = await atsApi.listAttachments(orgSlug, applicationId);
-      if (res.success) setAttachments(res.attachments || []);
+      const res = candidateId
+        ? await atsApi.listCandidateAttachments(orgSlug, candidateId)
+        : await atsApi.listAttachments(orgSlug, applicationId);
+      if (res.success) {
+        setAttachments(res.attachments || []);
+        setFromApplications(res.fromApplications || []);
+      }
     } catch {
       showToast('Failed to load attachments', 'error');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, applicationId, showToast]);
+  }, [orgSlug, applicationId, candidateId, showToast]);
 
   useEffect(() => { fetchAttachments(); }, [fetchAttachments]);
 
@@ -85,13 +99,22 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     // Per-file try/catch — one failed upload used to abort the whole loop,
     // silently dropping every remaining file with no per-file feedback.
     const failures = [];
+    let cvUploaded = false;
     for (const file of Array.from(files)) {
       if (file.size > 10 * 1024 * 1024) {
         showToast(`${file.name} exceeds 10 MB limit`, 'error');
         continue;
       }
       try {
-        await atsApi.uploadAttachment(orgSlug, applicationId, file);
+        if (candidateMode) {
+          // Only one file can be the CV: with several dropped at once, the
+          // first one that doesn't look like paperwork (offer, NDA, ID…).
+          const isCv = asResume && !cvUploaded && !paperworkReason(file.name);
+          await atsApi.uploadCandidateAttachment(orgSlug, candidateId, file, isCv);
+          if (isCv) cvUploaded = true;
+        } else {
+          await atsApi.uploadAttachment(orgSlug, applicationId, file);
+        }
         uploaded += 1;
       } catch (err) {
         failures.push(file.name);
@@ -103,8 +126,11 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     // Only toast success for files that actually uploaded — when every
     // file was skipped by the size guard this used to say "File uploaded".
     if (uploaded > 0) {
-      showToast(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
+      showToast(cvUploaded
+        ? 'CV uploaded — AI résumé insights refresh in about a minute'
+        : uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
       fetchAttachments();
+      if (cvUploaded) onResumeChanged?.();
     }
     setUploading(false);
   };
@@ -116,6 +142,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
       await atsApi.toggleResume(orgSlug, att._id);
       showToast(att.isResume ? 'Unmarked as resume' : 'Marked as resume');
       fetchAttachments();
+      if (candidateMode && !att.isResume) onResumeChanged?.();
     } catch (err) {
       showToast(err.message || 'Failed to update', 'error');
     }
@@ -172,6 +199,86 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     }
   };
 
+  const renderRow = (att, rowReadOnly) => {
+    const FileIcon = getFileIcon(att.mimeType);
+    const canPreview = isPreviewable(att.mimeType);
+
+            
+            
+            return (
+              <div
+                key={att._id}
+                className="flex items-center gap-3 bg-dark-800/50 border border-dark-700/50 rounded-lg px-3 py-2.5 group"
+              >
+                <FileIcon size={16} className="text-dark-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => canPreview ? setPreviewDoc(att) : handleDownload(att)}
+                      className="text-sm text-white hover:text-rivvra-400 truncate transition-colors text-left"
+                    >
+                      {att.fileName}
+                    </button>
+                    {att.isResume && (
+                      <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
+                        Resume
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-dark-500 text-xs">
+                    {formatSize(att.size)} · {formatDate(att.createdAt)}
+                    {att.uploaderName && ` · ${att.uploaderName}`}
+                    {att.jobName && ` · ${att.jobName}`}
+                  </p>
+                </div>
+                {/* group-focus-within keeps the actions reachable by keyboard —
+                    hover-only opacity hid them from Tab navigation. */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+                  {canPreview && (
+                    <button
+                      onClick={() => setPreviewDoc(att)}
+                      className="p-1 rounded text-dark-400 hover:text-rivvra-400 hover:bg-dark-700 transition-colors"
+                      title="Preview"
+                    >
+                      <Eye size={13} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(att)}
+                    className="p-1 rounded text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
+                    title="Download"
+                  >
+                    <Download size={13} />
+                  </button>
+                  {!rowReadOnly && (
+                    <>
+                      <button
+                        onClick={() => handleToggleResume(att)}
+                        className={`p-1 rounded transition-colors ${
+                          att.isResume
+                            ? 'text-amber-400 hover:text-amber-300'
+                            : 'text-dark-400 hover:text-amber-400'
+                        } hover:bg-dark-700`}
+                        title={att.isResume ? 'Unmark as resume' : 'Mark as resume'}
+                      >
+                        <Star size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(att)}
+                        className="p-1 rounded text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-4">
@@ -187,7 +294,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Paperclip size={14} className="text-dark-400" />
-          <span className="text-sm font-medium text-dark-300">Attachments</span>
+          <span className="text-sm font-medium text-dark-300">{candidateMode ? 'Candidate files' : 'Attachments'}</span>
           <span className="text-xs bg-dark-700 text-dark-400 px-1.5 py-0.5 rounded-full">
             {attachments.length}
           </span>
@@ -230,87 +337,28 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
           )}
         </div>
       )}
+      {!readOnly && candidateMode && (
+        <label className="flex items-center gap-2 text-xs text-dark-300 cursor-pointer select-none">
+          <input type="checkbox" checked={asResume} onChange={(e) => setAsResume(e.target.checked)} />
+          The file I upload is the CV — use it for AI résumé insights
+        </label>
+      )}
 
       {/* File list */}
       {attachments.length === 0 ? (
-        <p className="text-dark-500 text-xs py-2">No files uploaded yet.</p>
+        <p className="text-dark-500 text-xs py-2">{candidateMode ? 'No files on the candidate yet.' : 'No files uploaded yet.'}</p>
       ) : (
         <div className="space-y-1.5">
-          {attachments.map((att) => {
-            const FileIcon = getFileIcon(att.mimeType);
-            const canPreview = isPreviewable(att.mimeType);
-            return (
-              <div
-                key={att._id}
-                className="flex items-center gap-3 bg-dark-800/50 border border-dark-700/50 rounded-lg px-3 py-2.5 group"
-              >
-                <FileIcon size={16} className="text-dark-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => canPreview ? setPreviewDoc(att) : handleDownload(att)}
-                      className="text-sm text-white hover:text-rivvra-400 truncate transition-colors text-left"
-                    >
-                      {att.fileName}
-                    </button>
-                    {att.isResume && (
-                      <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                        Resume
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-dark-500 text-xs">
-                    {formatSize(att.size)} · {formatDate(att.createdAt)}
-                    {att.uploaderName && ` · ${att.uploaderName}`}
-                  </p>
-                </div>
-                {/* group-focus-within keeps the actions reachable by keyboard —
-                    hover-only opacity hid them from Tab navigation. */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
-                  {canPreview && (
-                    <button
-                      onClick={() => setPreviewDoc(att)}
-                      className="p-1 rounded text-dark-400 hover:text-rivvra-400 hover:bg-dark-700 transition-colors"
-                      title="Preview"
-                    >
-                      <Eye size={13} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleDownload(att)}
-                    className="p-1 rounded text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
-                    title="Download"
-                  >
-                    <Download size={13} />
-                  </button>
-                  {!readOnly && (
-                    <>
-                      <button
-                        onClick={() => handleToggleResume(att)}
-                        className={`p-1 rounded transition-colors ${
-                          att.isResume
-                            ? 'text-amber-400 hover:text-amber-300'
-                            : 'text-dark-400 hover:text-amber-400'
-                        } hover:bg-dark-700`}
-                        title={att.isResume ? 'Unmark as resume' : 'Mark as resume'}
-                      >
-                        <Star size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(att)}
-                        className="p-1 rounded text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {attachments.map((att) => renderRow(att, readOnly))}
+        </div>
+      )}
+
+      {candidateMode && fromApplications.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-dark-500 text-xs pt-1">
+            From their applications ({fromApplications.length}) — managed on each application
+          </p>
+          {fromApplications.map((att) => renderRow(att, true))}
         </div>
       )}
 

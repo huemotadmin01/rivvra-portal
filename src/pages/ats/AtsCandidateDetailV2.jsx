@@ -78,11 +78,12 @@ import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import StageBadge from '../../components/ats/StageBadge';
 import AiResumeInsights from '../../components/ats/AiResumeInsights';
+import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import PersonLookup from '../../components/shared/PersonLookup';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
-  Award, Archive, ArchiveRestore, Briefcase, Building2,
+  Award, Archive, ArchiveRestore, Briefcase, Building2, Paperclip,
 } from 'lucide-react';
 import {
   Panel, Button, Chip, Callout, Modal, DataTable, EmptyState,
@@ -537,6 +538,18 @@ function AtsCandidateDetailV2() {
             rescoring={aiRescoring}
             onRescore={handleAiRescore}
           />
+
+          {/* 2026-11-23: the candidate's own files. A CV describes the person,
+              and a refused application is locked — an updated CV had no home. */}
+          <Panel title="Files" icon={<Paperclip size={16} />}>
+            <AttachmentsPanel
+              orgSlug={slug}
+              candidateId={candidateId}
+              readOnly={!canEdit}
+              // The server re-reads the CV in the background; pick the result up.
+              onResumeChanged={() => { setTimeout(load, 20000); setTimeout(load, 60000); }}
+            />
+          </Panel>
 
           <Panel
             title="Applications"
