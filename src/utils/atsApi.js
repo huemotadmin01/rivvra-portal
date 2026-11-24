@@ -549,6 +549,17 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/candidates/${id}`, _requestKey ? { _requestKey } : {});
   },
 
+  // 2026-11-25: Transfer button — who this candidate may go to, and the move.
+  getCandidateTransferOptions(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}/transfer-options`);
+  },
+  transferCandidate(orgSlug, id, { toEmployeeId, reason }) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}/transfer`, {
+      method: 'POST',
+      body: JSON.stringify({ toEmployeeId, reason }),
+    });
+  },
+
   createCandidate(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/ats/candidates`, {
       method: 'POST',

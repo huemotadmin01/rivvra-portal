@@ -83,11 +83,11 @@ import PersonLookup from '../../components/shared/PersonLookup';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
-  Award, Archive, ArchiveRestore, Briefcase, Building2, Paperclip,
+  Award, Archive, ArchiveRestore, Briefcase, Building2, Paperclip, ArrowRightLeft,
 } from 'lucide-react';
 import {
   Panel, Button, Chip, Callout, Modal, DataTable, EmptyState,
-  InlineField, RecordMeta, Avatar, Spinner,
+  InlineField, RecordMeta, Avatar, Spinner, Field, Select, Textarea,
 } from '../../components/ds';
 
 // ── Shared render tokens ────────────────────────────────────────────────────
@@ -135,6 +135,10 @@ function AtsCandidateDetailV2() {
   const [archiving, setArchiving] = useState(false);
   const [unarchiving, setUnarchiving] = useState(false);
   const [aiRescoring, setAiRescoring] = useState(false);
+  // 2026-11-25: Transfer button. The server decides who may transfer and to
+  // whom (own candidate → any ATS colleague; team lead → within the team;
+  // admin → anyone). Open applications move with the candidate.
+  const [transfer, setTransfer] = useState({ can: false, options: [], open: false, to: '', reason: '', saving: false, error: '' });
 
   const handleAiRescore = useCallback(async () => {
     if (!candidateId) return;
@@ -211,9 +215,36 @@ function AtsCandidateDetailV2() {
   const crossCompanySafe = !!currentCompanyId && !isCrossCompany;
   const canEdit = canRecruit && canActOnThis && !candidate?.archived && crossCompanySafe;
   const isViewOnly = !!(canRecruit && candidate && (!canActOnThis || isCrossCompany));
-  // Manager (owner) field — 2026-11-11: decided by the server (admins, or the
-  // recruitment-team lead of the current owner). Recruiters can't hand off.
-  const canChangeManager = !!candidate?.canChangeManager && !candidate?.archived && crossCompanySafe;
+  // Manager (owner) field — read-only since 2026-11-25: owners change through
+  // the Transfer button below, which also moves open applications.
+  const openAppsCount = (applications || []).filter((a) => a.applicationStatus === 'ongoing' && !a.archived && !a.refused && !a.hireDate).length;
+
+  useEffect(() => {
+    let alive = true;
+    if (!slug || !candidateId || !candidate?._id || candidate?.archived || !crossCompanySafe) {
+      setTransfer((t) => ({ ...t, can: false, options: [] }));
+      return () => { alive = false; };
+    }
+    atsApi.getCandidateTransferOptions(slug, candidateId)
+      .then((r) => { if (alive) setTransfer((t) => ({ ...t, can: !!r?.canTransfer, options: r?.options || [] })); })
+      .catch(() => { if (alive) setTransfer((t) => ({ ...t, can: false, options: [] })); });
+    return () => { alive = false; };
+  }, [slug, candidateId, candidate?._id, candidate?.managerId, candidate?.archived, crossCompanySafe]);
+
+  const submitTransfer = async () => {
+    if (!transfer.to) { setTransfer((t) => ({ ...t, error: 'Pick who should take this candidate.' })); return; }
+    if (transfer.reason.trim().length < 3) { setTransfer((t) => ({ ...t, error: 'Add a short reason.' })); return; }
+    setTransfer((t) => ({ ...t, saving: true, error: '' }));
+    try {
+      const res = await atsApi.transferCandidate(slug, candidateId, { toEmployeeId: transfer.to, reason: transfer.reason.trim() });
+      const name = transfer.options.find((o) => o.id === transfer.to)?.name || 'them';
+      showToast(`Transferred to ${name}${res?.movedApplications ? ` with ${res.movedApplications} open application${res.movedApplications === 1 ? '' : 's'}` : ''}`, 'success');
+      setTransfer((t) => ({ ...t, open: false, to: '', reason: '', saving: false }));
+      load();
+    } catch (err) {
+      setTransfer((t) => ({ ...t, saving: false, error: err?.message || 'Transfer failed' }));
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -600,17 +631,30 @@ function AtsCandidateDetailV2() {
               label="Manager"
               currentValue={candidate.managerId}
               currentName={candidate.managerName}
-              editable={canChangeManager}
+              editable={false}
               linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_candidate', candidateId)}
               onSelect={(id, name) => savePerson('managerId', 'managerName', id, name)}
             />
+            {transfer.can && (
+              <div style={{ marginTop: 10 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={<ArrowRightLeft size={13} />}
+                  onClick={() => setTransfer((t) => ({ ...t, open: true, to: '', reason: '', error: '' }))}
+                >
+                  Transfer candidate
+                </Button>
+              </div>
+            )}
             {Array.isArray(candidate.managerHistory) && candidate.managerHistory.length > 0 && (
               <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
                 {candidate.managerHistory.slice(-3).reverse().map((h, i) => (
                   <div key={i} style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.4 }}>
                     {(h.fromName || 'No one')} → {h.toName || 'No one'}
                     {' · '}
-                    {h.via === 'manual' ? `by ${h.byName || 'someone'}`
+                    {h.via === 'transfer' ? `transferred by ${h.byName || 'someone'}${h.reason ? ` — ${h.reason}` : ''}`
+                      : h.via === 'manual' ? `by ${h.byName || 'someone'}`
                       : h.via === 'referral_link' ? 'referral link'
                       : h.via === 'claim' ? `claimed${h.byName ? ` by ${h.byName}` : ''}`
                       : h.via === 'repair' ? 'corrected to first recruiter'
@@ -659,6 +703,39 @@ function AtsCandidateDetailV2() {
           </Panel>
         </div>
       </div>
+
+      {/* Transfer (2026-11-25) */}
+      <Modal
+        open={transfer.open}
+        onClose={transfer.saving ? undefined : () => setTransfer((t) => ({ ...t, open: false }))}
+        size="sm"
+        icon={<ArrowRightLeft size={16} />}
+        title="Transfer candidate"
+        sub={<>Give <strong style={{ color: 'var(--fg)' }}>{candidate.name}</strong> to another recruiter. {openAppsCount > 0
+          ? `Their ${openAppsCount} open application${openAppsCount === 1 ? '' : 's'} move${openAppsCount === 1 ? 's' : ''} too, so any future incentive goes to the new recruiter.`
+          : 'They have no open applications right now.'} Hired, refused and archived applications stay as they are.</>}
+        footer={(
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="ghost" onClick={() => setTransfer((t) => ({ ...t, open: false }))} disabled={transfer.saving}>Cancel</Button>
+            <Button onClick={submitTransfer} disabled={transfer.saving} iconLeft={transfer.saving ? <Loader2 size={13} className="animate-spin" /> : <ArrowRightLeft size={13} />}>
+              Transfer
+            </Button>
+          </div>
+        )}
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          <Field label="Transfer to" htmlFor="cand-transfer-to" required>
+            <Select id="cand-transfer-to" value={transfer.to} onChange={(e) => setTransfer((t) => ({ ...t, to: e.target.value, error: '' }))}>
+              <option value="">Choose a recruiter…</option>
+              {transfer.options.map((o) => <option key={o.id} value={o.id}>{o.name}{o.designation ? ` — ${o.designation}` : ''}</option>)}
+            </Select>
+          </Field>
+          <Field label="Reason" htmlFor="cand-transfer-reason" required hint="Saved in the candidate's owner history.">
+            <Textarea id="cand-transfer-reason" rows={3} maxLength={300} value={transfer.reason} onChange={(e) => setTransfer((t) => ({ ...t, reason: e.target.value, error: '' }))} placeholder="e.g. Moving to Workday hiring — Niharika handles these roles" />
+          </Field>
+          {transfer.error && <Callout tone="danger">{transfer.error}</Callout>}
+        </div>
+      </Modal>
 
       {/* Archive confirmation. `onClose` is undefined while archiving — that is
           how ds Modal is told to be non-dismissible, preserving legacy's rule
