@@ -214,6 +214,8 @@ export default function CrmOpportunitiesV2() {
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState([]);
   const [salespersons, setSalespersons] = useState([]);
+  // 'all' | 'team' | 'self' from the server. A rep ('self') only has their own deals.
+  const [viewerMode, setViewerMode] = useState(null);
   const [sources, setSources] = useState([]);
   const [tags, setTags] = useState([]);
   const [exporting, setExporting] = useState(false);
@@ -268,7 +270,7 @@ export default function CrmOpportunitiesV2() {
   useEffect(() => {
     if (!slug) return;
     crmApi.listStages(slug).then(r => { if (r.success) setStages(r.stages || []); }).catch(() => {});
-    crmApi.listSalespersons(slug).then(r => { if (r.success) setSalespersons(r.salespersons || []); }).catch(() => {});
+    crmApi.listSalespersons(slug).then(r => { if (r.success) { setSalespersons(r.salespersons || []); setViewerMode(r.viewerMode || null); } }).catch(() => {});
     crmApi.listSources(slug).then(r => { if (r.success) setSources(r.sources || []); }).catch(() => {});
     crmApi.listTags(slug).then(r => { if (r.success) setTags(r.tags || []); }).catch(() => {});
   }, [slug]);
@@ -446,8 +448,12 @@ export default function CrmOpportunitiesV2() {
         filters={[]}
         left={(
           <>
-            <BooleanChipV2 paramKey="mine" label="My deals" />
-            <SelectChipV2 paramKey="salespersonId" label="Salesperson" options={salespersons.map(s => ({ value: s._id, label: s.name || 'Unknown' }))} />
+            {/* 2026-11-24: a rep only ever sees their own deals — "My deals" and
+                "Salesperson" mean nothing to them. */}
+            {viewerMode && viewerMode !== 'self' && <BooleanChipV2 paramKey="mine" label="My deals" />}
+            {viewerMode && viewerMode !== 'self' && (
+              <SelectChipV2 paramKey="salespersonId" label="Salesperson" options={salespersons.map(s => ({ value: s._id, label: s.name || 'Unknown' }))} />
+            )}
             <SelectChipV2 paramKey="stageId" label="Stage" options={stages.map(s => ({ value: s._id, label: s.name }))} />
             <SelectChipV2 paramKey="source" label="Source" options={sources.map(s => ({ value: s, label: s }))} placeholder="No sources" />
             <SelectChipV2 paramKey="requirementType" label="Requirement" options={REQUIREMENT_TYPE_OPTIONS} />

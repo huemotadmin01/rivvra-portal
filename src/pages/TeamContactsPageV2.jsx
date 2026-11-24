@@ -66,6 +66,14 @@ export default function TeamContactsPageV2() {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState('');
 
+  // 2026-11-24: the menu hid this page from members but the URL still opened
+  // it (and the API answered 403). Members go to their own contacts.
+  const outreachRole = getAppRole('outreach');
+  const blocked = !!outreachRole && outreachRole !== 'admin' && outreachRole !== 'team_lead';
+  useEffect(() => {
+    if (blocked) navigate(orgPath('/outreach/leads'), { replace: true });
+  }, [blocked, navigate, orgPath]);
+
   const setupComplete = useSetupStatus();
   const canExportCrm = hasAppAccess('crm') || user?.plan === 'pro' || user?.plan === 'premium';
   const leadsPerPage = 50;
@@ -75,7 +83,6 @@ export default function TeamContactsPageV2() {
   // visitorId), an outreach admin (all org leads), or a team lead (their own
   // team's leads — the only ones Team Contacts lists for them). Anyone else
   // gets the side panel read-only instead of a "Lead not found" on save.
-  const outreachRole = getAppRole('outreach');
   const myId = String(user?._id || user?.id || '');
   const canEditLead = (lead) => outreachRole === 'admin' || outreachRole === 'team_lead'
     || (!!myId && (String(lead?.userId || '') === myId || String(lead?.visitorId || '') === myId));
@@ -243,6 +250,8 @@ export default function TeamContactsPageV2() {
   };
 
   const filtered = debouncedSearch || profileTypeFilter !== 'all' || outreachStatusFilter !== 'all' || ownerFilter !== 'all';
+
+  if (blocked) return null;
 
   return (
     <div style={{ marginRight: selectedLead ? 420 : 0, transition: 'margin-right var(--d-3) var(--e-out)' }}>

@@ -135,6 +135,8 @@ function CrmFollowUpsV2() {
       const res = await crmApi.getFollowUps(slug, { scope, tzOffset: new Date().getTimezoneOffset() });
       if (mine !== seq.current) return;
       setData(res); setError(''); setUpdatedAt(new Date());
+      // The server decides who has a team; a rep asking for it gets their own.
+      if (res?.scope && res.scope !== scope) setScope(res.scope);
       if (manual) showToast('Follow-ups are up to date');
     } catch (err) {
       if (mine !== seq.current) return;
@@ -305,10 +307,13 @@ function CrmFollowUpsV2() {
         sub={`${scope === 'mine' ? 'What you owe your prospects today' : 'What your team owes its prospects today'}${updatedAt ? ` · updated ${timeOf(updatedAt)}` : ''}`}
         actions={(
           <>
-            <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); setShown({}); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
-              <option value="mine">Mine</option>
-              <option value="team">My team</option>
-            </Select>
+            {/* 2026-11-24: only for people who have a team (lead) or see everyone (admin). */}
+            {data?.canSeeTeam && (
+              <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); setShown({}); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
+                <option value="mine">Mine</option>
+                <option value="team">My team</option>
+              </Select>
+            )}
             <Button
               variant="secondary"
               size="sm"

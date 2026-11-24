@@ -244,6 +244,7 @@ export default function CrmPipelineV2() {
   const [kanban, setKanban] = useState([]);
   const [loading, setLoading] = useState(true);
   const [salespersons, setSalespersons] = useState([]);
+  const [viewerMode, setViewerMode] = useState(null); // 'self' = a rep: own deals only
   const [sources, setSources] = useState([]);
   const [tags, setTags] = useState([]);
   // showCreate / CreateModal removed — creation now routes to /crm/opportunities/new
@@ -286,7 +287,7 @@ export default function CrmPipelineV2() {
 
   useEffect(() => {
     if (!slug) return;
-    crmApi.listSalespersons(slug).then(res => { if (res.success) setSalespersons(res.salespersons || []); }).catch(() => {});
+    crmApi.listSalespersons(slug).then(res => { if (res.success) { setSalespersons(res.salespersons || []); setViewerMode(res.viewerMode || null); } }).catch(() => {});
     crmApi.listSources(slug).then(res => { if (res.success) setSources(res.sources || []); }).catch(() => {});
     crmApi.listTags(slug).then(res => { if (res.success) setTags(res.tags || []); }).catch(() => {});
   }, [slug]);
@@ -444,13 +445,15 @@ export default function CrmPipelineV2() {
       {/* Filters */}
       <div className="mb-6">
         <FilterBar searchPlaceholder="Search pipeline…">
-          <FilterChip type="boolean" paramKey="mine" label="My deals" />
-          <FilterChip
-            type="select"
-            paramKey="salespersonId"
-            label="Salesperson"
-            options={salespersons.map(s => ({ value: s._id, label: s.name || 'Unknown' }))}
-          />
+          {viewerMode && viewerMode !== 'self' && <FilterChip type="boolean" paramKey="mine" label="My deals" />}
+          {viewerMode && viewerMode !== 'self' && (
+            <FilterChip
+              type="select"
+              paramKey="salespersonId"
+              label="Salesperson"
+              options={salespersons.map(s => ({ value: s._id, label: s.name || 'Unknown' }))}
+            />
+          )}
           <FilterChip
             type="select"
             paramKey="source"

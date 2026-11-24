@@ -374,6 +374,14 @@ export default function CrmOpportunityDetailV2() {
     performStageChange(stageId);
   };
 
+  // 2026-11-24: only an admin or team lead may reassign (the server refuses a
+  // rep with 403). Until we know, the field stays read-only.
+  const [canReassign, setCanReassign] = useState(false);
+  useEffect(() => {
+    if (!slug) return;
+    crmApi.listSalespersons(slug).then((r) => setCanReassign(!!r?.viewerMode && r.viewerMode !== 'self')).catch(() => setCanReassign(false));
+  }, [slug]);
+
   const searchSalespersons = useCallback(async (query) => {
     const res = await contactsApi.listSalespersons(slug, query);
     return (res?.salespersons || []).map((sp) => ({ value: sp._id, label: sp.name, sub: sp.email || '' }));
@@ -748,7 +756,7 @@ export default function CrmOpportunityDetailV2() {
               field="salespersonId"
               value={opp.salespersonId || ''}
               displayValue={opp.salespersonName}
-              editable={canEdit}
+              editable={canEdit && canReassign}
               search={searchSalespersons}
               placeholder="Search employees…"
               onSelect={async (_field, id) => {
