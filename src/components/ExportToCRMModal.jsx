@@ -185,8 +185,10 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   // by that account's salesperson (account-owner-first resolver), not by
   // the lead owner. In that case, suppress the "reassign lead to me first"
   // nudge — reassigning the lead won't change the opp ownership anymore.
-  const hasAccountOwner = !!(preflight.contactMatch?.salespersonId || preflight.companyMatch?.salespersonId);
-  const isCrossOwner = !hasAccountOwner && !!(leadOwnerId && currentUserId && String(leadOwnerId) !== String(currentUserId));
+  // 2026-11-24: reversed for Outreach leads — the rep whose contact replied
+  // owns the opportunity even when the company already has a salesperson in
+  // Contacts, so the lead owner always decides and the notice is never hidden.
+  const isCrossOwner = !!(leadOwnerId && currentUserId && String(leadOwnerId) !== String(currentUserId));
 
   // Two-phase: pre-flight checks for an existing opportunity; if found,
   // routes to a warning step. The user can either open the existing opp,
@@ -333,20 +335,18 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
                         )}
                         {' '}is already a CRM contact. The new opportunity will be linked to the existing record
                         {preflight.contactMatch.salespersonName && (
-                          <>, owned by <span className="font-medium text-amber-300">{preflight.contactMatch.salespersonName}</span></>
+                          <> (account salesperson <span className="font-medium text-amber-300">{preflight.contactMatch.salespersonName}</span>)</>
                         )}
-                        .
+                        . The opportunity itself goes to the lead owner.
                       </>
                     ) : (
                       <>
                         <span className="font-medium text-amber-300">{preflight.companyMatch.name}</span>
-                        {' '}is already a CRM customer. The new opportunity will be assigned to{' '}
-                        {preflight.companyMatch.salespersonName ? (
-                          <span className="font-medium text-amber-300">{preflight.companyMatch.salespersonName}</span>
-                        ) : (
-                          <span>the account owner</span>
+                        {' '}is already a CRM customer
+                        {preflight.companyMatch.salespersonName && (
+                          <> (account salesperson <span className="font-medium text-amber-300">{preflight.companyMatch.salespersonName}</span>)</>
                         )}
-                        .
+                        . The new opportunity goes to the lead owner; the account stays as it is.
                       </>
                     )}
                   </div>
