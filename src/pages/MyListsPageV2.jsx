@@ -74,6 +74,9 @@ export default function MyListsPageV2() {
 
   const setupComplete = useSetupStatus();
   const canExportCrm = hasAppAccess('crm') || user?.plan === 'pro' || user?.plan === 'premium';
+  // 2026-11-24: interested replies are auto-tracked into CRM, so an empty Hot
+  // Leads list is the normal state — say so, and point at where they went.
+  const hotLeadsTracked = selectedList === 'Hot Leads' && hasAppAccess('crm');
   const leadsPerPage = 10;
 
   useEffect(() => {
@@ -389,11 +392,16 @@ export default function MyListsPageV2() {
                 empty={(
                   <LeadsEmptyState
                     icon={<Users size={22} />}
-                    title={filtered ? 'No results found' : 'No contacts in this list'}
+                    title={filtered ? 'No results found' : (hotLeadsTracked ? 'Nobody is waiting here' : 'No contacts in this list')}
+                    actions={!filtered && hotLeadsTracked ? (
+                      <Button size="sm" onClick={() => navigate(orgPath('/crm/follow-ups'))}>Open CRM Follow-ups</Button>
+                    ) : undefined}
                   >
                     {filtered
                       ? 'Try adjusting your search or filters.'
-                      : 'Use the Chrome extension or Add to List to fill it.'}
+                      : hotLeadsTracked
+                        ? 'Interested replies are now tracked automatically. Within a few minutes each one becomes an opportunity in CRM and moves to the Converted list.'
+                        : 'Use the Chrome extension or Add to List to fill it.'}
                   </LeadsEmptyState>
                 )}
               />
