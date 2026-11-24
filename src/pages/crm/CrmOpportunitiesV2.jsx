@@ -13,7 +13,7 @@ import {
   SelectChipV2, BooleanChipV2, GroupByChipV2, MoreFiltersV2, RangeFilterV2, PageHeaderV2,
 } from '../../components/platform/v2/listkit';
 import { NextStepChip, NEXT_STEP_FILTER_OPTIONS, StaleBadge } from '../../components/crm/nextStep';
-import { Plus, Star, Trophy, Loader2, Download, Target, Upload, Kanban } from 'lucide-react';
+import { Plus, Star, Trophy, Loader2, Download, Target, Upload, Kanban, LayoutDashboard, X } from 'lucide-react';
 import BulkImportModal from '../../components/BulkImportModal';
 
 const REQUIREMENT_TYPE_OPTIONS = [
@@ -73,7 +73,15 @@ const FILTER_PARAM_KEYS = [
   'tagId', 'expectedClosingFrom', 'expectedClosingTo',
   'expectedRevenueFrom', 'expectedRevenueTo', 'mine', 'archived', 'groupBy',
   'status', 'nextStep', 'jobIntake', 'staleDays',
+  // 2026-11-24: set by the CRM dashboard so a number opens exactly the deals
+  // it counted. 'report' is the plain-words label shown above the list.
+  'createdFrom', 'createdTo', 'wonFrom', 'wonTo', 'lostFrom', 'lostTo',
+  'followedUpDays', 'autoCreated', 'lostReasonId', 'decidedFrom', 'report',
 ];
+const REPORT_KEYS = ['createdFrom', 'createdTo', 'wonFrom', 'wonTo', 'lostFrom', 'lostTo', 'followedUpDays', 'autoCreated', 'lostReasonId', 'decidedFrom', 'report'];
+// These only make sense with one lifecycle; switching segment drops them.
+const LIFECYCLE_BOUND_KEYS = ['wonFrom', 'wonTo', 'lostFrom', 'lostTo', 'lostReasonId', 'decidedFrom'];
+const shortDate = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); };
 const MORE_FILTER_KEYS = [
   'tagId', 'clientType', 'evaluation', 'isConverted', 'jobIntake',
   'expectedClosingFrom', 'expectedClosingTo', 'expectedRevenueFrom', 'expectedRevenueTo',
@@ -129,7 +137,10 @@ function EvalStars({ value = 0 }) {
 // 4-segment lifecycle toggle (Open / Won / Lost / Archived) — same URL
 // semantics as legacy: open=default, won/lost via status, archived=1.
 function LifecycleToggleV2({ lifecycle, counts, onChange }) {
+  // Open, Won and Lost split the non-archived deals, so All is their sum.
+  const allCount = [counts.open, counts.won, counts.lost].every((n) => n != null) ? counts.open + counts.won + counts.lost : null;
   const segments = [
+    { key: 'all', label: 'All', dot: 'var(--fg-3)' },
     { key: 'open', label: 'Open', dot: 'var(--brand)' },
     { key: 'won', label: 'Won', dot: 'var(--warn)' },
     { key: 'lost', label: 'Lost', dot: 'var(--danger)' },
@@ -156,11 +167,11 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
               backdrop is --surface-4, where --fg-4 measures ~4.0–4.3 against
               a 4.5 floor. Inactive segments sit on --surface-2, where --fg-4
               is correct. */}
-          {counts[s.key] != null && (
+          {(s.key === 'all' ? allCount : counts[s.key]) != null && (
             <span style={{
               font: '600 10px/1 var(--font)', fontVariantNumeric: 'tabular-nums',
               color: lifecycle === s.key ? 'var(--fg-2)' : 'var(--fg-4)',
-            }}>{counts[s.key]}</span>
+            }}>{s.key === 'all' ? allCount : counts[s.key]}</span>
           )}
         </button>
       ))}
@@ -193,6 +204,7 @@ export default function CrmOpportunitiesV2() {
     if (filterParams.archived === '1' || filterParams.archived === 'true') return 'archived';
     if (filterParams.status === 'won') return 'won';
     if (filterParams.status === 'lost') return 'lost';
+    if (filterParams.status === 'all') return 'all';
     return 'open';
   })();
 
@@ -202,7 +214,9 @@ export default function CrmOpportunitiesV2() {
     np.delete('archived');
     np.delete('status');
     np.delete('isLost');
+    LIFECYCLE_BOUND_KEYS.forEach((k) => np.delete(k));
     if (next === 'archived') np.set('archived', '1');
+    else if (next === 'all') np.set('status', 'all');
     else if (next === 'won') np.set('status', 'won');
     else if (next === 'lost') np.set('status', 'lost');
     setSearchParams(np);
@@ -320,6 +334,27 @@ export default function CrmOpportunitiesV2() {
   }, [groupBy, data, stagesById]);
 
   const hasFilters = Object.values(filterParams).some(Boolean);
+  // Filters the dashboard applied — shown in words above the list, one Clear.
+  const reportOn = REPORT_KEYS.some((k) => filterParams[k]);
+  const reportText = (() => {
+    if (!reportOn) return '';
+    const parts = [];
+    if (filterParams.report) parts.push(filterParams.report);
+    const span = (a, b) => (a && b ? `${shortDate(a)} – ${shortDate(b)}` : a ? `since ${shortDate(a)}` : `until ${shortDate(b)}`);
+    if (filterParams.createdFrom || filterParams.createdTo) parts.push(`created ${span(filterParams.createdFrom, filterParams.createdTo)}`);
+    if (filterParams.wonFrom || filterParams.wonTo) parts.push(`became a job ${span(filterParams.wonFrom, filterParams.wonTo)}`);
+    if (filterParams.lostFrom || filterParams.lostTo) parts.push(`lost ${span(filterParams.lostFrom, filterParams.lostTo)}`);
+    if (filterParams.decidedFrom) parts.push(`became a job or lost since ${shortDate(filterParams.decidedFrom)}`);
+    if (filterParams.followedUpDays) parts.push(`followed up in the last ${filterParams.followedUpDays} days`);
+    if (filterParams.autoCreated) parts.push('tracked automatically from replies');
+    return parts.join(' · ');
+  })();
+  const clearReport = () => {
+    const np = new URLSearchParams(searchParams);
+    REPORT_KEYS.forEach((k) => np.delete(k));
+    np.delete('page');
+    setSearchParams(np);
+  };
   const goTo = (opp) => navigate(`/org/${slug}/crm/opportunities/${opp._id}`);
 
   const columns = [
@@ -476,7 +511,7 @@ export default function CrmOpportunitiesV2() {
             <GroupByChipV2 options={GROUP_BY_OPTIONS} />
           </>
         )}
-        style={{ marginBottom: 14 }}
+        style={{ marginBottom: reportOn ? 8 : 14 }}
       >
         <Button
           variant="ghost"
@@ -489,6 +524,18 @@ export default function CrmOpportunitiesV2() {
           Export CSV
         </Button>
       </FilterBar>
+
+      {reportOn && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14,
+          padding: '8px 12px', borderRadius: 'var(--r-md, 8px)', background: 'var(--surface-2)',
+          boxShadow: 'inset 0 0 0 1px var(--line)', font: "450 12.5px/1.45 'Inter', system-ui, sans-serif", color: 'var(--fg-2)',
+        }}>
+          <LayoutDashboard size={14} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0 }}><b style={{ fontWeight: 600, color: 'var(--fg)' }}>From the dashboard:</b> {reportText}</span>
+          <Button variant="ghost" size="sm" iconLeft={<X size={13} />} onClick={clearReport}>Clear</Button>
+        </div>
+      )}
 
       <DataTable
         columns={columns}

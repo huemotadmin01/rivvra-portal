@@ -155,7 +155,7 @@ const timeOf = (d) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute:
 const th = { font: `550 11.5px/1.4 ${FONT}`, color: 'var(--fg-4)', textAlign: 'right', padding: '8px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' };
 const td = { font: `450 13px/1.4 ${FONT}`, color: 'var(--fg-2)', textAlign: 'right', padding: '9px 12px', borderBottom: '1px solid var(--border)', fontVariantNumeric: 'tabular-nums' };
 
-function TeamTable({ rows }) {
+function TeamTable({ rows, onCell }) {
   if (!rows.length) return <EmptyState compact title="Nothing in this range">No open deals and no results for anyone yet.</EmptyState>;
   const sum = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0);
   const cols = [
@@ -186,13 +186,26 @@ function TeamTable({ rows }) {
                 const color = c.k === 'overdue' && v > 0 ? 'var(--danger)'
                   : c.k === 'touched7' && r.open > 0 && v === 0 ? 'var(--warn-ink, #b45309)'
                   : v === 0 ? 'var(--fg-4)' : td.color;
-                return <td key={c.k} style={{ ...td, color, fontWeight: c.k === 'overdue' && v > 0 ? 600 : 450 }}>{v}</td>;
+                // A number opens the Opportunities list for that person. Zero and
+                // "No salesperson" have nothing to open.
+                const can = v > 0 && r.employeeId;
+                return (
+                  <td key={c.k} style={{ ...td, color, fontWeight: c.k === 'overdue' && v > 0 ? 600 : 450 }}>
+                    {can ? (
+                      <button type="button" className="crm-dash-num" onClick={() => onCell(r, c.k)} title={`Open these ${v} deal${v === 1 ? '' : 's'}`}>{v}</button>
+                    ) : v}
+                  </td>
+                );
               })}
             </tr>
           ))}
           <tr>
             <td style={{ ...td, textAlign: 'left', fontWeight: 600, color: 'var(--fg)', borderBottom: 'none' }}>Total</td>
-            {cols.map((c) => <td key={c.k} style={{ ...td, fontWeight: 600, color: 'var(--fg)', borderBottom: 'none' }}>{sum(c.k)}</td>)}
+            {cols.map((c) => (
+              <td key={c.k} style={{ ...td, fontWeight: 600, color: 'var(--fg)', borderBottom: 'none' }}>
+                {sum(c.k) > 0 ? <button type="button" className="crm-dash-num" onClick={() => onCell(null, c.k)}>{sum(c.k)}</button> : 0}
+              </td>
+            ))}
           </tr>
         </tbody>
       </table>
@@ -200,19 +213,26 @@ function TeamTable({ rows }) {
   );
 }
 
-function LostReasons({ rows, total }) {
+function LostReasons({ rows, total, onRow }) {
   if (!rows.length) return <EmptyState compact title="No lost deals in this range" />;
   const max = Math.max(...rows.map((r) => r.count), 1);
   return (
     <div style={{ display: 'grid', gap: 10, padding: 16 }}>
       {rows.map((r) => (
-        <div key={r.name} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 160px) 1fr auto', alignItems: 'center', gap: 10 }}>
+        <button
+          type="button"
+          key={r.name}
+          className="crm-dash-row"
+          onClick={() => onRow(r)}
+          title={`Open the ${r.count} deal${r.count === 1 ? '' : 's'} lost for this reason`}
+          style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 160px) 1fr auto', alignItems: 'center', gap: 10 }}
+        >
           <span style={{ font: `450 12.5px/1.4 ${FONT}`, color: 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.name}>{r.name}</span>
           <Meter value={r.count} max={max} />
           <span style={{ ...micro, color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums', minWidth: 64, textAlign: 'right' }}>
             {r.count} · {total ? Math.round((r.count / total) * 100) : 0}%
           </span>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -273,6 +293,32 @@ export default function CrmDashboardV2() {
   const res = data.results || {};
   const rangeLabel = RANGES.find((r) => r.key === rangeKey)?.label || '';
   const toFollowUps = () => navigate(`/org/${slug}/crm/follow-ups${team ? '?scope=team' : ''}`);
+  // 2026-11-24: every number opens the Opportunities list filtered to the same
+  // deals it counted (same rules as /crm/insights). Ranges have no end date —
+  // they all run to now, and a deal added since the page loaded belongs too.
+  const since = data.range?.from;
+  const toList = (params, label, employee) => {
+    const q = new URLSearchParams();
+    if (employee) q.set('salespersonId', employee);
+    else if (!team) q.set('mine', '1');
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, String(v)); });
+    const person = employee && (data.team || []).find((r) => r.employeeId === employee)?.name;
+    if (label) q.set('report', person ? `${label} · ${person}` : label);
+    navigate(`/org/${slug}/crm/opportunities?${q.toString()}`);
+  };
+  const OPEN = { jobIntake: 'false', isConverted: 'false' };
+  const LINKS = {
+    open: [OPEN, 'Open deals'],
+    overdue: [{ ...OPEN, nextStep: 'overdue' }, 'Next step overdue'],
+    dueToday: [{ ...OPEN, nextStep: 'today' }, 'Next step due today'],
+    noNextStep: [{ ...OPEN, nextStep: 'none' }, 'No next step with a date'],
+    touched7: [{ ...OPEN, followedUpDays: 7 }, 'Followed up this week'],
+    created: [{ status: 'all', jobIntake: 'false', createdFrom: since }, 'New deals'],
+    jobs: [{ status: 'won', jobIntake: 'false', wonFrom: since }, 'Became jobs'],
+    lost: [{ status: 'lost', jobIntake: 'false', lostFrom: since }, 'Lost'],
+    requirements: [{ status: 'all', jobIntake: 'true', createdFrom: since }, 'Client requirements'],
+  };
+  const open = (key, employee) => toList(LINKS[key][0], LINKS[key][1], employee);
   const who = team
     ? (data.viewerMode === 'all' ? 'Everyone in sales' : 'Your team')
     : 'Your deals';
@@ -280,6 +326,14 @@ export default function CrmDashboardV2() {
 
   return (
     <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1180, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <style>{`
+        .crm-dash-num { all: unset; cursor: pointer; padding: 2px 6px; margin: -2px -6px; border-radius: 6px; color: inherit; font: inherit; }
+        .crm-dash-num:hover { background: var(--surface-3); text-decoration: underline; }
+        .crm-dash-num:focus-visible, .crm-dash-row:focus-visible, .crm-dash-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+        .crm-dash-row { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; padding: 4px 6px; margin: -4px -6px; border-radius: 6px; }
+        .crm-dash-row:hover { background: var(--surface-2); }
+        .crm-dash-link { all: unset; cursor: pointer; font-weight: 600; text-decoration: underline; }
+      `}</style>
       {setupCounts && setupCounts.contacts !== null && setupCounts.opps !== null && (
         <CrmGetStarted slug={slug} contactsTotal={setupCounts.contacts} oppsTotal={setupCounts.opps} />
       )}
@@ -321,22 +375,23 @@ export default function CrmDashboardV2() {
       <div>
         <div style={{ ...micro, font: `600 11px/1.4 ${FONT}`, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 8 }}>Today</div>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-          <Stat label="Open deals" value={now.open ?? 0} icon={<Briefcase size={14} />} color="var(--info)" note="being worked now" onClick={toFollowUps} />
-          <Stat label="Overdue" value={now.overdue ?? 0} icon={<AlertTriangle size={14} />} color="var(--danger)" note="next step is past its date" onClick={toFollowUps} />
-          <Stat label="Due today" value={now.dueToday ?? 0} icon={<Clock size={14} />} color="var(--warn)" note="next step due today" onClick={toFollowUps} />
+          <Stat label="Open deals" value={now.open ?? 0} icon={<Briefcase size={14} />} color="var(--info)" note="being worked now" onClick={() => open('open')} />
+          <Stat label="Overdue" value={now.overdue ?? 0} icon={<AlertTriangle size={14} />} color="var(--danger)" note="next step is past its date" onClick={() => open('overdue')} />
+          <Stat label="Due today" value={now.dueToday ?? 0} icon={<Clock size={14} />} color="var(--warn)" note="next step due today" onClick={() => open('dueToday')} />
           <Stat
             label="Followed up this week"
             value={now.followedUpThisWeek ?? 0}
             icon={<CalendarCheck size={14} />}
             color="var(--brand)"
             note={`of ${now.open ?? 0} open deal${now.open === 1 ? '' : 's'} · last 7 days`}
-            onClick={toFollowUps}
+            onClick={() => open('touched7')}
           />
         </div>
         {now.noNextStep > 0 && (
           <div style={{ marginTop: 10 }}>
             <Callout tone="warn" icon={<AlertTriangle size={16} />}>
-              {now.noNextStep} open deal{now.noNextStep === 1 ? ' has' : 's have'} no next step with a date. Open Follow-ups and set one.
+              {now.noNextStep} open deal{now.noNextStep === 1 ? ' has' : 's have'} no next step with a date.{' '}
+              <button type="button" className="crm-dash-link" onClick={() => open('noNextStep')}>See them</button> and set one.
             </Callout>
           </div>
         )}
@@ -352,15 +407,17 @@ export default function CrmDashboardV2() {
             icon={<Sparkles size={14} />}
             color="var(--info)"
             note={res.createdAuto ? `${res.createdAuto} tracked automatically from replies` : 'opportunities created'}
+            onClick={() => open('created')}
           />
-          <Stat label="Became jobs" value={res.becameJobs ?? 0} icon={<Trophy size={14} />} color="var(--brand)" note="deal turned into an ATS job" />
-          <Stat label="Lost" value={res.lost ?? 0} icon={<XCircle size={14} />} color="var(--danger)" note="marked lost" />
+          <Stat label="Became jobs" value={res.becameJobs ?? 0} icon={<Trophy size={14} />} color="var(--brand)" note="deal turned into an ATS job" onClick={() => open('jobs')} />
+          <Stat label="Lost" value={res.lost ?? 0} icon={<XCircle size={14} />} color="var(--danger)" note="marked lost" onClick={() => open('lost')} />
           <Stat
             label="Win rate"
             value={res.winRate == null ? '—' : `${res.winRate}%`}
             icon={<Percent size={14} />}
             color="var(--warn)"
             note={res.winRate == null ? 'nothing decided yet' : `${res.becameJobs} of ${res.becameJobs + res.lost} decided deals`}
+            onClick={() => toList({ status: 'all', jobIntake: 'false', decidedFrom: since }, 'Decided deals (became a job or lost)')}
           />
           <Stat
             label="Client requirements"
@@ -368,6 +425,7 @@ export default function CrmDashboardV2() {
             icon={<FilePlus2 size={14} />}
             color="var(--fg-3)"
             note="roles from existing clients, raised straight to a job"
+            onClick={() => open('requirements')}
           />
         </div>
       </div>
@@ -377,7 +435,10 @@ export default function CrmDashboardV2() {
           <div style={{ ...micro, padding: '10px 16px 0' }}>
             Open, overdue and followed up are today. New, became jobs and lost are for {rangeLabel.toLowerCase()}. Most overdue first.
           </div>
-          <TeamTable rows={data.team || []} />
+          <TeamTable
+            rows={data.team || []}
+            onCell={(r, k) => open({ open: 'open', overdue: 'overdue', touched7: 'touched7', created: 'created', jobs: 'jobs', lost: 'lost' }[k], r?.employeeId)}
+          />
         </Panel>
       )}
 
@@ -407,7 +468,11 @@ export default function CrmDashboardV2() {
           ))}
         </Panel>
         <Panel title={`Why deals were lost · ${rangeLabel}`} icon={<XCircle size={16} />} flush>
-          <LostReasons rows={data.lostReasons || []} total={lostTotal} />
+          <LostReasons
+            rows={data.lostReasons || []}
+            total={lostTotal}
+            onRow={(r) => toList({ ...LINKS.lost[0], lostReasonId: (r.ids || []).join(',') }, `Lost · ${r.name}`)}
+          />
         </Panel>
       </div>
 
