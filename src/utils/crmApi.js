@@ -191,6 +191,14 @@ const crmApi = {
     return api.request(`/api/org/${orgSlug}/crm/dashboard${qs ? '?' + qs : ''}`);
   },
 
+  // 2026-11-24: the rebuilt dashboard. scope=mine|team, from/to ISO, tzOffset.
+  getInsights(orgSlug, params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)])),
+    ).toString();
+    return api.request(`/api/org/${orgSlug}/crm/insights?${qs}`, { _requestKey: 'crm:insights' });
+  },
+
   // ---------- CONFIG ----------
   getSettings(orgSlug) {
     return api.request(`/api/org/${orgSlug}/crm/config/settings`);

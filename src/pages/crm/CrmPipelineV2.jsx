@@ -425,12 +425,20 @@ export default function CrmPipelineV2() {
           <h1 className="text-2xl font-bold text-white">Pipeline</h1>
           <p className="text-dark-400 text-sm mt-1">Drag and drop deals across stages</p>
         </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={() => navigate(`/org/${slug}/crm/opportunities`)}
+          className="px-3 py-1.5 text-xs border border-dark-600 text-dark-200 rounded-lg hover:bg-dark-700 transition-colors"
+        >
+          List view
+        </button>
         <button
           onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors flex-shrink-0"
         >
           <Plus size={14} /> New Opportunity
         </button>
+        </div>
       </div>
 
       {/* Filters */}

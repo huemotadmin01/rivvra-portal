@@ -436,7 +436,9 @@ export const APP_REGISTRY = {
       return [
         { type: 'item', path: '/crm/dashboard', label: 'Dashboard', icon: Home },
         { type: 'item', path: '/crm/follow-ups', label: 'Follow-ups', icon: ClipboardCheck },
-        { type: 'item', path: '/crm/pipeline', label: 'Pipeline', icon: Kanban },
+        // 2026-11-24: Pipeline left the menu — with stages cut to Initial
+        // Contact → Converted to Job it was one column nobody dragged. The board
+        // is still one click away ("Board view" on Opportunities).
         { type: 'item', path: '/crm/opportunities', label: 'Opportunities', icon: Briefcase },
         ...(isAdmin ? [
           {

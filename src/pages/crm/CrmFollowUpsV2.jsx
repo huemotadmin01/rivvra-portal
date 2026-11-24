@@ -22,7 +22,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail, Users, PhoneOff, ArrowRight, RefreshCw, AlertCircle, Inbox, Sparkles, CheckCircle2, Clock, Plus } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -50,6 +50,10 @@ const GROUPS = [
   { key: 'noDate', label: 'No next step set', tone: 'neutral' },
 ];
 const URGENT = ['overdue', 'today', 'week'];
+// 2026-11-24: long groups (the team view had 50+ rows) show a few at a time.
+const FIRST_ROWS = 5;
+const MORE_ROWS = 10;
+const timeOf = (d) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const DUE_TONE = { overdue: 'var(--danger)', today: 'var(--warn-ink, #b45309)', upcoming: 'var(--fg-3)', none: 'var(--fg-4)' };
 
 // A due date is a calendar day. Send YYYY-MM-DD of the viewer's local day; the
@@ -98,9 +102,17 @@ function CrmFollowUpsV2() {
   const { showToast } = useToast();
   usePageTitle('Follow-ups');
 
-  const [scope, setScope] = useState('mine');
+  const [searchParams] = useSearchParams();
+  // The dashboard's tiles open this page on the same scope they showed.
+  const [scope, setScope] = useState(() => (searchParams.get('scope') === 'team' ? 'team' : 'mine'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  // 2026-11-24: "Refresh is not working" — it was, but nothing on screen moved
+  // while it loaded or after. Now the button spins and the time is shown.
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  // How many rows each group shows: { [groupKey]: n }. Reset on scope change.
+  const [shown, setShown] = useState({});
   const [error, setError] = useState('');
   // The row being logged: { id, outcome }. One at a time.
   const [logging, setLogging] = useState(null);
@@ -114,21 +126,42 @@ function CrmFollowUpsV2() {
   const [snoozing, setSnoozing] = useState(null); // lead id being pushed back
   const seq = useRef(0);
 
-  const load = useCallback(async ({ quiet = false } = {}) => {
+  const load = useCallback(async ({ quiet = false, manual = false } = {}) => {
     if (!slug) return;
     const mine = ++seq.current;
     if (!quiet) setLoading(true);
+    setRefreshing(true);
     try {
       const res = await crmApi.getFollowUps(slug, { scope, tzOffset: new Date().getTimezoneOffset() });
       if (mine !== seq.current) return;
-      setData(res); setError('');
+      setData(res); setError(''); setUpdatedAt(new Date());
+      if (manual) showToast('Follow-ups are up to date');
     } catch (err) {
       if (mine !== seq.current) return;
       setError(err?.message || 'Could not load follow-ups');
     } finally {
-      if (mine === seq.current) setLoading(false);
+      if (mine === seq.current) { setLoading(false); setRefreshing(false); }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, scope]);
+
+  const limitOf = (key) => shown[key] || FIRST_ROWS;
+  const moreRows = (groupKey, total) => {
+    const n = limitOf(groupKey);
+    if (total <= n) return null;
+    const left = total - n;
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 16px' }}>
+        <Button size="sm" variant="secondary" onClick={() => setShown((s) => ({ ...s, [groupKey]: n + MORE_ROWS }))}>
+          Show {Math.min(MORE_ROWS, left)} more
+        </Button>
+        {left > MORE_ROWS && (
+          <Button size="sm" variant="ghost" onClick={() => setShown((s) => ({ ...s, [groupKey]: total }))}>Show all {total}</Button>
+        )}
+        <span style={micro}>{n} of {total} shown</span>
+      </div>
+    );
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -180,7 +213,7 @@ function CrmFollowUpsV2() {
             if (!rows.length) return null;
             return (
               <Panel key={g.key} title={g.label} icon={<Inbox size={16} />} actions={<Chip tone={g.tone === 'neutral' ? undefined : g.tone}>{rows.length}</Chip>} flush>
-                {rows.map((opp) => {
+                {rows.slice(0, limitOf(g.key)).map((opp) => {
                   const state = dueState(opp.nextStepDueAt);
                   const open = logging?.id === opp._id;
                   return (
@@ -260,6 +293,7 @@ function CrmFollowUpsV2() {
                     </div>
                   );
                 })}
+                {moreRows(g.key, rows.length)}
               </Panel>
             );
           };
@@ -268,14 +302,22 @@ function CrmFollowUpsV2() {
     <div style={{ display: 'grid', gap: 16 }}>
       <PageHeaderV2
         title="Follow-ups"
-        sub={scope === 'mine' ? 'What you owe your prospects today' : 'What your team owes its prospects today'}
+        sub={`${scope === 'mine' ? 'What you owe your prospects today' : 'What your team owes its prospects today'}${updatedAt ? ` · updated ${timeOf(updatedAt)}` : ''}`}
         actions={(
           <>
-            <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
+            <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); setShown({}); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
               <option value="mine">Mine</option>
               <option value="team">My team</option>
             </Select>
-            <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={() => load()}>Refresh</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={refreshing ? <Spinner size={13} /> : <RefreshCw size={14} />}
+              onClick={() => load({ quiet: true, manual: true })}
+              disabled={refreshing}
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </Button>
             <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => setShowRequirement(true)}>New requirement</Button>
           </>
         )}
@@ -323,7 +365,7 @@ function CrmFollowUpsV2() {
               <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
 Interested replies are tracked automatically. These few need you: check the reason, then start tracking.
               </div>
-              {data.newReplies.map((lead) => (
+              {data.newReplies.slice(0, limitOf('newReplies')).map((lead) => (
                 <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                     <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -345,6 +387,7 @@ Interested replies are tracked automatically. These few need you: check the reas
                   )}
                 </div>
               ))}
+              {moreRows('newReplies', data.newReplies.length)}
             </Panel>
           )}
 
@@ -362,7 +405,7 @@ Interested replies are tracked automatically. These few need you: check the reas
               <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
                 They said "not now". Their date has come or is this week: reach out again, then start tracking if there is a need, or push the date back.
               </div>
-              {laterRows.map((lead) => {
+              {laterRows.slice(0, limitOf('laterLeads')).map((lead) => {
                 const due = lead.followUp?.dueAt;
                 const state = dueState(due);
                 return (
@@ -394,6 +437,7 @@ Interested replies are tracked automatically. These few need you: check the reas
                   </div>
                 );
               })}
+              {moreRows('laterLeads', laterRows.length)}
             </Panel>
           )}
 

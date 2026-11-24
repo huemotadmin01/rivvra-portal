@@ -13,7 +13,7 @@ import {
   SelectChipV2, BooleanChipV2, GroupByChipV2, MoreFiltersV2, RangeFilterV2, PageHeaderV2,
 } from '../../components/platform/v2/listkit';
 import { NextStepChip, NEXT_STEP_FILTER_OPTIONS, StaleBadge } from '../../components/crm/nextStep';
-import { Plus, Star, Trophy, Loader2, Download, Target, Upload } from 'lucide-react';
+import { Plus, Star, Trophy, Loader2, Download, Target, Upload, Kanban } from 'lucide-react';
 import BulkImportModal from '../../components/BulkImportModal';
 
 const REQUIREMENT_TYPE_OPTIONS = [
@@ -416,6 +416,7 @@ export default function CrmOpportunitiesV2() {
         sub={`${total} total`}
         actions={(
           <>
+            <Button variant="secondary" size="sm" iconLeft={<Kanban size={14} />} onClick={() => navigate(`/org/${slug}/crm/pipeline`)}>Board view</Button>
             <Button variant="secondary" size="sm" iconLeft={<Upload size={14} />} onClick={() => setShowImport(true)}>Import</Button>
             <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}>
               New Opportunity
