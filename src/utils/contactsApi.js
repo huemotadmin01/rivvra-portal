@@ -50,6 +50,14 @@ const contactsApi = {
   salespersonScope(orgSlug) {
     return api.request(`/api/org/${orgSlug}/contacts/salesperson-scope`);
   },
+  // 2026-11-24: hand a client to a colleague (the salesperson themselves, a
+  // team lead or an admin). Carries open opportunities and live jobs with it.
+  transferOptions(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/transfer-options`);
+  },
+  transferClient(orgSlug, id, toEmployeeId) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/transfer`, { method: 'POST', body: JSON.stringify({ toEmployeeId }) });
+  },
   setSalesperson(orgSlug, id, salespersonId) {
     return api.request(`/api/org/${orgSlug}/contacts/${id}/salesperson`, {
       method: 'PATCH',

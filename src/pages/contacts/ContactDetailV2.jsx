@@ -132,6 +132,11 @@ export default function ContactDetailV2() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   // 2026-11-24: raise an ATS job for this client in one step (CRM users).
   const [showRequirement, setShowRequirement] = useState(false);
+  // 2026-11-24: hand this client to a colleague (salesperson, lead or admin).
+  const [transferOpts, setTransferOpts] = useState(null);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferTo, setTransferTo] = useState('');
+  const [transferring, setTransferring] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConflict, setDeleteConflict] = useState(null);
   // The contact the blocked records will be moved onto, when the user picks
@@ -191,6 +196,18 @@ export default function ContactDetailV2() {
   }, [orgSlug, contactId, currentCompany?._id, showToast, handleScoped404]);
 
   useEffect(() => { fetchContact(); }, [fetchContact]);
+
+  // Who may this client be transferred to? Asked per company page; a failure
+  // just hides the button.
+  useEffect(() => {
+    let dead = false;
+    setTransferOpts(null);
+    if (!orgSlug || !contactId || contact?.type !== 'company') return undefined;
+    contactsApi.transferOptions(orgSlug, contactId)
+      .then((res) => { if (!dead && res?.success) setTransferOpts(res); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [orgSlug, contactId, contact?.type, contact?.salespersonId]);
 
   // 404 → toast once and bounce to the list. Ref-guarded because StrictMode
   // double-invokes effects in dev.
@@ -480,6 +497,21 @@ export default function ContactDetailV2() {
 
   const addr = contact.address || {};
   const isCompany = contact.type === 'company';
+  const handleTransfer = async () => {
+    if (!transferTo) return;
+    setTransferring(true);
+    try {
+      const res = await contactsApi.transferClient(orgSlug, contactId, transferTo);
+      const extra = [res.opportunities ? `${res.opportunities} open ${res.opportunities === 1 ? 'opportunity' : 'opportunities'}` : null, res.jobs ? `${res.jobs} ${res.jobs === 1 ? 'job' : 'jobs'}` : null].filter(Boolean).join(' and ');
+      showToast(`${contact.name} is now ${res.salespersonName}'s client${extra ? ` — ${extra} moved too` : ''}`);
+      setShowTransfer(false);
+      fetchContact();
+    } catch (err) {
+      showToast(err?.message || 'Could not transfer the client', 'error');
+    } finally {
+      setTransferring(false);
+    }
+  };
   const billingLocale = getAddressLocale(addr.country);
 
   const websiteHref = contact.website
@@ -762,6 +794,35 @@ export default function ContactDetailV2() {
                 }}
                 placeholder="Search employees…"
               />
+              {/* 2026-11-24 account rule: say whether this client is protected for
+                  its salesperson or open to whoever wins a job here. The words
+                  are "Protected" / "Open to others" on purpose — the engagement
+                  chip above already uses "active". */}
+              {isCompany && contact.accountProtection && (() => {
+                const a = contact.accountProtection;
+                const until = a.until ? new Date(a.until).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+                const isProtected = a.state === 'protected';
+                const text = isProtected
+                  ? `Protected${until ? ` until ${until}` : ''}: ${a.reasons.join(', ')}.`
+                  : a.state === 'open'
+                    ? `Open to others: nothing of the salesperson's here in ${a.days} days. A logged follow-up or a new job keeps it; otherwise it goes to whoever wins a job here first.`
+                    : a.state === 'left'
+                      ? 'Open to others: the salesperson has left. It goes to whoever wins a job here first.'
+                      : 'No salesperson: it goes to whoever wins a job here first.';
+                return (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', margin: '2px 0 8px', borderRadius: 'var(--r-2, 10px)', background: isProtected ? 'var(--brand-soft)' : 'var(--warn-soft)', font: "450 12.5px/1.45 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, marginTop: 5, flexShrink: 0, background: isProtected ? 'var(--brand)' : 'var(--warn, #f59e0b)' }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+                  </div>
+                );
+              })()}
+              {isCompany && transferOpts?.allowed && !contact.archived && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 0 8px' }}>
+                  <Button variant="secondary" size="sm" iconLeft={<Users size={14} />} onClick={() => { setTransferTo(''); setShowTransfer(true); }}>
+                    Transfer client
+                  </Button>
+                </div>
+              )}
               {/* Legacy passed the product/payment-term *label* as `value`, so
                   the select opened with nothing selected. These pass the id. */}
               <InlineField
@@ -1197,6 +1258,44 @@ export default function ContactDetailV2() {
       )}
 
       {/* ── Archive ── */}
+      <Modal
+        open={showTransfer}
+        onClose={transferring ? undefined : () => setShowTransfer(false)}
+        size="sm"
+        icon={<Users size={16} />}
+        title={`Transfer ${contact.name}`}
+        sub="The new salesperson gets this client and the account-manager incentive on anything paid from now on."
+        footer={(
+          <>
+            <Button variant="ghost" size="sm" disabled={transferring} onClick={() => setShowTransfer(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" disabled={transferring || !transferTo} onClick={handleTransfer}>
+              {transferring ? 'Transferring…' : 'Transfer'}
+            </Button>
+          </>
+        )}
+      >
+        <div style={{ display: 'grid', gap: 12, font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={{ font: "550 12.5px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>Transfer to</span>
+            <select
+              value={transferTo}
+              onChange={(e) => setTransferTo(e.target.value)}
+              aria-label="Transfer to"
+              style={{ font: 'inherit', padding: '9px 10px', borderRadius: 'var(--r-2, 10px)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--fg)' }}
+            >
+              <option value="">Select a salesperson…</option>
+              {(transferOpts?.candidates || []).map((c) => <option key={c.employeeId} value={c.employeeId}>{c.name}</option>)}
+            </select>
+          </label>
+          <div>
+            Moves with the client: its contact people, {contact.salespersonName ? `${contact.salespersonName}'s` : 'the current'} open opportunities here, and the account owner on their open and on-hold jobs and applications in progress.
+          </div>
+          <div style={{ color: 'var(--fg-3)' }}>
+            Stays as it is: won and lost opportunities, closed jobs, past hires, and incentive drafts already created.
+            {transferOpts?.mode === 'self' ? ' Your team lead is notified.' : ''}
+          </div>
+        </div>
+      </Modal>
       <NewRequirementModal
         open={showRequirement}
         onClose={() => setShowRequirement(false)}
