@@ -23,7 +23,8 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { dashboardLink } from '../../utils/dashboardLinks';
 import { api } from '../../utils/api';
 import {
   Building2, Users, CreditCard, TrendingUp, Loader2, ChevronRight,
@@ -38,12 +39,14 @@ import { STATUS, headline, relTime } from './healthShared';
 // ── Shared render tokens ────────────────────────────────────────────────────
 const microStyle = { font: "450 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' };
 
+// `link(stats)` (2026-11-25): the workspaces list with the same filter. Users
+// have no list page, so those two cards stay plain.
 const statCards = [
-  { key: 'totalOrgs', label: 'Total Workspaces', icon: Building2, color: 'blue' },
-  { key: 'paidOrgs', label: 'Paid Workspaces', icon: CreditCard, color: 'emerald' },
-  { key: 'freeOrgs', label: 'Free Workspaces', icon: Building2, color: 'green' },
+  { key: 'totalOrgs', label: 'Total Workspaces', icon: Building2, color: 'blue', link: () => ({ status: 'all' }) },
+  { key: 'paidOrgs', label: 'Paid Workspaces', icon: CreditCard, color: 'emerald', link: () => ({ status: 'paid' }) },
+  { key: 'freeOrgs', label: 'Free Workspaces', icon: Building2, color: 'green', link: () => ({ status: 'free' }) },
   { key: 'totalUsers', label: 'Total Users', icon: Users, color: 'purple' },
-  { key: 'orgsCreatedThisMonth', label: 'New Workspaces This Month', icon: TrendingUp, color: 'cyan' },
+  { key: 'orgsCreatedThisMonth', label: 'New Workspaces This Month', icon: TrendingUp, color: 'cyan', link: (st) => ({ status: 'all', createdFrom: st?.monthStart, report: 'New this month' }) },
   { key: 'usersCreatedThisMonth', label: 'New Users This Month', icon: TrendingUp, color: 'indigo' },
 ];
 
@@ -63,6 +66,7 @@ const STAT_ACCENT = {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 function AdminOverviewPageV2() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -212,6 +216,7 @@ function AdminOverviewPageV2() {
               value={value.toLocaleString()}
               icon={<Icon size={16} />}
               color={STAT_ACCENT[card.color]}
+              onClick={card.link ? () => navigate(dashboardLink('/admin/workspaces', card.link(stats))) : undefined}
             />
           );
         })}

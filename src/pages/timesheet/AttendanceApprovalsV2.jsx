@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { usePeriod } from '../../context/PeriodContext';
@@ -86,7 +87,9 @@ export default function AttendanceApprovalsV2() {
   const [rejectId, setRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
-  const [filter, setFilter] = useState('submitted');
+  // 2026-11-25: dashboard tiles open this page with ?status=submitted|approved|all.
+  const [searchParams] = useSearchParams();
+  const [filter, setFilter] = useState(() => (['submitted', 'approved', 'rejected', 'all'].includes(searchParams.get('status')) ? searchParams.get('status') : 'submitted'));
   const [lockedMonths, setLockedMonths] = useState({});
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [sendingReminder, setSendingReminder] = useState(null);

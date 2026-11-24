@@ -232,10 +232,11 @@ export default function SignDashboardV2() {
         display: 'grid', gap: 12, marginBottom: 16,
         gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
       }}>
-        <Stat label="Total Requests" value={stats.total} icon={<FileText size={14} />} color="var(--a-sign)" />
-        <Stat label="Pending (Sent)" value={stats.sent} icon={<Send size={14} />} color="var(--info)" />
-        <Stat label="Signed" value={stats.signed} icon={<CheckCircle2 size={14} />} color="var(--brand)" />
-        <Stat label="Templates" value={templateCount} icon={<LayoutTemplate size={14} />} color="var(--a-kb)" />
+        {/* 2026-11-25: each card opens the matching list. */}
+        <Stat label="Total Requests" value={stats.total} icon={<FileText size={14} />} color="var(--a-sign)" onClick={() => navigate(orgPath('/sign/requests'))} />
+        <Stat label="Pending (Sent)" value={stats.sent} icon={<Send size={14} />} color="var(--info)" onClick={() => navigate(orgPath('/sign/requests?state=sent'))} />
+        <Stat label="Signed" value={stats.signed} icon={<CheckCircle2 size={14} />} color="var(--brand)" onClick={() => navigate(orgPath('/sign/requests?state=signed'))} />
+        <Stat label="Templates" value={templateCount} icon={<LayoutTemplate size={14} />} color="var(--a-kb)" onClick={() => navigate(orgPath('/sign/templates'))} />
       </div>
 
       <Panel flush title="Recent Requests">

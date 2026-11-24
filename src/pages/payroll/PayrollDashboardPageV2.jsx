@@ -279,7 +279,7 @@ export default function PayrollDashboardPageV2() {
               <button
                 key={run._id}
                 type="button"
-                onClick={() => navigate('/payroll/statutory-run')}
+                onClick={() => navigate(`/payroll/statutory-run?month=${run.month}&year=${run.year}&run=${run._id}`)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                   width: '100%', textAlign: 'left', padding: '11px 16px', border: 'none',

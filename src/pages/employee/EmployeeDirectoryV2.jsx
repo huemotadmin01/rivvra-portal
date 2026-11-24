@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDateUTC } from '../../utils/dateUtils'; // 2026-10-14: date-only values are stored at UTC midnight
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import DashboardFilterNote from '../../components/platform/v2/DashboardFilterNote';
+import { useDashboardParams, shortDateUTC as shortDate } from '../../utils/dashboardLinks';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -93,12 +95,29 @@ export default function EmployeeDirectoryV2() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  // Filters
+  // Filters. 2026-11-25: a dashboard number opens this page with its filters
+  // in the URL (status / department / employmentType / billable, plus the
+  // dashboard-only ones below). Read once when the page opens. status=all
+  // means every status.
+  const [searchParams] = useSearchParams();
+  const urlStatus = searchParams.get('status');
   const [search, setSearch] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
-  const [billableFilter, setBillableFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('department') || '');
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState(searchParams.get('employmentType') || '');
+  const [statusFilter, setStatusFilter] = useState(urlStatus == null ? 'active' : (urlStatus === 'all' ? '' : urlStatus));
+  const [billableFilter, setBillableFilter] = useState(searchParams.get('billable') || '');
+  // asOf = headcount at the end of the dashboard period; joined/left = in the period.
+  const dash = useDashboardParams(['asOf', 'joinedFrom', 'joinedTo', 'leftFrom', 'leftTo']);
+  const dashKey = JSON.stringify(dash.values);
+  const dashText = (() => {
+    if (!dash.active) return '';
+    const v = dash.values; const parts = [];
+    if (dash.report) parts.push(dash.report);
+    if (v.asOf) parts.push(`as of ${shortDate(v.asOf)}`);
+    if (v.joinedFrom || v.joinedTo) parts.push(`joined ${shortDate(v.joinedFrom)} – ${shortDate(v.joinedTo)}`);
+    if (v.leftFrom || v.leftTo) parts.push(`last working day ${shortDate(v.leftFrom)} – ${shortDate(v.leftTo)}`);
+    return parts.join(' · ');
+  })();
   const [onboardingFilter, setOnboardingFilter] = useState(''); // 2026-11-18, HR admins
 
   // Departments for dropdown
@@ -119,7 +138,7 @@ export default function EmployeeDirectoryV2() {
   const [flash, setFlash] = useState('');
 
   // Count active filters
-  const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter, onboardingFilter]
+  const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter, onboardingFilter, dash.active]
     .filter(Boolean).length;
 
   // Fetch departments + employment types once
@@ -158,6 +177,7 @@ export default function EmployeeDirectoryV2() {
         status: params.status !== undefined ? params.status : statusFilter,
         billable: params.billable !== undefined ? params.billable : billableFilter,
         onboarding: onboardingFilter,
+        ...dash.values,
       });
       if (res.success) {
         setEmployees(res.employees || []);
@@ -171,7 +191,7 @@ export default function EmployeeDirectoryV2() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, departmentFilter, employmentTypeFilter, statusFilter, billableFilter, onboardingFilter]);
+  }, [orgSlug, currentCompany?._id, page, search, departmentFilter, employmentTypeFilter, statusFilter, billableFilter, onboardingFilter, dashKey]);
 
   // Initial load + re-fetch on filter / page change (include fetchEmployees to fix stale closure)
   useEffect(() => {
@@ -209,6 +229,7 @@ export default function EmployeeDirectoryV2() {
     setStatusFilter('');
     setBillableFilter('');
     setOnboardingFilter('');
+    if (dash.active) dash.clear();
     setPage(1);
   };
 
@@ -225,11 +246,13 @@ export default function EmployeeDirectoryV2() {
   const departmentOptions = [
     { value: '', label: 'All Departments' },
     ...departments.map((d) => ({ value: d._id, label: d.name })),
+    { value: 'none', label: 'No department' },
   ];
 
   const typeOptions = [
     { value: '', label: 'All Types' },
     ...empTypes.map(t => ({ value: t.key, label: t.label })),
+    { value: 'none', label: 'No type' },
   ];
 
   const statusOptions = [
@@ -321,6 +344,8 @@ export default function EmployeeDirectoryV2() {
           )}
         </div>
       </div>
+
+      <DashboardFilterNote text={dashText} onClear={() => { dash.clear(); setPage(1); }} />
 
       {/* Content */}
       {loading ? (

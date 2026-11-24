@@ -29,7 +29,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fmtDate } from './adminFormat';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import DashboardFilterNote from '../../components/platform/v2/DashboardFilterNote';
+import { useDashboardParams, shortDate } from '../../utils/dashboardLinks';
 import { api } from '../../utils/api';
 import { Building2, Users } from 'lucide-react';
 import {
@@ -58,7 +60,12 @@ function AdminWorkspacesPageV2() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
+  // 2026-11-25: the Admin overview cards open this page with ?status= (and
+  // ?createdFrom= for "new this month"). Read once on open.
+  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState(() => (['all', 'free', 'paid', 'suspended'].includes(searchParams.get('status')) ? searchParams.get('status') : 'all'));
+  const dash = useDashboardParams(['createdFrom']);
+  const dashKey = JSON.stringify(dash.values);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState('createdAt');
   const [order, setOrder] = useState('desc');
@@ -73,6 +80,7 @@ function AdminWorkspacesPageV2() {
       setError('');
       const params = { page, limit: 25, sort, order };
       if (search) params.search = search;
+      Object.assign(params, dash.values);
       // 'suspended' is a workspace state, not a plan (2026-11-23).
       if (status === 'suspended') params.state = 'suspended';
       else if (status !== 'all') params.status = status;
@@ -88,7 +96,8 @@ function AdminWorkspacesPageV2() {
     } finally {
       if (seq === reqSeq.current) setLoading(false);
     }
-  }, [page, search, status, sort, order]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, status, sort, order, dashKey]);
 
   useEffect(() => {
     loadWorkspaces();
@@ -196,6 +205,11 @@ function AdminWorkspacesPageV2() {
           {total.toLocaleString()} workspace{total !== 1 ? 's' : ''}
         </span>
       </div>
+
+      <DashboardFilterNote
+        text={dash.active ? [dash.report, dash.values.createdFrom && `created since ${shortDate(dash.values.createdFrom)}`].filter(Boolean).join(' · ') : ''}
+        onClear={() => { dash.clear(); setPage(1); }}
+      />
 
       {error && <Callout tone="danger">{error}</Callout>}
 

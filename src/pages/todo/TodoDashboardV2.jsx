@@ -26,6 +26,7 @@
 // bridge themes them correctly inside the v2 shell. Verified in both themes.
 // ============================================================================
 
+import { DashLink } from '../../components/platform/v2/DashboardFilterNote';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
@@ -303,7 +304,7 @@ export default function TodoDashboardV2() {
               icon={<Building2 size={14} />}
               totals={overview.everyone}
               people={overview.everyone.people}
-              onOpen={(person) => navigate(orgPath(`/todo/tasks?view=everyone${person ? `&person=${person}` : ''}`))}
+              onOpen={(person, status) => navigate(orgPath(`/todo/tasks?view=everyone${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}`))}
             />
           ) : overview?.team?.size > 0 && (
             <PeoplePanel
@@ -311,7 +312,7 @@ export default function TodoDashboardV2() {
               icon={<Users size={14} />}
               totals={overview.team}
               people={overview.team.people}
-              onOpen={(person) => navigate(orgPath(`/todo/tasks?view=team${person ? `&person=${person}` : ''}`))}
+              onOpen={(person, status) => navigate(orgPath(`/todo/tasks?view=team${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}`))}
             />
           )}
           {overview?.assigned?.total > 0 && (
@@ -320,7 +321,7 @@ export default function TodoDashboardV2() {
               icon={<Send size={14} />}
               totals={overview.assigned}
               people={overview.assigned.people}
-              onOpen={(person) => navigate(orgPath(`/todo/tasks?view=assigned${person ? `&person=${person}` : ''}`))}
+              onOpen={(person, status) => navigate(orgPath(`/todo/tasks?view=assigned${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}`))}
             />
           )}
           <ScanStatus
@@ -362,12 +363,13 @@ function PeoplePanel({ title, icon, totals, people, onOpen }) {
       actions={<Button variant="ghost" size="sm" onClick={() => onOpen('')}>Open</Button>}
     >
       <div style={{ display: 'flex', gap: 18, padding: '10px 14px', borderBottom: rows.length ? '1px solid var(--line)' : 'none' }}>
-        <span style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg)' }}>
+        {/* 2026-11-25: the totals open the same view on that tab. */}
+        <DashLink onClick={totals.open ? () => onOpen('', 'open') : null} title="Open these tasks" style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg)' }}>
           {totals.open}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>open</span>
-        </span>
-        <span style={{ font: `650 18px/1 ${FONT}`, color: totals.overdue ? 'var(--danger)' : 'var(--fg-4)' }}>
+        </DashLink>
+        <DashLink onClick={totals.overdue ? () => onOpen('', 'overdue') : null} title="Open the overdue tasks" style={{ font: `650 18px/1 ${FONT}`, color: totals.overdue ? 'var(--danger)' : 'var(--fg-4)' }}>
           {totals.overdue}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>overdue</span>
-        </span>
+        </DashLink>
         <span style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg-2)' }}>
           {totals.doneWeek}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>done this week</span>
         </span>

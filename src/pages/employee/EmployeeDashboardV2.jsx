@@ -17,7 +17,9 @@
 // ============================================================================
 
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { DashLink } from '../../components/platform/v2/DashboardFilterNote';
+import { dashboardLink } from '../../utils/dashboardLinks';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -146,27 +148,31 @@ function periodToDates(period, customFrom, customTo) {
       to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       break;
     case 'custom':
-      from = customFrom ? new Date(customFrom) : null;
-      to = customTo ? new Date(customTo) : null;
-      break;
+      // Already calendar days — pass them through untouched.
+      return { from: customFrom || '', to: customTo || '' };
     default:
       from = new Date(now.getFullYear(), now.getMonth(), 1);
       to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   }
+  // 2026-11-25: read the LOCAL calendar day. toISOString() shifted every
+  // boundary back a day in India (local midnight is 18:30 UTC the day
+  // before), so "Current Month" ran 31 Oct – 29 Nov.
+  const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   return {
-    from: from ? from.toISOString().slice(0, 10) : '',
-    to: to ? to.toISOString().slice(0, 10) : '',
+    from: from ? ymdLocal(from) : '',
+    to: to ? ymdLocal(to) : '',
   };
 }
 
 /* ── Sub-components ──────────────────────────────────────────────────── */
 
-function HorizontalBar({ items, color }) {
+function HorizontalBar({ items, color, onItem }) {
   const max = Math.max(...items.map(i => i.count), 1);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map(item => (
-        <div key={item.name || item.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <DashLink key={item.name || item.label} row onClick={onItem && item.count > 0 ? onItem(item) : null} title={`Open these ${item.count}`}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
             title={item.name || item.label}
             style={{
@@ -186,13 +192,14 @@ function HorizontalBar({ items, color }) {
             style={{ flex: 1, minWidth: 0 }}
           />
         </div>
+        </DashLink>
       ))}
       {items.length === 0 && <EmptyState compact title="No data" />}
     </div>
   );
 }
 
-function BillableBar({ billable = 0, nonBillable = 0 }) {
+function BillableBar({ billable = 0, nonBillable = 0, onOpen }) {
   const total = billable + nonBillable || 1;
   const billPct = Math.round((billable / total) * 100);
   return (
@@ -200,11 +207,11 @@ function BillableBar({ billable = 0, nonBillable = 0 }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ font: `450 11.5px/1.4 ${FONT}`, color: 'var(--fg-3)' }}>Billable</span>
-          <span style={{ font: `550 11.5px/1.4 ${FONT}`, color: 'var(--brand-ink)' }}>{billable} ({billPct}%)</span>
+          <DashLink onClick={billable > 0 ? () => onOpen('true') : null} title="Open billable employees" style={{ font: `550 11.5px/1.4 ${FONT}`, color: 'var(--brand-ink)' }}>{billable} ({billPct}%)</DashLink>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ font: `450 11.5px/1.4 ${FONT}`, color: 'var(--fg-3)' }}>Non-Billable</span>
-          <span style={{ font: `550 11.5px/1.4 ${FONT}`, color: 'var(--warn-ink)' }}>{nonBillable} ({100 - billPct}%)</span>
+          <DashLink onClick={nonBillable > 0 ? () => onOpen('false') : null} title="Open non-billable employees" style={{ font: `550 11.5px/1.4 ${FONT}`, color: 'var(--warn-ink)' }}>{nonBillable} ({100 - billPct}%)</DashLink>
         </div>
       </div>
       {/* Two-segment split, so not a Meter: Meter shows one value against a
@@ -322,6 +329,7 @@ export default function EmployeeDashboardV2() {
   const { orgSlug } = useOrg();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [period, setPeriod] = useState('current_month');
   const [customFrom, setCustomFrom] = useState('');
@@ -356,7 +364,7 @@ export default function EmployeeDashboardV2() {
   // Backend returns byType as object { confirmed: 22, ... }, convert to array
   const byTypeObj = data.byType || {};
   const byType = typeof byTypeObj === 'object' && !Array.isArray(byTypeObj)
-    ? Object.entries(byTypeObj).map(([name, count]) => ({ name: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), count }))
+    ? Object.entries(byTypeObj).map(([name, count]) => ({ key: name, name: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), count }))
     : (Array.isArray(byTypeObj) ? byTypeObj : []);
   const billableSplit = data.billableSplit || {};
   const periodStats = { newJoiners: (data.newJoiners || []).length, offBoarded: (data.offBoarded || []).length };
@@ -367,6 +375,17 @@ export default function EmployeeDashboardV2() {
   const upcomingLwds = data.upcomingLWDs || [];
   const expiringAssignments = data.expiringAssignments || [];
   const probationEnding = data.probationEnding || [];
+
+  // 2026-11-25: every number opens the Directory with the same filters. The
+  // headcount tiles are "as of the end of the period" (the API's rule), so
+  // they pass asOf; joiners / leavers pass the period itself.
+  const range = data.dateRange || {};
+  const toDir = (params, report) => navigate(dashboardLink(`/org/${orgSlug}/employee/directory`, { ...params, report }));
+  const asOf = range.to;
+  const openStatus = (status, label) => () => toDir({ status, asOf }, label);
+  const typeKey = (k) => (!k || k === 'unknown' ? 'none' : k);
+  const openType = (item) => () => toDir({ status: 'active', asOf, employmentType: typeKey(item.key) }, `Active · ${item.name}`);
+  const openDept = (item) => (item.id ? () => toDir({ status: 'active', asOf, department: item.id }, `Active · ${item.name}`) : null);
 
   const periodLabels = {
     current_month: 'Current Month',
@@ -416,10 +435,10 @@ export default function EmployeeDashboardV2() {
 
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
-        <Stat label="Total Employees" value={kpis.total ?? 0} icon={<Users size={14} />} color="var(--brand)" />
-        <Stat label="Active" value={kpis.active ?? 0} icon={<UserCheck size={14} />} color="var(--a-crm)" />
-        <Stat label="Resigned" value={kpis.resigned ?? 0} icon={<UserX size={14} />} color="var(--warn)" />
-        <Stat label="Terminated" value={kpis.terminated ?? 0} icon={<UserMinus size={14} />} color="var(--danger)" />
+        <Stat label="Total Employees" value={kpis.total ?? 0} icon={<Users size={14} />} color="var(--brand)" onClick={openStatus('all', 'All employees')} />
+        <Stat label="Active" value={kpis.active ?? 0} icon={<UserCheck size={14} />} color="var(--a-crm)" onClick={openStatus('active', 'Active')} />
+        <Stat label="Resigned" value={kpis.resigned ?? 0} icon={<UserX size={14} />} color="var(--warn)" onClick={openStatus('resigned', 'Resigned')} />
+        <Stat label="Terminated" value={kpis.terminated ?? 0} icon={<UserMinus size={14} />} color="var(--danger)" onClick={openStatus('terminated', 'Terminated')} />
       </div>
 
       {/* ── Secondary Row ──────────────────────────────────────────────── */}
@@ -430,31 +449,45 @@ export default function EmployeeDashboardV2() {
               <EmptyState compact title="No data" />
             ) : (
               byType.map(item => (
-                <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>{item.name}</span>
-                  <Chip tone="neutral">{item.count}</Chip>
-                </div>
+                <DashLink key={item.name} row onClick={item.count > 0 ? openType(item) : null} title={`Open these ${item.count}`}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>{item.name}</span>
+                    <Chip tone="neutral">{item.count}</Chip>
+                  </div>
+                </DashLink>
               ))
             )}
           </div>
         </Panel>
 
         <Panel icon={<TrendingUp size={14} />} title="Billable Split">
-          <BillableBar billable={billableSplit.billable} nonBillable={billableSplit.nonBillable} />
+          <BillableBar
+            billable={billableSplit.billable}
+            nonBillable={billableSplit.nonBillable}
+            onOpen={(b) => toDir({ status: 'active', asOf, billable: b }, b === 'true' ? 'Active · Billable' : 'Active · Non-billable')}
+          />
         </Panel>
 
         <Panel icon={<Calendar size={14} />} title="Period Stats">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ font: `700 24px/1 ${FONT}`, color: 'var(--brand-ink)', fontVariantNumeric: 'tabular-nums' }}>
+              <DashLink
+                onClick={periodStats.newJoiners > 0 ? () => toDir({ status: 'all', joinedFrom: range.from, joinedTo: range.to }, 'New joiners') : null}
+                title="Open the new joiners"
+                style={{ font: `700 24px/1 ${FONT}`, color: 'var(--brand-ink)', fontVariantNumeric: 'tabular-nums' }}
+              >
                 {periodStats.newJoiners ?? 0}
-              </p>
+              </DashLink>
               <p style={{ font: `450 10.5px/1.4 ${FONT}`, color: 'var(--fg-3)', marginTop: 5 }}>New Joiners</p>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ font: `700 24px/1 ${FONT}`, color: 'var(--warn-ink)', fontVariantNumeric: 'tabular-nums' }}>
+              <DashLink
+                onClick={periodStats.offBoarded > 0 ? () => toDir({ status: 'all', leftFrom: range.from, leftTo: range.to }, 'Off-boarded') : null}
+                title="Open the people who left"
+                style={{ font: `700 24px/1 ${FONT}`, color: 'var(--warn-ink)', fontVariantNumeric: 'tabular-nums' }}
+              >
                 {periodStats.offBoarded ?? 0}
-              </p>
+              </DashLink>
               <p style={{ font: `450 10.5px/1.4 ${FONT}`, color: 'var(--fg-3)', marginTop: 5 }}>Off-boarded</p>
             </div>
           </div>
@@ -464,10 +497,10 @@ export default function EmployeeDashboardV2() {
       {/* ── Distribution Row ───────────────────────────────────────────── */}
       <div style={grid(340)}>
         <Panel icon={<Building2 size={14} />} title="Employees by Department">
-          <HorizontalBar items={byDepartment} color="var(--brand)" />
+          <HorizontalBar items={byDepartment} color="var(--brand)" onItem={openDept} />
         </Panel>
         <Panel icon={<Briefcase size={14} />} title="Employees by Type">
-          <HorizontalBar items={byEmpType} color="var(--a-employee)" />
+          <HorizontalBar items={byEmpType} color="var(--a-employee)" onItem={openType} />
         </Panel>
       </div>
 

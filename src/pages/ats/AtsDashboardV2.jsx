@@ -1069,6 +1069,11 @@ export default function AtsDashboardV2() {
   const scopeQuery = scopeMode === 'self' ? '&mine=1'
     : scopeMode === 'team' ? '&team=1'
     : '';
+  // 2026-11-25: application tiles are counted for the chosen range (applied
+  // on/after dateFrom; Hired by hire date), so their links carry it too. No
+  // end date — the range runs to now.
+  const fromQ = rangeDates.dateFrom ? `&dateFrom=${encodeURIComponent(rangeDates.dateFrom)}` : '';
+  const hiredQ = rangeDates.dateFrom ? `&hiredFrom=${encodeURIComponent(rangeDates.dateFrom)}` : '';
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
@@ -1170,7 +1175,7 @@ export default function AtsDashboardV2() {
           subtitle={`${totalApplications} total apps in range`}
           icon={BarChart3}
           color="blue"
-          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`}
+          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing${fromQ}${scopeQuery}`}
         />
         <KpiTile
           label="Hired"
@@ -1182,7 +1187,7 @@ export default function AtsDashboardV2() {
           }
           icon={UserCheck}
           color="emerald"
-          to={`/org/${orgSlug}/ats/applications?hiredOnly=1${scopeQuery}`}
+          to={`/org/${orgSlug}/ats/applications?hiredOnly=1${hiredQ}${scopeQuery}`}
         />
         <KpiTile
           label="Offer Proposal"
@@ -1201,7 +1206,7 @@ export default function AtsDashboardV2() {
             const id = (applicationsByStage.find((s) => s.stageKind === 'offer_proposal')
               || applicationsByStage.find((s) => s.stageName === 'Offer Proposal'))?.stageId;
             const stageQ = id ? `&stageId=${id}` : '';
-            return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}${scopeQuery}`;
+            return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}${fromQ}${scopeQuery}`;
           })()}
         />
         <KpiTile
@@ -1264,8 +1269,8 @@ export default function AtsDashboardV2() {
             {tiles.map(({ kind, name, color, icon }) => {
               const t = stageTile(kind, name);
               const to = t.stageIds.length
-                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageIds.join(',')}&applicationStatus=ongoing${scopeQuery}`
-                : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`;
+                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageIds.join(',')}&applicationStatus=ongoing${fromQ}${scopeQuery}`
+                : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${fromQ}${scopeQuery}`;
               return (
                 <KpiTile
                   key={kind || name}
@@ -1300,7 +1305,7 @@ export default function AtsDashboardV2() {
         emptyText={applicationsByStageLive ? 'No live applications — no open jobs have applicants in progress.' : undefined}
         onStageClick={(s) => {
           const ids = (s.stageIds && s.stageIds.length) ? s.stageIds.join(',') : s.stageId;
-          if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${applicationsByStageLive ? '&liveJobs=1' : ''}${scopeQuery}`);
+          if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${applicationsByStageLive ? '&liveJobs=1' : ''}${fromQ}${scopeQuery}`);
         }}
       />
 
@@ -1317,7 +1322,8 @@ export default function AtsDashboardV2() {
           }))}
           centerLabel="apps in range"
           onSliceClick={(d) => {
-            if (d.recruiterId) navigate(`/org/${orgSlug}/ats/applications?recruiter=${d.recruiterId}`);
+            // Every application in the range, whatever its status (archived too).
+            if (d.recruiterId) navigate(`/org/${orgSlug}/ats/applications?recruiter=${d.recruiterId}&applicationStatus=all&archived=all${fromQ}${scopeQuery}&report=${encodeURIComponent(`${d.label} · all statuses`)}`);
           }}
         />
         <BreakdownChart

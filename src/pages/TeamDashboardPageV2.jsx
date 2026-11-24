@@ -44,6 +44,7 @@
 // text label too.
 // ============================================================================
 
+import { DashLink } from '../components/platform/v2/DashboardFilterNote';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -440,6 +441,18 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
   const emailsSentInRange = data?.emailsSentInRange || [];
   const leaderboard = data?.leaderboard || [];
   const totalScrapedInRange = leadsScrapedInRange.reduce((s, r) => s + r.count, 0);
+  // 2026-11-25: "Scraped" numbers open the contacts list for the same days
+  // (cut in the viewer's zone, like the server) and, per row, that owner.
+  let viewerTz = 'Asia/Kolkata';
+  try { viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone || viewerTz; } catch { /* default */ }
+  const weekStartYmd = (() => {
+    const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow);
+    return toDateStr(d);
+  })();
+  const toContacts = ({ from, to, ownerId, report }) => navigate(orgPath(contactsPath) + '?' + new URLSearchParams({
+    ...(from && { createdFrom: from }), ...(to && { createdTo: to }), ...(from || to ? { tz: viewerTz } : {}),
+    ...(ownerId && !isMe ? { owner: ownerId } : {}), ...(report && { report }),
+  }).toString());
   const totalScrapedWeek = leadsScrapedThisWeek.reduce((s, r) => s + r.count, 0);
   const totalEmailsScheduled = emailsScheduledInRange.reduce((s, r) => s + r.count, 0);
   const totalEmailsSentInRange = emailsSentInRange.reduce((s, r) => s + r.count, 0);
@@ -627,7 +640,7 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
           label="Scraped" value={totalScrapedInRange.toLocaleString()}
           icon={<Zap size={16} />} color="var(--warn-ink)"
           note={dateLabel.toLowerCase()}
-          onClick={() => navigate(orgPath(contactsPath))}
+          onClick={() => toContacts({ from: rangeFrom, to: rangeTo, report: 'Scraped' })}
         />
         <Stat
           label="Emails Scheduled" value={totalEmailsScheduled.toLocaleString()}
@@ -826,8 +839,8 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
             {[
-              { title: dateLabel, total: totalScrapedInRange, rows: leadsScrapedInRange, tone: 'warn', empty: 'No scrapes in range' },
-              { title: 'This Week', total: totalScrapedWeek, rows: leadsScrapedThisWeek, tone: 'info', empty: 'No scrapes this week' },
+              { title: dateLabel, total: totalScrapedInRange, rows: leadsScrapedInRange, tone: 'warn', empty: 'No scrapes in range', from: rangeFrom, to: rangeTo },
+              { title: 'This Week', total: totalScrapedWeek, rows: leadsScrapedThisWeek, tone: 'info', empty: 'No scrapes this week', from: weekStartYmd, to: toDateStr(getToday()) },
             ].map((col) => (
               <div key={col.title}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
@@ -842,7 +855,11 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
                           <MemberDot name={r.sourcedBy} />
                           <span style={{ ...bodyStyle, fontSize: 12, ...truncate }}>{r.sourcedBy}</span>
                         </span>
-                        <span style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', marginLeft: 8 }}>{Number(r.count || 0).toLocaleString()}</span>
+                        <DashLink
+                          onClick={r.count > 0 && (isMe || r.ownerId) ? () => toContacts({ from: col.from, to: col.to, ownerId: r.ownerId, report: `Scraped · ${r.sourcedBy}` }) : null}
+                          title="Open these contacts"
+                          style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', marginLeft: 8 }}
+                        >{Number(r.count || 0).toLocaleString()}</DashLink>
                       </div>
                     ))}
                   </div>
@@ -882,9 +899,13 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ ...bodyStyle, fontSize: 12, ...truncate }}>{entry.sourcedBy}</span>
-                      <span style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', marginLeft: 8 }}>
+                      <DashLink
+                        onClick={entry.ownerId ? () => navigate(orgPath(`/outreach/team-contacts?owner=${entry.ownerId}`)) : null}
+                        title="Open this person's contacts"
+                        style={{ font: "700 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', marginLeft: 8 }}
+                      >
                         {entry.count.toLocaleString()}
-                      </span>
+                      </DashLink>
                     </div>
                     <div style={{ height: 6, borderRadius: 99, background: 'var(--surface-3)', overflow: 'hidden' }}>
                       <div style={{

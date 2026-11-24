@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import DashboardFilterNote from '../../components/platform/v2/DashboardFilterNote';
+import { shortDate } from '../../utils/dashboardLinks';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -224,6 +226,9 @@ export default function AtsApplicationsV2() {
     'source', 'employmentType', 'applicationStatus', 'groupBy', 'sort', 'dir',
     'hiredOnly', 'refusedOnly', 'mine', 'team', 'unclaimed', 'aiScoreMin', 'rateConfirmation',
     'liveJobs',
+    // 2026-11-25: dashboard deep links — applied in a date range (dateFrom/To,
+    // createdAt) or hired in it (hiredFrom/To, hireDate); `report` = label.
+    'dateFrom', 'dateTo', 'hiredFrom', 'hiredTo', 'report',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   const [page, setPage] = usePageParam();
@@ -246,6 +251,8 @@ export default function AtsApplicationsV2() {
     np.delete('applicationStatus');
     np.delete('hiredOnly');
     np.delete('refusedOnly');
+    np.delete('hiredFrom');
+    np.delete('hiredTo');
     if (next === 'archived') np.set('archived', '1');
     else if (next === 'hired') np.set('applicationStatus', 'hired');
     else if (next === 'refused') np.set('applicationStatus', 'refused');
@@ -440,7 +447,8 @@ export default function AtsApplicationsV2() {
     atsApi.listApplications(orgSlug, baseParams)
       .then((res) => {
         if (cancelled) return;
-        if (res?.success && res.counts) setCounts(res.counts);
+        // A "hired in this range" link only means something on Hired.
+        if (res?.success && res.counts) setCounts(filterParams.hiredFrom || filterParams.hiredTo ? { ongoing: null, hired: res.counts.hired, refused: null, archived: null } : res.counts);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -836,6 +844,19 @@ export default function AtsApplicationsV2() {
           </>
         )}
         style={{ marginBottom: 14 }}
+      />
+
+      <DashboardFilterNote
+        text={(filterParams.dateFrom || filterParams.dateTo || filterParams.hiredFrom || filterParams.hiredTo || filterParams.report) ? [
+          filterParams.report,
+          (filterParams.dateFrom || filterParams.dateTo) && `applied ${filterParams.dateFrom ? shortDate(filterParams.dateFrom) : 'any time'} – ${filterParams.dateTo ? shortDate(filterParams.dateTo) : 'now'}`,
+          (filterParams.hiredFrom || filterParams.hiredTo) && `hired ${filterParams.hiredFrom ? shortDate(filterParams.hiredFrom) : 'any time'} – ${filterParams.hiredTo ? shortDate(filterParams.hiredTo) : 'now'}`,
+        ].filter(Boolean).join(' · ') : ''}
+        onClear={() => {
+          const np = new URLSearchParams(searchParams);
+          ['dateFrom', 'dateTo', 'hiredFrom', 'hiredTo', 'report', 'page'].forEach((k) => np.delete(k));
+          setSearchParams(np);
+        }}
       />
 
       {fetchError && applications.length === 0 && !loading ? (

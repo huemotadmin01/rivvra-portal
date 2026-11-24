@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { Fragment, useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -252,6 +253,13 @@ export default function PayrollRunPageV2() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadRuns(); }, [orgSlug, currentCompany?._id]);
+  // 2026-11-25: the Payroll dashboard's recent-run rows open ?run=<id>.
+  const [runSearchParams] = useSearchParams();
+  const openRunId = runSearchParams.get('run');
+  useEffect(() => {
+    if (openRunId && orgSlug) loadRun(openRunId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, openRunId]);
 
   // First click on a column sorts it (money high→low, name A→Z); clicking the
   // active column flips direction. There is no third "back to original order"

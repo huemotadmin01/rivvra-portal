@@ -1659,7 +1659,9 @@ export default function SignRequestsV2() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  // 2026-11-25: the Sign dashboard cards open this page with ?state=… — read
+  // once on open; the filter stays local after that.
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('state') || '');
   const [templateFilter, setTemplateFilter] = useState('');
   const [tagFilter, setTagFilter] = useState('');
 

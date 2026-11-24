@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import DashboardFilterNote from '../../components/platform/v2/DashboardFilterNote';
+import { useDashboardParams } from '../../utils/dashboardLinks';
 import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest } from '../../utils/timesheetApi';
@@ -46,7 +49,13 @@ export default function LeaveApprovalsV2() {
   const { currentCompany } = useCompany();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('pending');
+  // 2026-11-25: Leave Reports opens this page with ?status=approved&year=YYYY
+  // (and optionally &leaveType=). Same rule as the report: approved leave that
+  // starts and ends inside that calendar year.
+  const [searchParams] = useSearchParams();
+  const [filter, setFilter] = useState(() => (['pending', 'approved', 'rejected', 'all'].includes(searchParams.get('status')) ? searchParams.get('status') : 'pending'));
+  const dash = useDashboardParams(['year', 'leaveType']);
+  const dashYear = parseInt(dash.values.year, 10);
   const [actionLoading, setActionLoading] = useState(null);
   const [rejectId, setRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -55,8 +64,18 @@ export default function LeaveApprovalsV2() {
     setLoading(true);
     setRequests([]);
     try {
-      const data = await getAllLeaveRequests();
-      setRequests(Array.isArray(data) ? data : data.requests || data.leaveRequests || data.data || []);
+      // 2026-11-25: the API pages (50 by default). This page asked once, so
+      // only the newest 50 requests ever showed — "All" and "Approved" were
+      // missing everything older. Read every page (200 at a time).
+      const rows = [];
+      for (let page = 1; page <= 50; page++) {
+        const data = await getAllLeaveRequests({ page, limit: 200 });
+        const chunk = Array.isArray(data) ? data : data.requests || data.leaveRequests || data.data || [];
+        rows.push(...chunk);
+        const totalPages = data?.pagination?.totalPages;
+        if (Array.isArray(data) || !totalPages || page >= totalPages || chunk.length === 0) break;
+      }
+      setRequests(rows);
     } catch (err) {
       showToast(err.response?.data?.error || err.message || 'Failed to load leave requests', 'error');
       setRequests([]);
@@ -115,12 +134,21 @@ export default function LeaveApprovalsV2() {
     }
   };
 
-  const filtered = requests.filter(r => filter === 'all' || r.status === filter);
+  const inDash = (r) => {
+    if (dashYear) {
+      const f = new Date(r.fromDate).getTime(); const t = new Date(r.toDate).getTime();
+      if (!(f >= Date.UTC(dashYear, 0, 1) && t <= Date.UTC(dashYear, 11, 31, 23, 59, 59))) return false;
+    }
+    if (dash.values.leaveType && r.leaveType !== dash.values.leaveType) return false;
+    return true;
+  };
+  const scoped = dash.active ? requests.filter(inDash) : requests;
+  const filtered = scoped.filter(r => filter === 'all' || r.status === filter);
   const counts = {
-    pending: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
-    all: requests.length,
+    pending: scoped.filter(r => r.status === 'pending').length,
+    approved: scoped.filter(r => r.status === 'approved').length,
+    rejected: scoped.filter(r => r.status === 'rejected').length,
+    all: scoped.length,
   };
 
   if (loading) return <PageSpinner label="Loading leave requests…" />;
@@ -143,6 +171,11 @@ export default function LeaveApprovalsV2() {
         value={filter}
         onChange={setFilter}
         style={{ marginBottom: 14 }}
+      />
+
+      <DashboardFilterNote
+        text={dash.active ? [dash.report, dashYear && `leave in ${dashYear}`].filter(Boolean).join(' · ') : ''}
+        onClear={dash.clear}
       />
 
       <div style={{ display: 'grid', gap: 10 }}>

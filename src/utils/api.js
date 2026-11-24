@@ -444,12 +444,16 @@ class ApiClient {
   // raced and whichever response landed LAST painted the table — page 2
   // could show page 1's rows (Kanishk, 2026-09-09). Same pattern as the
   // ATS / CRM / Contacts lists.
-  async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName, _requestKey } = {}) {
+  async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName, createdFrom, createdTo, tz, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (profileType && profileType !== 'all') params.set('profileType', profileType);
     if (outreachStatus && outreachStatus !== 'all') params.set('outreachStatus', outreachStatus);
     if (listName) params.set('listName', listName);
+    // 2026-11-25: dashboard "Scraped" deep link — created between two days.
+    if (createdFrom) params.set('createdFrom', createdFrom);
+    if (createdTo) params.set('createdTo', createdTo);
+    if (tz && (createdFrom || createdTo)) params.set('tz', tz);
     return this.request(`/api/portal/leads?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 
@@ -1247,13 +1251,17 @@ class ApiClient {
   }
 
   // Team Leads (admin/team_lead only)
-  async getTeamLeads({ page = 1, limit = 50, search, owner, profileType, outreachStatus, listName, _requestKey } = {}) {
+  async getTeamLeads({ page = 1, limit = 50, search, owner, profileType, outreachStatus, listName, createdFrom, createdTo, tz, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (owner && owner !== 'all') params.set('owner', owner);
     if (profileType && profileType !== 'all') params.set('profileType', profileType);
     if (outreachStatus && outreachStatus !== 'all') params.set('outreachStatus', outreachStatus);
     if (listName) params.set('listName', listName);
+    // 2026-11-25: dashboard "Scraped" deep link — created between two days.
+    if (createdFrom) params.set('createdFrom', createdFrom);
+    if (createdTo) params.set('createdTo', createdTo);
+    if (tz && (createdFrom || createdTo)) params.set('tz', tz);
     return this.request(`/api/portal/leads/team?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 

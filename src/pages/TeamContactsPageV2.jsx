@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import DashboardFilterNote from '../components/platform/v2/DashboardFilterNote';
+import { shortDate } from '../utils/dashboardLinks';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +48,11 @@ export default function TeamContactsPageV2() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [profileTypeFilter, setProfileTypeFilter] = useState('all');
   const [outreachStatusFilter, setOutreachStatusFilter] = useState(searchParams.get('status') || 'all');
+  // 2026-11-25: Outreach dashboard "Scraped" opens this page with a created
+  // range. Kept in state (the URL is cleared below, legacy contract).
+  const [created, setCreated] = useState(() => (searchParams.get('createdFrom') || searchParams.get('createdTo')
+    ? { createdFrom: searchParams.get('createdFrom') || undefined, createdTo: searchParams.get('createdTo') || undefined, tz: searchParams.get('tz') || undefined, report: searchParams.get('report') || '' }
+    : null));
   const [ownerFilter, setOwnerFilter] = useState(searchParams.get('owner') || 'all');
 
   const [selectedLeads, setSelectedLeads] = useState([]);
@@ -91,7 +98,7 @@ export default function TeamContactsPageV2() {
   useEffect(() => {
     const statusParam = searchParams.get('status');
     const ownerParam = searchParams.get('owner');
-    if ((statusParam && statusParam !== 'all') || (ownerParam && ownerParam !== 'all')) {
+    if ((statusParam && statusParam !== 'all') || (ownerParam && ownerParam !== 'all') || created) {
       if (statusParam) setOutreachStatusFilter(statusParam);
       if (ownerParam) setOwnerFilter(ownerParam);
       setSearchParams({}, { replace: true });
@@ -115,7 +122,8 @@ export default function TeamContactsPageV2() {
         owner: ownerFilter !== 'all' ? ownerFilter : undefined,
         profileType: profileTypeFilter,
         outreachStatus: outreachStatusFilter,
-        _requestKey: 'leads:team', // newer page/filter aborts the older request
+        _requestKey: 'leads:team',
+        ...(created ? { createdFrom: created.createdFrom, createdTo: created.createdTo, tz: created.tz } : {}), // newer page/filter aborts the older request
       });
       if (response.success) {
         setLeads(response.leads || []);
@@ -133,7 +141,7 @@ export default function TeamContactsPageV2() {
     } finally {
       if (!aborted) { setLoading(false); setRefreshing(false); }
     }
-  }, [currentPage, debouncedSearch, ownerFilter, profileTypeFilter, outreachStatusFilter]);
+  }, [currentPage, debouncedSearch, ownerFilter, profileTypeFilter, outreachStatusFilter, created]);
 
   useEffect(() => { loadLeads(); }, [loadLeads]);
   useEffect(() => { setSelectedLeads([]); }, [currentPage, debouncedSearch, ownerFilter, profileTypeFilter, outreachStatusFilter]);
@@ -285,6 +293,10 @@ export default function TeamContactsPageV2() {
         noun="contact"
       />
 
+      <DashboardFilterNote
+        text={created ? [created.report, `added ${created.createdFrom === created.createdTo ? `on ${shortDate(created.createdFrom)}` : `${shortDate(created.createdFrom)} – ${shortDate(created.createdTo)}`}`].filter(Boolean).join(' · ') : ''}
+        onClear={() => { setCreated(null); setCurrentPage(1); }}
+      />
       {loadError && !loading && leads.length === 0 ? (
         <LeadsEmptyState
           icon={<AlertTriangle size={22} />}

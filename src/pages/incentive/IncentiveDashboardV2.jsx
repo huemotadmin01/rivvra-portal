@@ -39,6 +39,8 @@ import {
 } from 'lucide-react';
 import { Button, Chip, EmptyState, Field, Input, Modal, Panel, Spinner, Stat } from '../../components/ds';
 import { formatMoney } from '../../utils/formatCurrency';
+import { DashLink } from '../../components/platform/v2/DashboardFilterNote';
+import { dashboardLink } from '../../utils/dashboardLinks';
 
 // Legacy passed Tailwind tint classes; map them to semantic tokens so the
 // tiles theme. Unrecognised values fall back to muted ink rather than
@@ -51,7 +53,7 @@ const STAT_TONES = {
   'bg-red-500/10 text-red-400': 'var(--danger)',
 };
 
-function StatCard({ label, value, icon: Icon, color, sub }) {
+function StatCard({ label, value, icon: Icon, color, sub, onClick }) {
   return (
     <Stat
       label={label}
@@ -59,6 +61,7 @@ function StatCard({ label, value, icon: Icon, color, sub }) {
       note={sub}
       icon={<Icon size={14} />}
       color={STAT_TONES[color] || 'var(--fg-3)'}
+      onClick={onClick}
     />
   );
 }
@@ -148,6 +151,11 @@ export default function IncentiveDashboardV2() {
   const leaderboard = data?.leaderboard || [];
   const byClient = data?.byClient || [];
   const maxTrend = Math.max(1, ...trend.map((t) => t.amount || 0));
+  // 2026-11-25: each number opens Incentive Records with the same filters.
+  // The month is the one the server counted (current month when none picked).
+  const shownMonth = data?.month || month;
+  const toRecords = (params, report) => navigate(orgPath(dashboardLink('/incentive/records', { ...params, report })));
+  const LIVE = 'paid,approved,partially_paid'; // what Top Earners / By Client count
 
   return (
     <div className="p-3 sm:p-6 space-y-6">
@@ -174,6 +182,7 @@ export default function IncentiveDashboardV2() {
           label="Paid"
           value={money(stats.paid?.amount)}
           sub={`${stats.paid?.count || 0} records`}
+          onClick={() => toRecords({ status: 'paid', payoutMonth: shownMonth })}
           icon={CheckCircle2}
           color="bg-emerald-950 text-emerald-400"
         />
@@ -181,6 +190,7 @@ export default function IncentiveDashboardV2() {
           label="Approved (pending payout)"
           value={money(stats.approved?.amount)}
           sub={`${stats.approved?.count || 0} records`}
+          onClick={() => toRecords({ status: 'approved', payoutMonth: shownMonth })}
           icon={Clock}
           color="bg-blue-950 text-blue-400"
         />
@@ -188,6 +198,7 @@ export default function IncentiveDashboardV2() {
           label="Draft"
           value={money(stats.draft?.amount)}
           sub={`${stats.draft?.count || 0} records`}
+          onClick={() => toRecords({ status: 'draft', payoutMonth: shownMonth })}
           icon={FileText}
           color="bg-dark-800 text-dark-300"
         />
@@ -195,6 +206,9 @@ export default function IncentiveDashboardV2() {
           label={month ? 'Forecast (this month)' : 'YTD Paid'}
           value={money(month ? stats.forecast?.amount : data?.ytd?.amount)}
           sub={month ? 'Approved + draft for this month' : 'Calendar YTD'}
+          onClick={() => (month
+            ? toRecords({ status: 'approved,draft', payoutMonth: shownMonth }, 'Forecast: approved + draft')
+            : toRecords({ status: 'paid', payoutMonthFrom: `${String(shownMonth).slice(0, 4)}-01`, payoutMonthTo: `${String(shownMonth).slice(0, 4)}-12` }, 'Paid this year'))}
           icon={TrendingUp}
           color="bg-fuchsia-950 text-fuchsia-400"
         />
@@ -297,7 +311,11 @@ export default function IncentiveDashboardV2() {
                   className="flex items-center justify-between text-sm"
                 >
                   <span className="text-dark-300">
-                    {i + 1}. {e.name || '—'}
+                    {i + 1}.{' '}
+                    <DashLink
+                      onClick={e.employeeId ? () => toRecords({ status: LIVE, payoutMonth: shownMonth, employeeId: e.employeeId }, `${e.name || 'Earner'} · paid, approved or part-paid`) : null}
+                      title="Open this person's records"
+                    >{e.name || '—'}</DashLink>
                   </span>
                   <span className="font-semibold text-white">
                     {money(e.amount)}
@@ -327,7 +345,12 @@ export default function IncentiveDashboardV2() {
               {byClient.map((c) => (
                 <tr key={c.clientName} className="border-t border-dark-800">
                   <td className="px-2 py-2 text-white">{c.clientName}</td>
-                  <td className="px-2 py-2 text-right text-dark-300">{c.count}</td>
+                  <td className="px-2 py-2 text-right text-dark-300">
+                    <DashLink
+                      onClick={c.clientContactId ? () => toRecords({ status: LIVE, payoutMonth: shownMonth, clientContactId: c.clientContactId }, `${c.clientName} · paid, approved or part-paid`) : null}
+                      title="Open these records"
+                    >{c.count}</DashLink>
+                  </td>
                   <td className="px-2 py-2 text-right text-dark-300">
                     {money(c.netProfit)}
                   </td>

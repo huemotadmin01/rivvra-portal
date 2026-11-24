@@ -977,18 +977,18 @@ function AdminDashboard() {
       <div className="card p-4 border-l-4 border-emerald-500 order-4">
         <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2"><FileText size={15} /> Timesheets</h3>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="bg-dark-800/50 rounded-lg p-3">
+          <Link to={orgPath('/timesheet/approvals?status=submitted')} title="Open these" className="bg-dark-800/50 rounded-lg p-3 hover:bg-dark-800 transition-colors block">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
             <p className="text-2xl font-bold text-amber-400">{tsDataReady ? pending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
-          </div>
-          <div className="bg-dark-800/50 rounded-lg p-3">
+          </Link>
+          <Link to={orgPath('/timesheet/approvals?status=approved')} title="Open these" className="bg-dark-800/50 rounded-lg p-3 hover:bg-dark-800 transition-colors block">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
             <p className="text-2xl font-bold text-emerald-400">{tsDataReady ? approvedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
-          </div>
-          <div className="bg-dark-800/50 rounded-lg p-3">
+          </Link>
+          <Link to={orgPath('/timesheet/approvals?status=all')} title="Open these" className="bg-dark-800/50 rounded-lg p-3 hover:bg-dark-800 transition-colors block">
             <p className="text-xs text-dark-400 mb-1">Total</p>
             <p className="text-2xl font-bold text-white">{tsDataReady ? totalThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
-          </div>
+          </Link>
         </div>
         {pending.length > 0 && (
           <div className="mt-3 divide-y divide-dark-700/50">
@@ -1013,18 +1013,18 @@ function AdminDashboard() {
       <div className="card p-4 border-l-4 border-blue-500 order-5">
         <h3 className="text-sm font-semibold text-blue-400 mb-3 flex items-center gap-2"><CalendarCheck size={15} /> Attendance</h3>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="bg-dark-800/50 rounded-lg p-3">
+          <Link to={orgPath('/timesheet/attendance/approvals?status=submitted')} title="Open these" className="bg-dark-800/50 rounded-lg p-3 hover:bg-dark-800 transition-colors block">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
             <p className="text-2xl font-bold text-amber-400">{attDataReady ? attPending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
-          </div>
-          <div className="bg-dark-800/50 rounded-lg p-3">
+          </Link>
+          <Link to={orgPath('/timesheet/attendance/approvals?status=approved')} title="Open these" className="bg-dark-800/50 rounded-lg p-3 hover:bg-dark-800 transition-colors block">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
             <p className="text-2xl font-bold text-emerald-400">{attDataReady ? attApprovedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
-          </div>
-          <div className="bg-dark-800/50 rounded-lg p-3">
+          </Link>
+          <Link to={orgPath('/timesheet/attendance/approvals?status=all')} title="Open these" className="bg-dark-800/50 rounded-lg p-3 hover:bg-dark-800 transition-colors block">
             <p className="text-xs text-dark-400 mb-1">Total</p>
             <p className="text-2xl font-bold text-white">{attDataReady ? attTotalThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
-          </div>
+          </Link>
         </div>
         {attPending.length > 0 && (
           <div className="mt-3 divide-y divide-dark-700/50">

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { getLeaveReportSummary, getLeaveReportUtilization, exportLeaveReport } from '../../utils/timesheetApi';
@@ -23,6 +25,8 @@ const SUMMARY_TYPES = ['sick_leave', 'casual_leave', 'comp_off'];
    leave type; the utilization bars keep their CSS-bar rendering on
    tokens. */
 export default function LeaveReportsV2() {
+  const navigate = useNavigate();
+  const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const { currentCompany } = useCompany();
   const [tab, setTab] = useState('summary');
@@ -222,10 +226,21 @@ export default function LeaveReportsV2() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-            <Stat label="Total Requests" value={utilizationData?.totalRequests || 0} />
+            {/* 2026-11-25: opens Leave Approvals with the same rule. */}
+            <Stat
+              label="Total Requests"
+              value={utilizationData?.totalRequests || 0}
+              onClick={() => navigate(orgPath(`/timesheet/leave/approvals?status=approved&year=${utilYear}&report=${encodeURIComponent('Approved leave requests')}`))}
+            />
             <Stat label="Total Days" value={utilizationData?.totalDays || 0} />
             {Object.entries(utilizationData?.byType || {}).slice(0, 2).map(([type, days]) => (
-              <Stat key={type} label={leaveTypeLabels[type] || type} value={days} note="days" />
+              <Stat
+                key={type}
+                label={leaveTypeLabels[type] || type}
+                value={days}
+                note="days"
+                onClick={() => navigate(orgPath(`/timesheet/leave/approvals?status=approved&year=${utilYear}&leaveType=${encodeURIComponent(type)}&report=${encodeURIComponent(`Approved ${leaveTypeLabels[type] || type}`)}`))}
+              />
             ))}
           </div>
 

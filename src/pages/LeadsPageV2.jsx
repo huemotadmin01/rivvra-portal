@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import DashboardFilterNote from '../components/platform/v2/DashboardFilterNote';
+import { shortDate } from '../utils/dashboardLinks';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
@@ -59,6 +61,11 @@ export default function LeadsPageV2() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [profileTypeFilter, setProfileTypeFilter] = useState('all');
   const [outreachStatusFilter, setOutreachStatusFilter] = useState(searchParams.get('status') || 'all');
+  // 2026-11-25: Outreach dashboard "Scraped" opens this page with a created
+  // range. Kept in state (the URL is cleared below, legacy contract).
+  const [created, setCreated] = useState(() => (searchParams.get('createdFrom') || searchParams.get('createdTo')
+    ? { createdFrom: searchParams.get('createdFrom') || undefined, createdTo: searchParams.get('createdTo') || undefined, tz: searchParams.get('tz') || undefined, report: searchParams.get('report') || '' }
+    : null));
 
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -89,8 +96,8 @@ export default function LeadsPageV2() {
   // ?status= deep-link: adopt once, then clear the param (legacy contract).
   useEffect(() => {
     const statusParam = searchParams.get('status');
-    if (statusParam && statusParam !== 'all') {
-      setOutreachStatusFilter(statusParam);
+    if ((statusParam && statusParam !== 'all') || created) {
+      if (statusParam && statusParam !== 'all') setOutreachStatusFilter(statusParam);
       setSearchParams({}, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,7 +118,8 @@ export default function LeadsPageV2() {
         search: debouncedSearch || undefined,
         profileType: profileTypeFilter,
         outreachStatus: outreachStatusFilter,
-        _requestKey: 'leads:list', // newer page/filter aborts the older request
+        _requestKey: 'leads:list',
+        ...(created ? { createdFrom: created.createdFrom, createdTo: created.createdTo, tz: created.tz } : {}), // newer page/filter aborts the older request
       });
       if (response.success) {
         setLeads(response.leads || []);
@@ -127,7 +135,7 @@ export default function LeadsPageV2() {
     } finally {
       if (!aborted) { setLoading(false); setRefreshing(false); }
     }
-  }, [currentPage, debouncedSearch, profileTypeFilter, outreachStatusFilter]);
+  }, [currentPage, debouncedSearch, profileTypeFilter, outreachStatusFilter, created]);
 
   useEffect(() => { loadLeads(); }, [loadLeads]);
 
@@ -264,6 +272,10 @@ export default function LeadsPageV2() {
         noun="contact"
       />
 
+      <DashboardFilterNote
+        text={created ? [created.report, `added ${created.createdFrom === created.createdTo ? `on ${shortDate(created.createdFrom)}` : `${shortDate(created.createdFrom)} – ${shortDate(created.createdTo)}`}`].filter(Boolean).join(' · ') : ''}
+        onClear={() => { setCreated(null); setCurrentPage(1); }}
+      />
       {loadError && !loading && leads.length === 0 ? (
         <LeadsEmptyState
           icon={<AlertTriangle size={22} />}

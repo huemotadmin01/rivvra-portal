@@ -23,7 +23,9 @@
 // ============================================================================
 
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import DashboardFilterNote from '../../components/platform/v2/DashboardFilterNote';
+import { useDashboardParams } from '../../utils/dashboardLinks';
 import { currencySymbol } from '../../utils/formatCurrency';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -155,8 +157,17 @@ export default function RecordsListV2() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [payoutMonth, setPayoutMonth] = useState('');
+  // 2026-11-25: the Incentive dashboard opens this page with ?status=&payoutMonth=
+  // (read once) plus dashboard-only filters shown in the strip above the table.
+  const [searchParams] = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '');
+  const [payoutMonth, setPayoutMonth] = useState(() => searchParams.get('payoutMonth') || '');
+  const dash = useDashboardParams(['clientContactId', 'employeeId', 'payoutMonthFrom', 'payoutMonthTo']);
+  const dashKey = JSON.stringify(dash.values);
+  const dashText = dash.active ? [
+    dash.report,
+    dash.values.payoutMonthFrom && `payout ${dash.values.payoutMonthFrom} to ${dash.values.payoutMonthTo || 'now'}`,
+  ].filter(Boolean).join(' · ') || 'filtered' : '';
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
@@ -187,6 +198,7 @@ export default function RecordsListV2() {
         payoutMonth: payoutMonth || undefined,
         search: search || undefined,
         page,
+        ...dash.values,
       });
       setRecords(res?.records || []);
       const pageLimit = res?.limit || 50;
@@ -202,7 +214,7 @@ export default function RecordsListV2() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, statusFilter, payoutMonth, search, page, showToast, currentCompany?._id]);
+  }, [orgSlug, statusFilter, payoutMonth, search, page, showToast, currentCompany?._id, dashKey]);
 
   useEffect(() => {
     fetchRecords();
@@ -216,6 +228,7 @@ export default function RecordsListV2() {
         status: statusFilter || undefined,
         payoutMonth: payoutMonth || undefined,
         search: search || undefined,
+        ...dash.values,
       });
       showToast('Export downloaded', 'success');
     } catch (e) {
@@ -312,6 +325,8 @@ export default function RecordsListV2() {
           placeholder="Any payout month"
         />
       </div>
+
+      <DashboardFilterNote text={dashText} onClear={() => { dash.clear(); setPage(1); }} />
 
       {/* Table */}
       <Panel flush>
