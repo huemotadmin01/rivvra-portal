@@ -87,7 +87,7 @@ import {
 } from 'lucide-react';
 import {
   Panel, Button, Chip, Callout, Modal, DataTable, EmptyState,
-  InlineField, RecordMeta, Avatar, Spinner, Field, Select, Textarea,
+  InlineField, RecordMeta, Avatar, Spinner, Field, ComboBox, Textarea,
 } from '../../components/ds';
 
 // ── Shared render tokens ────────────────────────────────────────────────────
@@ -725,10 +725,15 @@ function AtsCandidateDetailV2() {
       >
         <div style={{ display: 'grid', gap: 12 }}>
           <Field label="Transfer to" htmlFor="cand-transfer-to" required>
-            <Select id="cand-transfer-to" value={transfer.to} onChange={(e) => setTransfer((t) => ({ ...t, to: e.target.value, error: '' }))}>
-              <option value="">Choose a recruiter…</option>
-              {transfer.options.map((o) => <option key={o.id} value={o.id}>{o.name}{o.designation ? ` — ${o.designation}` : ''}</option>)}
-            </Select>
+            <ComboBox
+              id="cand-transfer-to"
+              aria-label="Transfer to"
+              value={transfer.to}
+              onChange={(v) => setTransfer((t) => ({ ...t, to: v || '', error: '' }))}
+              options={transfer.options.map((o) => ({ value: o.id, label: o.name, sub: o.designation || undefined }))}
+              emptyLabel="Choose a recruiter…"
+              placeholder="Search by name or role…"
+            />
           </Field>
           <Field label="Reason" htmlFor="cand-transfer-reason" required hint="Saved in the candidate's owner history.">
             <Textarea id="cand-transfer-reason" rows={3} maxLength={300} value={transfer.reason} onChange={(e) => setTransfer((t) => ({ ...t, reason: e.target.value, error: '' }))} placeholder="e.g. Moving to Workday hiring — Niharika handles these roles" />
