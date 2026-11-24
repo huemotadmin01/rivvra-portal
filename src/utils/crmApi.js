@@ -82,6 +82,18 @@ const crmApi = {
   logFollowUp(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/follow-up`, { method: 'POST', body: JSON.stringify(data) });
   },
+  // 2026-11-24: existing client gave a role to fill → intake record + ATS job in one step.
+  createRequirement(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/crm/requirements`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  // Push a "contact me later" follow-up back by 7 / 14 / 30 / 60 / 90 days.
+  snoozeLeadFollowUp(orgSlug, leadId, days) {
+    return api.request(`/api/org/${orgSlug}/crm/lead-follow-ups/${leadId}`, { method: 'POST', body: JSON.stringify({ days }) });
+  },
+  // CRM admins: preview (dryRun) or run the automatic tracking sweep now.
+  runAutoTrack(orgSlug, { dryRun = true } = {}) {
+    return api.request(`/api/org/${orgSlug}/crm/auto-track/run`, { method: 'POST', body: JSON.stringify({ dryRun }) });
+  },
   updateOpportunity(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },

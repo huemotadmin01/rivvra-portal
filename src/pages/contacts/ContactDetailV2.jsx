@@ -24,6 +24,7 @@ import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 // path (createRequest) is byte-identical to the legacy widget.
 import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import NewRequirementModal from '../../components/crm/NewRequirementModal';
 import {
   Activity, Archive, ArchiveRestore, Briefcase, Building2, Eye, FileText, Globe, Mail, MapPin,
   MoreHorizontal, Paperclip, Phone, Receipt, Tag, Trash2, Upload, User, Users,
@@ -102,7 +103,7 @@ export default function ContactDetailV2() {
   const { contactId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
+  const { currentOrg, getAppRole, isOrgAdmin, hasAppAccess } = useOrg();
   const { orgPath } = usePlatform();
   const { companyCountry, currentCompany } = useCompany();
   const { showToast } = useToast();
@@ -129,6 +130,8 @@ export default function ContactDetailV2() {
   const [engagementLoading, setEngagementLoading] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // 2026-11-24: raise an ATS job for this client in one step (CRM users).
+  const [showRequirement, setShowRequirement] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConflict, setDeleteConflict] = useState(null);
   // The contact the blocked records will be moved onto, when the user picks
@@ -570,6 +573,11 @@ export default function ContactDetailV2() {
                 />
               </div>
 
+              {!contact.archived && hasAppAccess?.('crm') && (
+                <Button variant="secondary" size="sm" iconLeft={<Briefcase size={14} />} onClick={() => setShowRequirement(true)} style={{ flexShrink: 0 }}>
+                  New requirement
+                </Button>
+              )}
               {isAdminRaw && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   {contact.archived ? (
@@ -1189,6 +1197,12 @@ export default function ContactDetailV2() {
       )}
 
       {/* ── Archive ── */}
+      <NewRequirementModal
+        open={showRequirement}
+        onClose={() => setShowRequirement(false)}
+        contact={isCompany ? null : contact}
+        companyName={isCompany ? contact.name : ''}
+      />
       <Modal
         open={showArchiveModal}
         onClose={archiving ? undefined : () => setShowArchiveModal(false)}

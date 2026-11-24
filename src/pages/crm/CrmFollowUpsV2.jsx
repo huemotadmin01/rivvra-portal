@@ -11,6 +11,10 @@
 // One list, grouped by urgency, instead of a board with one working column:
 //   • New replies   — Outreach contacts marked Interested, not in the CRM yet
 //   • Overdue / Today / This week / Later / No date — open opportunities
+// 2026-11-24: interested replies are tracked automatically (rows carry an
+// "Auto" chip); the few that are held say why. "Contact me later" replies
+// show up as their own group when their date comes. "New requirement" raises
+// an ATS job for an existing client in one step.
 // One click says what happened (Called / Emailed / Met / No answer); the only
 // thing a rep types is the next step, and a date is always set with it.
 //
@@ -19,13 +23,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, Mail, Users, PhoneOff, ArrowRight, RefreshCw, AlertCircle, Inbox, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Phone, Mail, Users, PhoneOff, ArrowRight, RefreshCw, AlertCircle, Inbox, Sparkles, CheckCircle2, Clock, Plus } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import ExportToCRMModal from '../../components/ExportToCRMModal';
+import NewRequirementModal from '../../components/crm/NewRequirementModal';
 import { Panel, Button, Chip, Callout, Input, Select, Spinner, EmptyState } from '../../components/ds';
 import { PageHeaderV2 } from '../../components/platform/v2/listkit';
 import { dueLabel, dueState } from '../../components/crm/nextStep';
@@ -55,6 +60,14 @@ function ymdInDays(n) {
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+const SNOOZE_CHOICES = [
+  { value: '7', label: '1 week' },
+  { value: '14', label: '2 weeks' },
+  { value: '30', label: '1 month' },
+  { value: '60', label: '2 months' },
+  { value: '90', label: '3 months' },
+];
+const dayMonth = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 const DUE_CHOICES = [
   { value: '1', label: 'Tomorrow' },
   { value: '3', label: 'In 3 days' },
@@ -96,6 +109,8 @@ function CrmFollowUpsV2() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [exportLead, setExportLead] = useState(null);
+  const [showRequirement, setShowRequirement] = useState(false);
+  const [snoozing, setSnoozing] = useState(null); // lead id being pushed back
   const seq = useRef(0);
 
   const load = useCallback(async ({ quiet = false } = {}) => {
@@ -139,9 +154,25 @@ function CrmFollowUpsV2() {
     }
   };
 
+  const snooze = async (lead, days) => {
+    if (!days) return;
+    setSnoozing(lead._id);
+    try {
+      const res = await crmApi.snoozeLeadFollowUp(slug, lead._id, Number(days));
+      showToast(`${lead.name || 'Contact'} · follow up ${res?.dueAt ? `on ${dayMonth(res.dueAt)}` : 'later'}`);
+      load({ quiet: true });
+    } catch (err) {
+      showToast(err?.message || 'Could not change the date', 'error');
+    } finally {
+      setSnoozing(null);
+    }
+  };
+
   const openOpp = (opp) => navigate(orgPath(`/crm/opportunities/${opp._id}`));
   const counts = data?.counts || {};
   const nothing = data && counts.open === 0 && counts.newReplies === 0 && !counts.followUpLater;
+  const laterRows = data?.later || [];
+  const laterWaiting = Math.max(0, (counts.followUpLater || 0) - laterRows.length);
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
@@ -155,6 +186,7 @@ function CrmFollowUpsV2() {
               <option value="team">My team</option>
             </Select>
             <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={() => load()}>Refresh</Button>
+            <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => setShowRequirement(true)}>New requirement</Button>
           </>
         )}
       />
@@ -168,9 +200,9 @@ function CrmFollowUpsV2() {
         <Counter label="This week" value={counts.week ?? '–'} />
       </div>
 
-      {counts.followUpLater > 0 && (
+      {laterWaiting > 0 && (
         <Callout tone="neutral" icon={<Inbox size={16} />}>
-          {counts.followUpLater} {counts.followUpLater === 1 ? 'contact' : 'contacts'} replied "contact me later" and {counts.followUpLater === 1 ? 'is' : 'are'} waiting in Outreach.{' '}
+          {laterWaiting} more {laterWaiting === 1 ? 'contact' : 'contacts'} asked to be contacted later. {laterWaiting === 1 ? 'It appears' : 'They appear'} here when {laterWaiting === 1 ? 'its' : 'their'} date comes.{' '}
           <a
             href={orgPath('/outreach/team-lists?list=Follow+Up+Later')}
             onClick={(e) => { e.preventDefault(); navigate(orgPath('/outreach/team-lists?list=Follow+Up+Later')); }}
@@ -199,7 +231,7 @@ function CrmFollowUpsV2() {
               flush
             >
               <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-                These contacts were marked Interested in Outreach but are not being tracked yet. Start tracking to give them a next step.
+Interested replies are tracked automatically. These few need you: check the reason, then start tracking.
               </div>
               {data.newReplies.map((lead) => (
                 <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
@@ -216,8 +248,58 @@ function CrmFollowUpsV2() {
                     {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
                   </div>
                   <Button size="sm" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
+                  {lead.crmAutoTrack?.status === 'held' && lead.crmAutoTrack.reason && (
+                    <div style={{ ...micro, flex: '1 1 100%', color: 'var(--warn-ink, #b45309)' }}>
+                      Not tracked automatically: {lead.crmAutoTrack.reason}
+                    </div>
+                  )}
                 </div>
               ))}
+            </Panel>
+          )}
+
+          {laterRows.length > 0 && (
+            <Panel
+              title="Asked to be contacted later"
+              icon={<Clock size={16} />}
+              actions={<Chip tone={counts.laterDue > 0 ? 'warn' : undefined}>{laterRows.length}</Chip>}
+              flush
+            >
+              <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                They said "not now". Their date has come or is this week: reach out again, then start tracking if there is a need, or push the date back.
+              </div>
+              {laterRows.map((lead) => {
+                const due = lead.followUp?.dueAt;
+                const state = dueState(due);
+                return (
+                  <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                      <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lead.companyName || lead.company || 'Company not set'}
+                      </div>
+                      <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lead.name}{lead.title || lead.headline ? ` · ${lead.title || lead.headline}` : ''}
+                        {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ ...micro, flex: '0 1 auto' }}>
+                      <span style={{ color: DUE_TONE[state] }}>{due ? dueLabel(due) : 'No date'}</span>
+                      {lead.lastReplyAt ? ` · replied ${dayMonth(lead.lastReplyAt)}` : ''}
+                    </div>
+                    <Select
+                      value=""
+                      onChange={(e) => snooze(lead, e.target.value)}
+                      disabled={snoozing === lead._id}
+                      aria-label={`Push back the follow-up for ${lead.name || 'this contact'}`}
+                      style={{ width: 130 }}
+                    >
+                      <option value="">{snoozing === lead._id ? 'Saving…' : 'Push back…'}</option>
+                      {SNOOZE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </Select>
+                    <Button size="sm" variant="secondary" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
+                  </div>
+                );
+              })}
             </Panel>
           )}
 
@@ -253,6 +335,8 @@ function CrmFollowUpsV2() {
                           <div style={{ ...micro, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ color: DUE_TONE[state] }}>{opp.nextStep ? dueLabel(opp.nextStepDueAt) : 'Set one below'}</span>
                             <Chip>{opp.stageName}</Chip>
+                            {opp.autoCreated && <Chip tone="brand" title="Created automatically when the contact replied interested">Auto</Chip>}
+                            {opp.existingClient && <Chip tone="info" title="This company is already a client">Existing client</Chip>}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -316,6 +400,7 @@ function CrmFollowUpsV2() {
         lead={exportLead}
         onSuccess={() => { setExportLead(null); load({ quiet: true }); }}
       />
+      <NewRequirementModal open={showRequirement} onClose={() => setShowRequirement(false)} />
     </div>
   );
 }
