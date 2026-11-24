@@ -361,15 +361,22 @@ export default function CrmPipelineV2() {
 
     movingRef.current = true;
     try {
-      const res = await crmApi.moveStage(slug, active.id, destStageId);
+      let res;
+      try {
+        res = await crmApi.moveStage(slug, active.id, destStageId);
+      } catch (err) {
+        // 2026-11-24: the client already has this job open — ask before a second one.
+        if (err?.code !== 'DUPLICATE_JOB' || !window.confirm(`${err.message}\n\nRaise another job anyway?`)) throw err;
+        res = await crmApi.moveStage(slug, active.id, destStageId, { confirmDuplicate: true });
+      }
       if (res.jobCreated) {
         await fetchKanban();
         addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
       } else if (res.isWonStage) {
         addToast('Opportunity marked as Won!', 'success');
       }
-    } catch {
-      addToast('Failed to move', 'error');
+    } catch (err) {
+      addToast(err?.code === 'DUPLICATE_JOB' ? 'Not moved — the client already has this job' : 'Failed to move', 'error');
       await fetchKanban();
     } finally {
       movingRef.current = false;

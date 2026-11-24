@@ -50,6 +50,12 @@ export function dueLabel(dueAt) {
 
 /** Small due badge. `text` puts the step itself next to it (list cell). */
 export function NextStepChip({ opp, showText = false }) {
+  // 2026-11-24: a won / lost / converted deal kept its last follow-up date and
+  // the list showed "Overdue 19 days" on deals that became jobs (102 at Huemot).
+  // A closed deal has no next step.
+  if (opp && (opp.isLost || opp.wonAt || opp.isConverted)) {
+    return <span style={{ color: 'var(--fg-4)', font: '450 12px/1.4 var(--font)' }}>—</span>;
+  }
   const state = dueState(opp?.nextStepDueAt);
   const s = STATES[state];
   const { Icon } = s;

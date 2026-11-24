@@ -97,8 +97,9 @@ const crmApi = {
   updateOpportunity(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },
-  moveStage(orgSlug, id, stageId) {
-    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stageId }) });
+  // confirmDuplicate: the rep has seen the "client already has this job" warning (2026-11-24).
+  moveStage(orgSlug, id, stageId, { confirmDuplicate = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stageId, ...(confirmDuplicate && { confirmDuplicate: true }) }) });
   },
   markWon(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/won`, { method: 'PATCH' });
@@ -109,8 +110,8 @@ const crmApi = {
   restore(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/restore`, { method: 'PATCH' });
   },
-  convertToJob(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/convert-to-job`, { method: 'PATCH' });
+  convertToJob(orgSlug, id, { confirmDuplicate = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/convert-to-job`, { method: 'PATCH', body: JSON.stringify(confirmDuplicate ? { confirmDuplicate: true } : {}) });
   },
   detachJob(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/detach-job`, { method: 'PATCH' });

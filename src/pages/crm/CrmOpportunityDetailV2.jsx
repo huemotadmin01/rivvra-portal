@@ -189,12 +189,12 @@ export default function CrmOpportunityDetailV2() {
     return !v?.toString().trim();
   });
 
-  const performStageChange = async (stageId) => {
+  const performStageChange = async (stageId, { confirmDuplicate = false } = {}) => {
     // Optimistic: flip the chip before the round-trip, roll back on reject.
     const previousStageId = opp?.stageId;
     setOpp((prev) => (prev ? { ...prev, stageId } : prev));
     try {
-      const res = await crmApi.moveStage(slug, opportunityId, stageId);
+      const res = await crmApi.moveStage(slug, opportunityId, stageId, { confirmDuplicate });
       fetchOpp();
       bumpActivities();
       if (res.jobCreated) { addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success'); accountToast(res.jobCreated.accountMoved); }
@@ -202,6 +202,10 @@ export default function CrmOpportunityDetailV2() {
       else addToast('Stage updated', 'success');
     } catch (err) {
       setOpp((prev) => (prev ? { ...prev, stageId: previousStageId } : prev));
+      if (err?.code === 'DUPLICATE_JOB') {
+        setDupJob({ error: err.message, retry: () => performStageChange(stageId, { confirmDuplicate: true }) });
+        return;
+      }
       const payload = err?.payload || err?.body;
       const missing = Array.isArray(payload?.missing) ? payload.missing : [];
       if (missing.length) {
@@ -267,7 +271,7 @@ export default function CrmOpportunityDetailV2() {
     }
   };
 
-  const handleConvert = async () => {
+  const handleConvert = async ({ confirmDuplicate = false } = {}) => {
     // Mirrors the server's gate exactly, so the recruiter sees the same
     // verdict before the round-trip.
     const missing = missingWonFields(opp);
@@ -285,7 +289,7 @@ export default function CrmOpportunityDetailV2() {
     }
     setConverting(true);
     try {
-      const res = await crmApi.convertToJob(slug, opportunityId);
+      const res = await crmApi.convertToJob(slug, opportunityId, { confirmDuplicate });
       if (res.success) {
         fetchOpp();
         bumpActivities();
@@ -293,6 +297,10 @@ export default function CrmOpportunityDetailV2() {
         accountToast(res.accountMoved);
       }
     } catch (err) {
+      if (err?.code === 'DUPLICATE_JOB') {
+        setDupJob({ error: err.message, retry: () => handleConvert({ confirmDuplicate: true }) });
+        return;
+      }
       addToast(err?.error || err?.message || 'Failed to convert', 'error');
     } finally {
       setConverting(false);
@@ -377,6 +385,8 @@ export default function CrmOpportunityDetailV2() {
   // 2026-11-24: only an admin or team lead may reassign (the server refuses a
   // rep with 403). Until we know, the field stays read-only.
   const [canReassign, setCanReassign] = useState(false);
+  // 2026-11-24: "this client already has this job" — { error, retry } while asking.
+  const [dupJob, setDupJob] = useState(null);
   useEffect(() => {
     if (!slug) return;
     crmApi.listSalespersons(slug).then((r) => setCanReassign(!!r?.viewerMode && r.viewerMode !== 'self')).catch(() => setCanReassign(false));
@@ -498,7 +508,7 @@ export default function CrmOpportunityDetailV2() {
           <Button variant="secondary" size="sm" iconLeft={<RotateCcw size={14} />} onClick={handleRestore}>Restore</Button>
         )}
         {showConvert && (
-          <Button variant="primary" size="sm" disabled={converting} iconLeft={<Briefcase size={14} />} onClick={handleConvert}>
+          <Button variant="primary" size="sm" disabled={converting} iconLeft={<Briefcase size={14} />} onClick={() => handleConvert()}>
             {converting ? 'Converting…' : 'Convert to Job'}
           </Button>
         )}
@@ -829,6 +839,16 @@ export default function CrmOpportunityDetailV2() {
         confirmLabel="Detach"
         onCancel={() => setShowDetachModal(false)}
         onConfirm={handleDetach}
+      />
+
+      {/* ── Same job already open at this client (2026-11-24) ── */}
+      <ConfirmDialog
+        open={!!dupJob}
+        title="This client already has this job"
+        message={dupJob?.error || ''}
+        confirmLabel="Raise another job"
+        onCancel={() => setDupJob(null)}
+        onConfirm={() => { const r = dupJob?.retry; setDupJob(null); r?.(); }}
       />
 
       {/* ── Move out of Won ── */}

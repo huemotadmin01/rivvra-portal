@@ -42,13 +42,15 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // 2026-11-24: the client already has this job open — the rep must say "raise another".
+  const [dupWarning, setDupWarning] = useState('');
 
   // Fresh form every time it opens.
   useEffect(() => {
     if (!open) return;
     setContactId(contact?._id || ''); setPicked(contact || null);
     setSearch(contact ? '' : (companyName || ''));
-    setRole(''); setType(''); setRevenue(''); setNotes(''); setError(''); setSaving(false);
+    setRole(''); setType(''); setRevenue(''); setNotes(''); setError(''); setDupWarning(''); setSaving(false);
   }, [open, contact, companyName]);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
     }));
   }, [options, picked]);
 
-  const submit = async (e) => {
+  const submit = async (e, { confirmDuplicate = false } = {}) => {
     e?.preventDefault?.();
     if (!contactId) { setError('Pick the client contact who gave you the requirement'); return; }
     if (!role.trim()) { setError('Enter the role to fill'); return; }
@@ -81,6 +83,7 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
     try {
       const res = await crmApi.createRequirement(slug, {
         contactId, expectedRole: role.trim(), requirementType: type, expectedRevenue: Number(revenue), notes: notes.trim() || undefined,
+        ...(confirmDuplicate && { confirmDuplicate: true }),
       });
       showToast(`Job created · ${role.trim()}`);
       const m = res?.accountMoved;
@@ -90,6 +93,7 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
       onClose?.();
       if (res?.jobId) navigate(orgPath(`/ats/jobs/${res.jobId}`));
     } catch (err) {
+      if (err?.code === 'DUPLICATE_JOB') { setDupWarning(err.message); return; }
       setError(err?.message || 'Could not create the requirement');
     } finally {
       setSaving(false);
@@ -124,7 +128,7 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
               id="req-contact"
               aria-label="Client contact"
               value={contactId}
-              onChange={(id) => { setContactId(id || ''); setPicked(options.find((c) => c._id === id) || null); if (error) setError(''); }}
+              onChange={(id) => { setContactId(id || ''); setPicked(options.find((c) => c._id === id) || null); if (error) setError(''); if (dupWarning) setDupWarning(''); }}
               onSearch={setSearch}
               options={comboOptions}
               emptyLabel="Select a contact…"
@@ -133,7 +137,7 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
           )}
         </Field>
         <Field label="Role to fill" required htmlFor="req-role">
-          <Input id="req-role" value={role} onChange={(e) => { setRole(e.target.value); if (error) setError(''); }} placeholder="e.g. Senior Java Developer" maxLength={200} />
+          <Input id="req-role" value={role} onChange={(e) => { setRole(e.target.value); if (error) setError(''); if (dupWarning) setDupWarning(''); }} placeholder="e.g. Senior Java Developer" maxLength={200} />
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <Field label="Requirement type" required htmlFor="req-type">
@@ -151,6 +155,15 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
           <Textarea id="req-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={2000} placeholder="Anything the recruiters should know (optional)" />
         </Field>
         {error && <div style={{ ...micro, color: 'var(--danger)' }}>{error}</div>}
+        {dupWarning && (
+          <div style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 'var(--r-2, 10px)', background: 'var(--warn-soft)', border: '1px solid var(--border)' }}>
+            <div style={{ ...micro, color: 'var(--warn-ink, #b45309)', fontWeight: 550 }}>{dupWarning}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button size="sm" variant="secondary" onClick={() => submit(null, { confirmDuplicate: true })} disabled={saving}>Raise another job</Button>
+              <Button size="sm" variant="ghost" onClick={() => setDupWarning('')} disabled={saving}>Cancel</Button>
+            </div>
+          </div>
+        )}
       </form>
     </Modal>
   );
