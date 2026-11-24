@@ -55,6 +55,9 @@ const contactsApi = {
   transferOptions(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/contacts/${id}/transfer-options`);
   },
+  unassignClient(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/transfer`, { method: 'POST', body: JSON.stringify({ unassign: true }) });
+  },
   transferClient(orgSlug, id, toEmployeeId) {
     return api.request(`/api/org/${orgSlug}/contacts/${id}/transfer`, { method: 'POST', body: JSON.stringify({ toEmployeeId }) });
   },

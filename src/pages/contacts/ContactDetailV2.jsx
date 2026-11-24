@@ -501,6 +501,13 @@ export default function ContactDetailV2() {
     if (!transferTo) return;
     setTransferring(true);
     try {
+      if (transferTo === '__none__') {
+        await contactsApi.unassignClient(orgSlug, contactId);
+        showToast(`${contact.name} now has no salesperson`);
+        setShowTransfer(false);
+        fetchContact();
+        return;
+      }
       const res = await contactsApi.transferClient(orgSlug, contactId, transferTo);
       const extra = [res.opportunities ? `${res.opportunities} open ${res.opportunities === 1 ? 'opportunity' : 'opportunities'}` : null, res.jobs ? `${res.jobs} ${res.jobs === 1 ? 'job' : 'jobs'}` : null].filter(Boolean).join(' and ');
       showToast(`${contact.name} is now ${res.salespersonName}'s client${extra ? ` — ${extra} moved too` : ''}`);
@@ -766,7 +773,10 @@ export default function ContactDetailV2() {
                     </span>
                   )
                   : contact.salespersonName}
-                editable={!followsCompany && (isAdmin || leadCanReassign)}
+                // 2026-11-24: a company's salesperson is read-only for everyone —
+                // it changes only through "Transfer client" below, so its open
+                // opportunities and jobs move with it.
+                editable={!followsCompany && !isCompany && (isAdmin || leadCanReassign)}
                 onSave={async (field, val) => {
                   // A company's people who were following it move too (API
                   // cascade, 2026-09-22) — say how many, so it isn't a surprise.
@@ -819,7 +829,7 @@ export default function ContactDetailV2() {
               {isCompany && transferOpts?.allowed && !contact.archived && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 0 8px' }}>
                   <Button variant="secondary" size="sm" iconLeft={<Users size={14} />} onClick={() => { setTransferTo(''); setShowTransfer(true); }}>
-                    Transfer client
+                    {contact.salespersonId ? 'Transfer client' : 'Assign salesperson'}
                   </Button>
                 </div>
               )}
@@ -1263,13 +1273,13 @@ export default function ContactDetailV2() {
         onClose={transferring ? undefined : () => setShowTransfer(false)}
         size="sm"
         icon={<Users size={16} />}
-        title={`Transfer ${contact.name}`}
-        sub="The new salesperson gets this client and the account-manager incentive on anything paid from now on."
+        title={contact.salespersonId ? `Transfer ${contact.name}` : `Assign ${contact.name}`}
+        sub={transferTo === '__none__' ? 'Leave this client with no salesperson.' : 'The new salesperson gets this client and the account-manager incentive on anything paid from now on.'}
         footer={(
           <>
             <Button variant="ghost" size="sm" disabled={transferring} onClick={() => setShowTransfer(false)}>Cancel</Button>
             <Button variant="primary" size="sm" disabled={transferring || !transferTo} onClick={handleTransfer}>
-              {transferring ? 'Transferring…' : 'Transfer'}
+              {transferring ? 'Saving…' : transferTo === '__none__' ? 'Remove salesperson' : contact.salespersonId ? 'Transfer' : 'Assign'}
             </Button>
           </>
         )}
@@ -1285,8 +1295,14 @@ export default function ContactDetailV2() {
             >
               <option value="">Select a salesperson…</option>
               {(transferOpts?.candidates || []).map((c) => <option key={c.employeeId} value={c.employeeId}>{c.name}</option>)}
+              {transferOpts?.canUnassign && <option value="__none__">— No salesperson —</option>}
             </select>
           </label>
+          {transferTo === '__none__' ? (
+            <div>
+              The client and its contact people will have no salesperson. It then goes to whoever wins a job here first. Open opportunities and jobs stay with whoever has them.
+            </div>
+          ) : (<>
           <div>
             Moves with the client: its contact people, {contact.salespersonName ? `${contact.salespersonName}'s` : 'the current'} open opportunities here, and the account owner on their open and on-hold jobs and applications in progress.
           </div>
@@ -1294,6 +1310,7 @@ export default function ContactDetailV2() {
             Stays as it is: won and lost opportunities, closed jobs, past hires, and incentive drafts already created.
             {transferOpts?.mode === 'self' ? ' Your team lead is notified.' : ''}
           </div>
+          </>)}
         </div>
       </Modal>
       <NewRequirementModal
