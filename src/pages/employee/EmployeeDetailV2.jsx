@@ -2521,6 +2521,7 @@ export default function EmployeeDetail() {
                 atsJobs: 'Jobs (as recruiter)', crmOpportunities: 'Open CRM opportunities',
                 invoices: 'Invoices (as salesperson)', todos: 'Tasks',
                 activities: 'Activities', directReports: 'Direct reports', contacts: 'Contacts (as salesperson)',
+                atsJobsAccountOwner: 'Open / on-hold jobs (as account owner)', atsApplicationsAccountOwner: 'Applications in progress (as account owner)',
               }).filter(([k]) => handover.owned?.[k] > 0).map(([k, label]) => (
                 <div key={k} className="flex justify-between text-sm py-1">
                   <span className="text-dark-300">{label}</span>
