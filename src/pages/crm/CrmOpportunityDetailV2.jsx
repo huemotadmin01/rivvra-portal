@@ -57,6 +57,12 @@ export default function CrmOpportunityDetailV2() {
   const { orgSlug: slug, isOrgAdmin } = useOrg();
   const { opportunityId } = useParams();
   const { addToast } = useToast();
+  // 2026-11-24 account rule: say who the client belongs to after a job is created.
+  const accountToast = (m) => {
+    if (!m) return;
+    if (m.stays) addToast(`${m.companyName || 'This client'} stays ${m.withName}'s account (they are active there)`, 'success');
+    else if (m.toName) addToast(`${m.companyName || 'This client'} is now ${m.toName}'s account`, 'success');
+  };
   const navigate = useNavigate();
   const handleScoped404 = useCompanyScoped404('opportunity');
 
@@ -191,7 +197,7 @@ export default function CrmOpportunityDetailV2() {
       const res = await crmApi.moveStage(slug, opportunityId, stageId);
       fetchOpp();
       bumpActivities();
-      if (res.jobCreated) addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
+      if (res.jobCreated) { addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success'); accountToast(res.jobCreated.accountMoved); }
       else if (res.isWonStage) addToast('Marked as Won!', 'success');
       else addToast('Stage updated', 'success');
     } catch (err) {
@@ -284,6 +290,7 @@ export default function CrmOpportunityDetailV2() {
         fetchOpp();
         bumpActivities();
         addToast(`Job Position "${res.jobName}" created!`, 'success');
+        accountToast(res.accountMoved);
       }
     } catch (err) {
       addToast(err?.error || err?.message || 'Failed to convert', 'error');
@@ -556,6 +563,34 @@ export default function CrmOpportunityDetailV2() {
               oldest at 156 days, against 1 marked lost in 90 days. Asks the
               question and offers both answers; it never closes anything by
               itself. */}
+          {/* 2026-11-24 account rule: the opportunity owner is not the client's
+              salesperson. Say now who the client (and the incentive) belongs
+              to, so nobody finds out at placement time. */}
+          {(() => {
+            const a = opp.accountOwnership;
+            if (!a || !['active', 'dormant', 'left', 'unowned'].includes(a.state)) return null;
+            const owner = opp.salespersonName || 'the opportunity owner';
+            const co = opp.companyName || 'This client';
+            const active = a.state === 'active';
+            const text = active
+              ? `${co} is ${a.salespersonName}'s account and they are active there (${a.reasons.join(', ')}). It stays their account, and the account-manager incentive stays with them.`
+              : a.state === 'dormant'
+                ? `${co} is ${a.salespersonName}'s account, but nothing of theirs has happened there in ${a.days} days. When this opportunity becomes a job, the account moves to ${owner}.`
+                : a.state === 'left'
+                  ? `${co}'s salesperson (${a.salespersonName || 'unknown'}) has left. When this opportunity becomes a job, the account moves to ${owner}.`
+                  : `${co} has no salesperson. When this opportunity becomes a job, it becomes ${owner}'s account.`;
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 'var(--r-3, 16px)',
+                background: active ? 'var(--warn-soft)' : 'var(--surface-2)',
+                boxShadow: `0 0 0 1px ${active ? 'color-mix(in srgb, var(--warn) 30%, transparent)' : 'var(--border)'}`,
+                font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-2)',
+              }}>
+                <AlertCircle size={16} style={{ color: active ? 'var(--warn-ink, #b45309)' : 'var(--fg-3)', flexShrink: 0, marginTop: 2 }} />
+                <span>{text}</span>
+              </div>
+            );
+          })()}
           {staleLevel(opp) === 'decide' && canEdit && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',

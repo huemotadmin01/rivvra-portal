@@ -83,6 +83,9 @@ export default function NewRequirementModal({ open, onClose, contact = null, com
         contactId, expectedRole: role.trim(), requirementType: type, expectedRevenue: Number(revenue), notes: notes.trim() || undefined,
       });
       showToast(`Job created · ${role.trim()}`);
+      const m = res?.accountMoved;
+      if (m?.stays) showToast(`${m.companyName || 'This client'} stays ${m.withName}'s account (they are active there)`);
+      else if (m?.toName) showToast(`${m.companyName || 'This client'} is now ${m.toName}'s account`);
       onCreated?.(res);
       onClose?.();
       if (res?.jobId) navigate(orgPath(`/ats/jobs/${res.jobId}`));
