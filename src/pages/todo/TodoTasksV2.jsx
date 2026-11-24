@@ -18,6 +18,7 @@
 // on screen). Default status is "Open" — done tasks were burying live work.
 // ============================================================================
 
+import DashboardFilterNote from '../../components/platform/v2/DashboardFilterNote';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
@@ -75,6 +76,8 @@ export default function TodoTasksV2() {
   const view = VIEWS.includes(searchParams.get('view')) ? searchParams.get('view') : 'mine';
   const person = view === 'mine' ? '' : (searchParams.get('person') || '');
   const rawStatus = searchParams.get('status');
+  // 2026-11-25: dashboard "done this week" → ?status=done&doneDays=7.
+  const doneDays = parseInt(searchParams.get('doneDays'), 10) > 0 ? parseInt(searchParams.get('doneDays'), 10) : 0;
   const statusKey = (() => {
     const s = rawStatus == null ? 'open' : (STATUS_ALIASES[rawStatus] ?? rawStatus);
     const ok = STATUS_TABS_ALL.some(t => t.key === s && (!t.mineOnly || view === 'mine'));
@@ -140,6 +143,7 @@ export default function TodoTasksV2() {
     if (statusKey === 'ai') params.source = 'ai';
     else if (statusKey === 'overdue') params.overdue = true;
     else if (statusKey !== 'all') params.status = statusKey;
+    if (doneDays) { params.doneDays = doneDays; params.status = 'done'; }
     if (priorityFilter) params.priority = priorityFilter;
     if (person) params.person = person;
     if (view === 'mine' && originFilter) params.origin = originFilter;
@@ -159,7 +163,7 @@ export default function TodoTasksV2() {
     } finally {
       if (seq === reqSeq.current) setLoading(false);
     }
-  }, [orgSlug, view, page, sortBy, statusKey, priorityFilter, person, originFilter, debouncedSearch]);
+  }, [orgSlug, view, page, sortBy, statusKey, priorityFilter, person, originFilter, debouncedSearch, doneDays]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
   useEffect(() => { loadOverview(); }, [loadOverview]);
@@ -412,7 +416,7 @@ export default function TodoTasksV2() {
               key={c.key}
               card={c}
               active={view === c.key}
-              onClick={() => patchParams({ view: c.key === 'mine' ? '' : c.key, person: '', status: '' })}
+              onClick={() => patchParams({ view: c.key === 'mine' ? '' : c.key, person: '', status: '', doneDays: '' })}
             />
           ))}
         </div>
@@ -431,8 +435,13 @@ export default function TodoTasksV2() {
       <Tabs
         tabs={statusTabs}
         value={statusKey}
-        onChange={(key) => patchParams({ status: key === 'open' ? '' : key })}
+        onChange={(key) => patchParams({ status: key === 'open' ? '' : key, doneDays: '' })}
         style={{ marginBottom: 12 }}
+      />
+
+      <DashboardFilterNote
+        text={doneDays ? `done in the last ${doneDays} days` : ''}
+        onClear={() => patchParams({ doneDays: '' })}
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>

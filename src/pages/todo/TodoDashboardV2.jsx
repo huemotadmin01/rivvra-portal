@@ -304,7 +304,7 @@ export default function TodoDashboardV2() {
               icon={<Building2 size={14} />}
               totals={overview.everyone}
               people={overview.everyone.people}
-              onOpen={(person, status) => navigate(orgPath(`/todo/tasks?view=everyone${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}`))}
+              onOpen={(person, status, extra = '') => navigate(orgPath(`/todo/tasks?view=everyone${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}${extra}`))}
             />
           ) : overview?.team?.size > 0 && (
             <PeoplePanel
@@ -312,7 +312,7 @@ export default function TodoDashboardV2() {
               icon={<Users size={14} />}
               totals={overview.team}
               people={overview.team.people}
-              onOpen={(person, status) => navigate(orgPath(`/todo/tasks?view=team${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}`))}
+              onOpen={(person, status, extra = '') => navigate(orgPath(`/todo/tasks?view=team${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}${extra}`))}
             />
           )}
           {overview?.assigned?.total > 0 && (
@@ -321,7 +321,7 @@ export default function TodoDashboardV2() {
               icon={<Send size={14} />}
               totals={overview.assigned}
               people={overview.assigned.people}
-              onOpen={(person, status) => navigate(orgPath(`/todo/tasks?view=assigned${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}`))}
+              onOpen={(person, status, extra = '') => navigate(orgPath(`/todo/tasks?view=assigned${person ? `&person=${person}` : ''}${status ? `&status=${status}` : ''}${extra}`))}
             />
           )}
           <ScanStatus
@@ -370,9 +370,9 @@ function PeoplePanel({ title, icon, totals, people, onOpen }) {
         <DashLink onClick={totals.overdue ? () => onOpen('', 'overdue') : null} title="Open the overdue tasks" style={{ font: `650 18px/1 ${FONT}`, color: totals.overdue ? 'var(--danger)' : 'var(--fg-4)' }}>
           {totals.overdue}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>overdue</span>
         </DashLink>
-        <span style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg-2)' }}>
+        <DashLink onClick={totals.doneWeek ? () => onOpen('', 'done', '&doneDays=7') : null} title="Open the tasks done in the last 7 days" style={{ font: `650 18px/1 ${FONT}`, color: 'var(--fg-2)' }}>
           {totals.doneWeek}<span style={{ font: `500 11px/1 ${FONT}`, color: 'var(--fg-4)', marginLeft: 4 }}>done this week</span>
-        </span>
+        </DashLink>
       </div>
       {rows.length === 0 ? (
         <p style={{ padding: '10px 14px', font: `450 12px/1.4 ${FONT}`, color: 'var(--fg-4)', margin: 0 }}>Nothing open right now.</p>
