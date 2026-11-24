@@ -49,6 +49,7 @@ const GROUPS = [
   { key: 'later', label: 'Later', tone: 'neutral' },
   { key: 'noDate', label: 'No next step set', tone: 'neutral' },
 ];
+const URGENT = ['overdue', 'today', 'week'];
 const DUE_TONE = { overdue: 'var(--danger)', today: 'var(--warn-ink, #b45309)', upcoming: 'var(--fg-3)', none: 'var(--fg-4)' };
 
 // A due date is a calendar day. Send YYYY-MM-DD of the viewer's local day; the
@@ -174,136 +175,7 @@ function CrmFollowUpsV2() {
   const laterRows = data?.later || [];
   const laterWaiting = Math.max(0, (counts.followUpLater || 0) - laterRows.length);
 
-  return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      <PageHeaderV2
-        title="Follow-ups"
-        sub={scope === 'mine' ? 'What you owe your prospects today' : 'What your team owes its prospects today'}
-        actions={(
-          <>
-            <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
-              <option value="mine">Mine</option>
-              <option value="team">My team</option>
-            </Select>
-            <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={() => load()}>Refresh</Button>
-            <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => setShowRequirement(true)}>New requirement</Button>
-          </>
-        )}
-      />
-
-      {error && <Callout tone="danger" icon={<AlertCircle size={16} />}>{error}</Callout>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-        <Counter label="New replies to pick up" value={counts.newReplies ?? '–'} />
-        <Counter label="Overdue" value={counts.overdue ?? '–'} tone="danger" />
-        <Counter label="Due today" value={counts.today ?? '–'} />
-        <Counter label="This week" value={counts.week ?? '–'} />
-      </div>
-
-      {laterWaiting > 0 && (
-        <Callout tone="neutral" icon={<Inbox size={16} />}>
-          {laterWaiting} more {laterWaiting === 1 ? 'contact' : 'contacts'} asked to be contacted later. {laterWaiting === 1 ? 'It appears' : 'They appear'} here when {laterWaiting === 1 ? 'its' : 'their'} date comes.{' '}
-          <a
-            href={orgPath('/outreach/team-lists?list=Follow+Up+Later')}
-            onClick={(e) => { e.preventDefault(); navigate(orgPath('/outreach/team-lists?list=Follow+Up+Later')); }}
-            style={{ color: 'var(--brand)' }}
-          >
-            Open the Follow Up Later list
-          </a>
-        </Callout>
-      )}
-
-      {loading && !data ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...micro, padding: 24 }}><Spinner size={16} /> Loading follow-ups…</div>
-      ) : nothing ? (
-        <Panel>
-          <EmptyState icon={<CheckCircle2 size={24} />} title="Nothing to follow up">
-            No open prospects and no new replies. When an Outreach contact is marked Interested, they appear here.
-          </EmptyState>
-        </Panel>
-      ) : (
-        <>
-          {(data?.newReplies || []).length > 0 && (
-            <Panel
-              title="New replies to pick up"
-              icon={<Sparkles size={16} />}
-              actions={<Chip tone="brand">{data.newReplies.length}</Chip>}
-              flush
-            >
-              <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-Interested replies are tracked automatically. These few need you: check the reason, then start tracking.
-              </div>
-              {data.newReplies.map((lead) => (
-                <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-                    <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {lead.companyName || lead.company || 'Company not set'}
-                    </div>
-                    <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {lead.name}{lead.title || lead.headline ? ` · ${lead.title || lead.headline}` : ''}
-                    </div>
-                  </div>
-                  <div style={{ ...micro, flex: '0 1 auto' }}>
-                    {lead.lastReplyAt ? `Replied ${new Date(lead.lastReplyAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : 'Marked interested'}
-                    {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
-                  </div>
-                  <Button size="sm" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
-                  {lead.crmAutoTrack?.status === 'held' && lead.crmAutoTrack.reason && (
-                    <div style={{ ...micro, flex: '1 1 100%', color: 'var(--warn-ink, #b45309)' }}>
-                      Not tracked automatically: {lead.crmAutoTrack.reason}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </Panel>
-          )}
-
-          {laterRows.length > 0 && (
-            <Panel
-              title="Asked to be contacted later"
-              icon={<Clock size={16} />}
-              actions={<Chip tone={counts.laterDue > 0 ? 'warn' : undefined}>{laterRows.length}</Chip>}
-              flush
-            >
-              <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-                They said "not now". Their date has come or is this week: reach out again, then start tracking if there is a need, or push the date back.
-              </div>
-              {laterRows.map((lead) => {
-                const due = lead.followUp?.dueAt;
-                const state = dueState(due);
-                return (
-                  <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                      <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {lead.companyName || lead.company || 'Company not set'}
-                      </div>
-                      <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {lead.name}{lead.title || lead.headline ? ` · ${lead.title || lead.headline}` : ''}
-                        {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
-                      </div>
-                    </div>
-                    <div style={{ ...micro, flex: '0 1 auto' }}>
-                      <span style={{ color: DUE_TONE[state] }}>{due ? dueLabel(due) : 'No date'}</span>
-                      {lead.lastReplyAt ? ` · replied ${dayMonth(lead.lastReplyAt)}` : ''}
-                    </div>
-                    <Select
-                      value=""
-                      onChange={(e) => snooze(lead, e.target.value)}
-                      disabled={snoozing === lead._id}
-                      aria-label={`Push back the follow-up for ${lead.name || 'this contact'}`}
-                      style={{ width: 130 }}
-                    >
-                      <option value="">{snoozing === lead._id ? 'Saving…' : 'Push back…'}</option>
-                      {SNOOZE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                    </Select>
-                    <Button size="sm" variant="secondary" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
-                  </div>
-                );
-              })}
-            </Panel>
-          )}
-
-          {GROUPS.map((g) => {
+  const renderGroup = (g) => {
             const rows = data?.groups?.[g.key] || [];
             if (!rows.length) return null;
             return (
@@ -390,7 +262,142 @@ Interested replies are tracked automatically. These few need you: check the reas
                 })}
               </Panel>
             );
-          })}
+          };
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <PageHeaderV2
+        title="Follow-ups"
+        sub={scope === 'mine' ? 'What you owe your prospects today' : 'What your team owes its prospects today'}
+        actions={(
+          <>
+            <Select value={scope} onChange={(e) => { setScope(e.target.value); setLogging(null); }} aria-label="Whose follow-ups" style={{ width: 130 }}>
+              <option value="mine">Mine</option>
+              <option value="team">My team</option>
+            </Select>
+            <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={() => load()}>Refresh</Button>
+            <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => setShowRequirement(true)}>New requirement</Button>
+          </>
+        )}
+      />
+
+      {error && <Callout tone="danger" icon={<AlertCircle size={16} />}>{error}</Callout>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        <Counter label="New replies to pick up" value={counts.newReplies ?? '–'} />
+        <Counter label="Overdue" value={counts.overdue ?? '–'} tone="danger" />
+        <Counter label="Due today" value={counts.today ?? '–'} />
+        <Counter label="This week" value={counts.week ?? '–'} />
+      </div>
+
+      {laterWaiting > 0 && (
+        <Callout tone="neutral" icon={<Inbox size={16} />}>
+          {laterWaiting} more {laterWaiting === 1 ? 'contact' : 'contacts'} asked to be contacted later. {laterWaiting === 1 ? 'It appears' : 'They appear'} here when {laterWaiting === 1 ? 'its' : 'their'} date comes.{' '}
+          <a
+            href={orgPath('/outreach/team-lists?list=Follow+Up+Later')}
+            onClick={(e) => { e.preventDefault(); navigate(orgPath('/outreach/team-lists?list=Follow+Up+Later')); }}
+            style={{ color: 'var(--brand)' }}
+          >
+            Open the Follow Up Later list
+          </a>
+        </Callout>
+      )}
+
+      {loading && !data ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...micro, padding: 24 }}><Spinner size={16} /> Loading follow-ups…</div>
+      ) : nothing ? (
+        <Panel>
+          <EmptyState icon={<CheckCircle2 size={24} />} title="Nothing to follow up">
+            No open prospects and no new replies. When an Outreach contact is marked Interested, they appear here.
+          </EmptyState>
+        </Panel>
+      ) : (
+        <>
+          {(data?.newReplies || []).length > 0 && (
+            <Panel
+              title="New replies to pick up"
+              icon={<Sparkles size={16} />}
+              actions={<Chip tone="brand">{data.newReplies.length}</Chip>}
+              flush
+            >
+              <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+Interested replies are tracked automatically. These few need you: check the reason, then start tracking.
+              </div>
+              {data.newReplies.map((lead) => (
+                <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                    <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lead.companyName || lead.company || 'Company not set'}
+                    </div>
+                    <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lead.name}{lead.title || lead.headline ? ` · ${lead.title || lead.headline}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ ...micro, flex: '0 1 auto' }}>
+                    {lead.lastReplyAt ? `Replied ${new Date(lead.lastReplyAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : 'Marked interested'}
+                    {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
+                  </div>
+                  <Button size="sm" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
+                  {lead.crmAutoTrack?.status === 'held' && lead.crmAutoTrack.reason && (
+                    <div style={{ ...micro, flex: '1 1 100%', color: 'var(--warn-ink, #b45309)' }}>
+                      Not tracked automatically: {lead.crmAutoTrack.reason}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </Panel>
+          )}
+
+          {GROUPS.filter((g) => URGENT.includes(g.key)).map(renderGroup)}
+
+          {/* 2026-11-24: below the dated work — in the team view this group can be
+              50+ rows and used to push Overdue / Today off the screen. */}
+          {laterRows.length > 0 && (
+            <Panel
+              title="Asked to be contacted later"
+              icon={<Clock size={16} />}
+              actions={<Chip tone={counts.laterDue > 0 ? 'warn' : undefined}>{laterRows.length}</Chip>}
+              flush
+            >
+              <div style={{ ...micro, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                They said "not now". Their date has come or is this week: reach out again, then start tracking if there is a need, or push the date back.
+              </div>
+              {laterRows.map((lead) => {
+                const due = lead.followUp?.dueAt;
+                const state = dueState(due);
+                return (
+                  <div key={lead._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                      <div style={{ font: "550 14px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lead.companyName || lead.company || 'Company not set'}
+                      </div>
+                      <div style={{ ...micro, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lead.name}{lead.title || lead.headline ? ` · ${lead.title || lead.headline}` : ''}
+                        {scope === 'team' && lead.ownerName ? ` · ${lead.ownerName}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ ...micro, flex: '0 1 auto' }}>
+                      <span style={{ color: DUE_TONE[state] }}>{due ? dueLabel(due) : 'No date'}</span>
+                      {lead.lastReplyAt ? ` · replied ${dayMonth(lead.lastReplyAt)}` : ''}
+                    </div>
+                    <Select
+                      value=""
+                      onChange={(e) => snooze(lead, e.target.value)}
+                      disabled={snoozing === lead._id}
+                      aria-label={`Push back the follow-up for ${lead.name || 'this contact'}`}
+                      style={{ width: 130 }}
+                    >
+                      <option value="">{snoozing === lead._id ? 'Saving…' : 'Push back…'}</option>
+                      {SNOOZE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </Select>
+                    <Button size="sm" variant="secondary" iconRight={<ArrowRight size={13} />} onClick={() => setExportLead(lead)}>Start tracking</Button>
+                  </div>
+                );
+              })}
+            </Panel>
+          )}
+
+          {GROUPS.filter((g) => !URGENT.includes(g.key)).map(renderGroup)}
         </>
       )}
 
