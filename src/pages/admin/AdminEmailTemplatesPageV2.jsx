@@ -55,7 +55,7 @@ import { fmtDate } from './adminFormat';
 import { api } from '../../utils/api';
 import {
   Mail, Edit3, Save, X, Eye, Loader2, AlertCircle, Code,
-  Shield, Clock, Briefcase, Calendar,
+  Shield, Clock, Briefcase, Calendar, RotateCcw,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import {
@@ -149,6 +149,9 @@ function AdminEmailTemplatesPageV2() {
   // unsaved edits can be detected before they are thrown away.
   const [editorReady, setEditorReady] = useState(false);
   const [original, setOriginal] = useState({ subject: '', htmlBody: '' });
+  // Edited-here flag + whether the code holds a default to go back to (2026-11-25).
+  const [editMeta, setEditMeta] = useState({ customized: false, hasDefault: false });
+  const [resetting, setResetting] = useState(false);
   const loadSeq = useRef(0);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
@@ -236,6 +239,7 @@ function AdminEmailTemplatesPageV2() {
       setEditHtmlBody(t.htmlBody || '');
       setEditPlaceholders(t.placeholders || []);
       setOriginal({ subject: t.subject || '', htmlBody: t.htmlBody || '' });
+      setEditMeta({ customized: t.customized === true, hasDefault: t.hasDefault === true });
       setEditorReady(true);
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -267,19 +271,46 @@ function AdminEmailTemplatesPageV2() {
       setSaving(true);
       setSaveError('');
       setSaveSuccess('');
-      await api.updateEmailTemplate(editingKey, {
+      const saved = await api.updateEmailTemplate(editingKey, {
         subject: editSubject,
         htmlBody: editHtmlBody,
         placeholders: editPlaceholders,
       });
       setOriginal({ subject: editSubject, htmlBody: editHtmlBody });
-      setSaveSuccess('Saved. Emails sent from now on use this version.');
+      setEditMeta(m => ({ ...m, customized: saved?.template?.customized === true }));
+      setSaveSuccess('Saved. Emails sent from now on use this version, and it stays through future updates.');
       await loadTemplates(true);
       setTimeout(() => setSaveSuccess(''), 5000);
     } catch (err) {
       setSaveError(err.message || 'Failed to save template');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Throw away the edit and go back to the text that ships with the platform.
+  const handleReset = async () => {
+    if (!editorReady || resetting || saving) return;
+    if (!window.confirm('Go back to the built-in text for this email? Your edited version will be replaced.')) return;
+    try {
+      setResetting(true);
+      setSaveError('');
+      setSaveSuccess('');
+      const res = await api.resetEmailTemplate(editingKey);
+      const t = res.template || {};
+      setEditSubject(t.subject || '');
+      setEditHtmlBody(t.htmlBody || '');
+      setEditPlaceholders(t.placeholders || []);
+      setOriginal({ subject: t.subject || '', htmlBody: t.htmlBody || '' });
+      setEditMeta({ customized: false, hasDefault: true });
+      setShowPreview(false);
+      setSaveSuccess('Back to the built-in text.');
+      await loadTemplates(true);
+      setTimeout(() => setSaveSuccess(''), 5000);
+    } catch (err) {
+      setSaveError(err.message || 'Could not reset this template');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -389,6 +420,7 @@ function AdminEmailTemplatesPageV2() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ font: "550 13px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>{t.name}</span>
                             <Chip style={monoChip}>{t.key}</Chip>
+                            {t.customized && <Chip tone="warn" title="Edited on this page. It keeps this text through platform updates until you reset it.">Edited</Chip>}
                           </div>
                           <p style={{ ...microStyle, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             Subject: {t.subject}
@@ -478,7 +510,23 @@ function AdminEmailTemplatesPageV2() {
                               Preview
                             </Button>
                             <Button variant="ghost" onClick={cancelEditing}>Cancel</Button>
+                            {editMeta.customized && editMeta.hasDefault && (
+                              <Button
+                                variant="ghost"
+                                onClick={handleReset}
+                                disabled={resetting || saving || !editorReady}
+                                iconLeft={resetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+                                style={{ marginLeft: 'auto' }}
+                              >
+                                Reset to default
+                              </Button>
+                            )}
                           </div>
+                          <p style={microStyle}>
+                            {editMeta.customized
+                              ? 'This email has been edited here. It keeps your text through platform updates; Reset to default brings the built-in text back.'
+                              : 'This email uses the built-in text. If you save a change, your version is kept through platform updates.'}
+                          </p>
 
                           {/* Preview panel. The body is deliberately NOT themed:
                               email clients render on white, so previewing a
