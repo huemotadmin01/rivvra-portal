@@ -91,6 +91,8 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
       .sort(byCount),
   ];
   const bouncedNow = totals.bouncedContacts ?? totals.bounced;
+  // 2026-11-25: stopped before sending — the address check says no such mailbox.
+  const invalidNow = totals.invalidContacts || 0;
   // Workspace plan cap (null limit = no cap). The engine stops at whichever
   // of the rep's limit and the plan cap runs out first.
   const orgCap = today.org && today.org.limit != null ? today.org : null;
@@ -129,7 +131,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
         <Panel>
           <div style={{ padding: 2 }}>
             <h2 style={t.h2}><MessageSquare size={16} style={{ color: 'var(--brand-ink)' }} /> Needs your attention</h2>
-            {replies.length === 0 && bouncedNow === 0 && (
+            {replies.length === 0 && bouncedNow === 0 && invalidNow === 0 && (
               <p style={t.muted}>Nothing waiting — no new replies in the last 14 days and no bounced contacts.</p>
             )}
             {replies.map((r, i) => {
@@ -168,6 +170,22 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
                 </div>
                 <Button as={Link} to={orgPath('/outreach/leads?status=bounced')} size="sm" variant="secondary" style={{ flexShrink: 0 }}>
                   Review bounced
+                </Button>
+              </div>
+            )}
+            {invalidNow > 0 && (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderTop: (replies.length || bouncedNow > 0) ? '1px solid var(--line)' : 0 }}>
+                <span style={{ width: 32, height: 32, borderRadius: 99, display: 'grid', placeItems: 'center', background: 'var(--warn-soft)', color: 'var(--warn-ink)', flexShrink: 0 }}>
+                  <AlertTriangle size={15} />
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ ...t.body }}>
+                    <b style={{ color: 'var(--fg)' }}>{fmt(invalidNow)} contact{invalidNow === 1 ? '' : 's'} with an address that doesn't exist</b>
+                  </div>
+                  <div style={{ ...t.body, marginTop: 2 }}>Not emailed — the company's mail server rejected the address. Correct it and add them to a sequence again.</div>
+                </div>
+                <Button as={Link} to={orgPath('/outreach/leads?status=invalid_email')} size="sm" variant="secondary" style={{ flexShrink: 0 }}>
+                  Review
                 </Button>
               </div>
             )}

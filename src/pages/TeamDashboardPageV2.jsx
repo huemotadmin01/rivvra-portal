@@ -76,6 +76,8 @@ const STATUS_CONFIG = {
   replied_not_interested: { label: 'Not Interested', color: '#ef4444' },
   no_response: { label: 'No Response', color: '#f59e0b' },
   bounced: { label: 'Bounced', color: '#f97316' },
+  // 2026-11-25: never emailed — address checked and doesn't exist.
+  invalid_email: { label: 'Invalid Email', color: '#ec4899' },
   lost_no_response: { label: 'Lost / No Response', color: '#94a3b8' },
   // 2026-11-09: counted in Total Leads but had no slice/card — the donut
   // slices didn't add up to the total.
@@ -118,6 +120,7 @@ const STATUS_LIGHT = {
   replied_not_interested: '#dc2626',
   no_response:            '#854d0e',
   bounced:                '#ea580c',
+  invalid_email:          '#be185d',
   lost_no_response:       '#64748b',
   converted:              '#7e22ce',
   do_not_work_with:       '#9f1239',

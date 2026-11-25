@@ -158,6 +158,11 @@ function EditContactModal({ lead, isOpen, onClose, onLeadUpdate }) {
               {form.outreachStatus === 'do_not_work_with' && (
                 <option value="do_not_work_with" disabled>Do Not Work With (company blocked)</option>
               )}
+              {/* Set by the address check (2026-11-25) — shown, never picked.
+                  Correcting the email resets it to Not Contacted (server). */}
+              {lead?.outreachStatus === 'invalid_email' && (
+                <option value="invalid_email">Invalid Email (address doesn't exist)</option>
+              )}
               {OUTREACH_STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}

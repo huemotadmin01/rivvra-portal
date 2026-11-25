@@ -76,6 +76,19 @@ function CompanyHoldChip({ hold }) {
 }
 
 // 2026-11-20: chain stopped because the owner/an admin blocked the company.
+// 2026-11-25: stopped by the address check before sending — not a bounce.
+function InvalidEmailChip() {
+  return (
+    <span
+      title="Before sending, Rivvra asked the company's mail server and it said this address doesn't exist. Nothing was sent from this sequence. Correct the contact's email to enrol again."
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded border text-amber-400 bg-amber-500/10 border-amber-500/20 whitespace-nowrap"
+    >
+      <AlertTriangle className="w-3 h-3" />
+      Not sent — address doesn't exist
+    </span>
+  );
+}
+
 function CompanyBlockedChip() {
   return (
     <span
@@ -1812,6 +1825,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, comp
                         <span className="text-xs text-dark-300">{enrollStatus.label}</span>
                         {enrollment.companyHold && <CompanyHoldChip hold={enrollment.companyHold} />}
                         {enrollment.stopReason === 'company_blocked' && <CompanyBlockedChip />}
+                        {enrollment.stopReason === 'invalid_email' && <InvalidEmailChip />}
                       </div>
                     </td>
                     {showOwner && (
@@ -2297,6 +2311,9 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                 )}
                 {enrollment.stopReason === 'company_blocked' && (
                   <div className="mt-1"><CompanyBlockedChip /></div>
+                )}
+                {enrollment.stopReason === 'invalid_email' && (
+                  <div className="mt-1"><InvalidEmailChip /></div>
                 )}
                 {lastEngaged && (
                   <div className="text-xs text-dark-600 mt-1">Last engaged: {lastEngaged}</div>

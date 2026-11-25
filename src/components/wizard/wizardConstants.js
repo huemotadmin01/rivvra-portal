@@ -58,6 +58,7 @@ export const OUTREACH_STATUS_OPTIONS = [
   { value: 'replied_not_interested', label: 'Not Interested' },
   { value: 'no_response', label: 'No Response' },
   { value: 'bounced', label: 'Bounced' },
+  { value: 'invalid_email', label: 'Invalid Email' },
 ];
 
 export const DEFAULT_ENTERING_CRITERIA = {

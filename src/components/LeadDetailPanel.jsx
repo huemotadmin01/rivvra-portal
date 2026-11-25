@@ -37,6 +37,9 @@ const STATUS_LABELS = {
   // Same wording as leadskit's STATUS_TONE.
   lost_no_response: 'Lost - No Response',
   bounced: 'Bounced',
+  // 2026-11-25: set by the sequence engine when the address check before
+  // email 1 says the mailbox doesn't exist. Nothing was sent.
+  invalid_email: 'Invalid Email',
   converted: 'Converted',
   // 2026-11-20: set by the company block (owner/admins), never picked here.
   do_not_work_with: 'Do Not Work With',
@@ -516,6 +519,8 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
           <p className="text-[11px] text-dark-500 mt-2 leading-relaxed">
             {outreachStatus === 'bounced'
               ? 'Their email bounced. Correct the email (Edit contact) and they can be added to a sequence again.'
+              : outreachStatus === 'invalid_email'
+                ? `Not sent — the company's mail server says this address doesn't exist${lead.emailVerifiedAt ? ` (checked ${new Date(lead.emailVerifiedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})` : ''}. The sequence stopped before sending. Correct the email (Edit contact) and they can be added to a sequence again.`
               : outreachStatus === 'in_sequence'
                 ? 'In a sequence now. Setting Interested, Not Interested, No Response, Converted or Do Not Contact stops it.'
                 : 'Use this when they reply on LinkedIn or by phone. Interested, Not Interested, No Response and Converted also stop any active sequence. Not Interested and Do Not Contact also stop every rep from emailing them again.'}
@@ -655,6 +660,8 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, onAssign, 
                 copy={lead.email}
                 extra={outreachStatus === 'bounced'
                   ? <span className="px-1.5 py-0.5 text-[10px] font-medium rounded border text-red-400 bg-red-500/10 border-red-500/20 flex-shrink-0">Bounced</span>
+                  : outreachStatus === 'invalid_email'
+                    ? <span title="The address check found no such mailbox, so the sequence stopped before sending." className="px-1.5 py-0.5 text-[10px] font-medium rounded border text-amber-400 bg-amber-500/10 border-amber-500/20 flex-shrink-0">Doesn't exist</span>
                   : lead.emailVerified === true
                     ? <span className="px-1.5 py-0.5 text-[10px] font-medium rounded border text-emerald-400 bg-emerald-500/10 border-emerald-500/20 flex-shrink-0">Verified</span>
                     : null}

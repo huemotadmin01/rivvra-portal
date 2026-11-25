@@ -48,6 +48,8 @@ export const OUTREACH_STATUS_OPTIONS = [
   { value: 'replied_not_interested', label: 'Not Interested' },
   { value: 'no_response', label: 'No Response' },
   { value: 'bounced', label: 'Bounced' },
+  // 2026-11-25: never emailed — the address was checked and doesn't exist.
+  { value: 'invalid_email', label: 'Invalid Email' },
   { value: 'converted', label: 'Converted' },
   { value: 'do_not_contact', label: 'Do Not Contact' },
   { value: 'do_not_work_with', label: 'Do Not Work With' },
@@ -64,6 +66,7 @@ const STATUS_CHIP = {
   no_response: { tone: 'neutral', label: 'No Response' },
   lost_no_response: { tone: 'neutral', label: 'Lost - No Response' },
   bounced: { tone: 'danger', label: 'Bounced' },
+  invalid_email: { tone: 'warn', label: 'Invalid Email' },
   converted: { tone: 'brand', label: 'Converted' },
   do_not_contact: { tone: 'danger', label: 'Do Not Contact' },
   do_not_work_with: { tone: 'danger', label: 'Do Not Work With' },
