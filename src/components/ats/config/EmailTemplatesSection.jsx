@@ -19,9 +19,12 @@ const TEMPLATE_LABELS = {
   ats_job_rejected: 'Job Rejected',
   ats_job_on_hold: 'Job On Hold',
   ats_job_closed: 'Job Closed',
+  ats_interview_invite: 'Interview Invite, with calendar file (to candidate)',
+  ats_interview_invite_interviewer: 'Interview Invite, with calendar file (to interviewer)',
+  ats_interviewer_assigned: 'Interview Assigned (to interviewer)',
 };
 
-const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_job_approval_request', 'ats_job_approved', 'ats_job_rejected', 'ats_job_on_hold', 'ats_job_closed'];
+const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_interview_invite', 'ats_interview_invite_interviewer', 'ats_interviewer_assigned', 'ats_job_approval_request', 'ats_job_approved', 'ats_job_rejected', 'ats_job_on_hold', 'ats_job_closed'];
 
 export default function EmailTemplatesSection({ orgSlug, showToast }) {
   const { currentCompany } = useCompany();
@@ -136,7 +139,12 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
     }
   };
 
-  const placeholderChips = ['candidateName', 'jobTitle', 'orgName', 'stageName', 'portalUrl', 'refuseReason', 'approverName', 'recruiterName', 'department'];
+  // The placeholders the template being edited actually uses (sent by the
+  // server since 2026-11-25); the fixed list is the fallback for older rows.
+  const ownPlaceholders = editingKey ? getTemplate(editingKey)?.placeholders : null;
+  const placeholderChips = Array.isArray(ownPlaceholders) && ownPlaceholders.length
+    ? ownPlaceholders
+    : ['candidateName', 'jobTitle', 'orgName', 'stageName', 'portalUrl', 'refuseReason', 'approverName', 'recruiterName', 'department'];
 
   if (loading) {
     return (
@@ -273,6 +281,9 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
                 const tpl = getTemplate(key);
                 const recipientMap = {
                   ats_refused: 'Candidate',
+                  ats_interview_invite: 'Candidate',
+                  ats_interview_invite_interviewer: 'Interviewer',
+                  ats_interviewer_assigned: 'Interviewer',
                   ats_job_approval_request: 'Approver',
                   ats_job_approved: 'Recruiter',
                   ats_job_rejected: 'Recruiter',
