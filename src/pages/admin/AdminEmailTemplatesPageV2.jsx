@@ -76,7 +76,7 @@ const GROUP_CONFIG = [
     icon: Shield,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/10',
-    match: (key) => ['otp', 'invite', 'welcome', 'workspace_recovery', 'workspace_link', 'password_reset_admin', 'password_set_invite', 'usage_warning', 'support_request'].includes(key) || key.startsWith('trial_') || key.startsWith('ops_'),
+    match: (key) => ['otp', 'invite', 'welcome', 'workspace_recovery', 'workspace_link', 'password_reset_admin', 'password_set_invite', 'usage_warning', 'support_request', 'password_reset_otp'].includes(key) || key.startsWith('trial_') || key.startsWith('ops_'),
   },
   {
     id: 'timesheet',
