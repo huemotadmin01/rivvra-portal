@@ -119,6 +119,9 @@ const invoicingApi = {
     if (!res.ok) throw new Error('Failed to download PDF');
     return res;
   },
+  getInvoiceEmailDraft(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/email-draft`);
+  },
   emailInvoice(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/email`, { method: 'POST', body: JSON.stringify(data) });
   },

@@ -76,7 +76,7 @@ const GROUP_CONFIG = [
     icon: Shield,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/10',
-    match: (key) => ['otp', 'invite', 'welcome', 'workspace_recovery'].includes(key),
+    match: (key) => ['otp', 'invite', 'welcome', 'workspace_recovery', 'workspace_link', 'password_reset_admin', 'password_set_invite', 'usage_warning', 'support_request'].includes(key) || key.startsWith('trial_') || key.startsWith('ops_'),
   },
   {
     id: 'timesheet',
@@ -85,7 +85,7 @@ const GROUP_CONFIG = [
     icon: Clock,
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
-    match: (key) => key.startsWith('ts_'),
+    match: (key) => /^(ts_|att_|leave_|attendance_|sp_)/.test(key),
   },
   {
     id: 'celebrations',
@@ -104,6 +104,15 @@ const GROUP_CONFIG = [
     color: 'text-purple-400',
     bgColor: 'bg-purple-500/10',
     match: (key) => key.startsWith('ats_'),
+  },
+  {
+    id: 'money',
+    label: 'Invoices & Expenses',
+    description: 'Invoice emails, payment reminders & expense claims',
+    icon: Mail,
+    color: 'text-dark-400',
+    bgColor: 'bg-dark-700',
+    match: (key) => /^(inv_|expense_)/.test(key),
   },
   {
     id: 'other',
@@ -127,6 +136,7 @@ const GROUP_TONE = {
   timesheet: 'brand',
   celebrations: 'warn',
   ats: 'purple',
+  money: 'neutral',
   other: 'neutral',
 };
 
@@ -639,6 +649,40 @@ function getSampleValue(placeholder) {
     recruiterName: 'HR Team',
     department: 'IT',
     changedByName: 'Jane Smith',
+    // Added 2026-11-25 with the leave, interview-invite, support, alert and
+    // invoice templates.
+    leaveType: 'Casual Leave',
+    fromDate: '12 Jan 2026',
+    toDate: '13 Jan 2026',
+    totalDays: '2',
+    reason: 'Family function out of town.',
+    link: 'https://www.rivvra.com/#/org/acme-corp/timesheet/leave/approvals',
+    rejectedByName: 'John Doe',
+    roundLabel: 'L1 Interview',
+    statusWord: 'scheduled',
+    subjectVerb: 'to conduct',
+    when: 'Thursday 15 January 2026 at 11:00 am IST',
+    durationMinutes: '60',
+    mode: 'Video',
+    meetingLink: 'https://meet.google.com/abc-defg-hij',
+    noMeetingLinkYet: '',
+    joiningDetailsLater: '',
+    interviewerName: 'Jane Smith',
+    candidateEmail: 'rahul@example.com',
+    ref: 'SUP-MF3K2A',
+    subject: 'Cannot download a payslip',
+    message: 'The download button on the October payslip does nothing.',
+    detailsHtml: '',
+    replyToName: 'Priya Sharma',
+    detail: 'You have no credits remaining.',
+    host: 'api.openai.com/v1/chat/completions',
+    at: '2026-01-15T05:30:00.000Z',
+    invoiceNumber: 'INV/25-26/0042',
+    customerName: 'Globex Ltd',
+    amountDue: '1,18,000',
+    currency: 'INR',
+    total: '1,18,000',
+    dueDate: '31 Jan 2026',
   };
   // `in`, not `||`: an intentionally empty sample (isPasswordAuth: '') must
   // stay empty, or both branches of that template's condition render.

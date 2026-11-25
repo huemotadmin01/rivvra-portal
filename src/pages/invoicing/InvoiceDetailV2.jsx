@@ -5068,10 +5068,34 @@ function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, o
   // the user still reviews and sends it.
   const [form, setForm] = useState({
     to: initial?.to || customerEmail,
-    subject: initial?.subject || `Invoice ${invoiceNumber}`,
-    message: initial?.message || `Please find attached invoice ${invoiceNumber}. Let us know if you have any questions.`,
+    subject: initial?.subject || '',
+    message: initial?.message || '',
   });
   const [sending, setSending] = useState(false);
+
+  // The starting subject and message come from the platform email template
+  // (Admin → Email Templates → "Invoice Email") since 2026-11-25 — the text
+  // used to be written here. Only fields the sender has not touched are
+  // filled; if the text cannot be loaded the fields stay empty and the server
+  // uses the same template when the email is sent.
+  const touched = useRef({ subject: !!initial?.subject, message: !!initial?.message });
+  const [draftLoading, setDraftLoading] = useState(!(initial?.subject && initial?.message));
+  useEffect(() => {
+    if (initial?.subject && initial?.message) return undefined;
+    let alive = true;
+    invoicingApi.getInvoiceEmailDraft(orgSlug, invoiceId)
+      .then((res) => {
+        if (!alive) return;
+        setForm((f) => ({
+          ...f,
+          subject: touched.current.subject ? f.subject : (res.subject || ''),
+          message: touched.current.message ? f.message : (res.message || ''),
+        }));
+      })
+      .catch(() => { /* empty fields → server default on send */ })
+      .finally(() => { if (alive) setDraftLoading(false); });
+    return () => { alive = false; };
+  }, [orgSlug, invoiceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -5108,7 +5132,7 @@ function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, o
           <Button
             type="submit"
             form="eim-form"
-            disabled={sending}
+            disabled={sending || draftLoading}
             iconLeft={sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
           >
             Send Email
@@ -5133,7 +5157,8 @@ function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, o
             id="eim-subject"
             type="text"
             value={form.subject}
-            onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+            placeholder={draftLoading ? 'Loading…' : `Invoice ${invoiceNumber}`}
+            onChange={(e) => { touched.current.subject = true; setForm((f) => ({ ...f, subject: e.target.value })); }}
           />
         </Field>
 
@@ -5141,7 +5166,8 @@ function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, o
           <Textarea
             id="eim-message"
             value={form.message}
-            onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+            placeholder={draftLoading ? 'Loading…' : ''}
+            onChange={(e) => { touched.current.message = true; setForm((f) => ({ ...f, message: e.target.value })); }}
             rows={4}
           />
         </Field>
