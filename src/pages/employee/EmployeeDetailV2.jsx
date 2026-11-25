@@ -1414,6 +1414,12 @@ export default function EmployeeDetail() {
               it drives the ESS mode, the payroll path, holidays/leave and the pay formula. */}
           <InlineField label="Billable" field="billable" value={emp.billable} type="toggle" editable={false}
             displayValue={`${emp.billable === true ? 'Yes' : 'No'} · set by project assignments`} />
+          {/* 2026-11-25: for people who never file a timesheet or attendance (directors, holding accounts). */}
+          {isAdmin && (
+            <InlineField label="Timesheet / attendance reminders" field="reminderExempt" value={emp.reminderExempt !== true} type="toggle"
+              editable onSave={(_field, on) => handleFieldSave('reminderExempt', !on)}
+              displayValue={emp.reminderExempt === true ? 'Off for this person' : 'On'} />
+          )}
           <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
             editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
           {/* 2026-11-13 (owner): notice is company policy (Letter Defaults) for every type — read-only here.
