@@ -965,7 +965,7 @@ function DashboardPageV2() {
 
               {/* Hiring signals stay, below the day's work — mounted only once the
                   day's numbers are in, so nothing above it can push it around. */}
-              {currentOrg?.slug && homeSettled && <div style={{ marginTop: 16 }}><HiringSignalsCard orgSlug={currentOrg.slug} /></div>}
+              {currentOrg?.slug && homeSettled && currentOrg?.hiringSignalsEnabled === true && <div style={{ marginTop: 16 }}><HiringSignalsCard orgSlug={currentOrg.slug} /></div>}
             </>
           )}
         </div>

@@ -102,10 +102,8 @@ export const APP_REGISTRY = {
         },
         // 2026-11-09: every rep gets their own performance view; leads and
         // admins also keep the team one.
-        { type: 'item', path: '/outreach/my-dashboard', label: 'My Dashboard', icon: BarChart3 },
-        ...(isAdminOrLead ? [
-          { type: 'item', path: '/outreach/team-dashboard', label: 'Team Dashboard', icon: BarChart3 },
-        ] : []),
+        // 2026-11-27: one Dashboard (Me / Team switch inside for leads and admins).
+        { type: 'item', path: '/outreach/performance', label: 'Dashboard', icon: BarChart3 },
         ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,

@@ -116,7 +116,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
         <TodayCard label="Enrolled today" to={orgPath('/outreach/leads?status=in_sequence')} toLabel="View" value={today.enrolled}>
           <div style={t.hint}>{fmt(totals.active)} contacts in a sequence right now</div>
         </TodayCard>
-        <TodayCard label="Replies today" to={orgPath('/outreach/my-dashboard')} toLabel="Details" value={today.replies}>
+        <TodayCard label="Replies today" to={orgPath('/outreach/performance?view=me')} toLabel="Details" value={today.replies}>
           <div style={t.hint}>
             {totals.lastReplyAt ? `Last reply: ${when(totals.lastReplyAt)}` : 'No replies yet'} · {fmt(totals.repliesWeek)} this week
           </div>
@@ -237,7 +237,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
             )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
               <Button as={Link} to={orgPath('/outreach/leads')} size="sm" iconLeft={<UserPlus size={14} />}>Add contacts to a sequence</Button>
-              <Button as={Link} to={orgPath('/outreach/my-dashboard')} size="sm" variant="secondary" iconLeft={<BarChart3 size={14} />}>My Dashboard</Button>
+              <Button as={Link} to={orgPath('/outreach/performance?view=me')} size="sm" variant="secondary" iconLeft={<BarChart3 size={14} />}>My Dashboard</Button>
             </div>
           </div>
         </Panel>

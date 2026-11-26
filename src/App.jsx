@@ -76,6 +76,10 @@ const DashboardPageV2 = lazy(() => import('./pages/DashboardPageV2'));
 const EngagePageV2 = lazy(() => import('./pages/EngagePageV2'));
 const SequenceWizardPageV2 = lazy(() => import('./pages/SequenceWizardPageV2'));
 const TeamDashboardPageV2 = lazy(() => import('./pages/TeamDashboardPageV2'));
+function OutreachPerformanceRedirect({ view }) {
+  const { slug } = useParams();
+  return <Navigate replace to={`/org/${slug}/outreach/performance?view=${view}`} />;
+}
 
 // Lazy-loaded: Standalone pages
 const MyProfilePageV2 = lazy(() => import('./pages/MyProfilePageV2'));
@@ -539,8 +543,10 @@ function App() {
                 <Route path="/org/:slug/outreach/lists" element={<MyListsPageV2 />} />
                 <Route path="/org/:slug/outreach/lists/:leadId" element={<MyListsPageV2 />} />
                 <Route path="/org/:slug/outreach/settings" element={<OrgOutreachSettingsRedirect />} />
-                <Route path="/org/:slug/outreach/team-dashboard" element={<ErrorBoundary><TeamDashboardPageV2 key="team" /></ErrorBoundary>} />
-                <Route path="/org/:slug/outreach/my-dashboard" element={<ErrorBoundary><TeamDashboardPageV2 key="me" mode="me" /></ErrorBoundary>} />
+                <Route path="/org/:slug/outreach/performance" element={<ErrorBoundary><TeamDashboardPageV2 /></ErrorBoundary>} />
+                {/* 2026-11-27: My + Team Dashboard merged into /performance. */}
+                <Route path="/org/:slug/outreach/team-dashboard" element={<OutreachPerformanceRedirect view="team" />} />
+                <Route path="/org/:slug/outreach/my-dashboard" element={<OutreachPerformanceRedirect view="me" />} />
                 <Route path="/org/:slug/outreach/team-contacts" element={<TeamContactsPageV2 />} />
                 <Route path="/org/:slug/outreach/team-contacts/:leadId" element={<TeamContactsPageV2 />} />
                 <Route path="/org/:slug/outreach/team-lists" element={<TeamListsPageV2 />} />

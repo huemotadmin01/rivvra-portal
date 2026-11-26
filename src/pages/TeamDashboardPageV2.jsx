@@ -2,7 +2,7 @@
 // TeamDashboardPageV2.jsx — Outreach team performance, on ds
 // ============================================================================
 //
-// Route: /org/:slug/outreach/team-dashboard. Admin and team_lead only.
+// Route: /org/:slug/outreach/performance?view=me|team (old my-/team-dashboard redirect).
 //
 // Spliced in byte-identically: the role gate, the date-range params, the
 // 30-second auto-refresh (paused while the tab is hidden), every email-rate
@@ -46,7 +46,7 @@
 
 import { DashLink } from '../components/platform/v2/DashboardFilterNote';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlatform } from '../context/PlatformContext';
 import {
@@ -66,6 +66,7 @@ import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TableSkeleton } from '.
 import {
   Panel, Chip, Button, Input, Field, Callout, EmptyState,
   Meter, Stat, InlineSelect,
+  Tabs,
 } from '../components/ds';
 
 // Only real statuses that exist in the system
@@ -246,14 +247,17 @@ function PieTooltip({ active, payload }) {
 // 2026-11-09: mode="me" is the "My Performance" view for sales executives —
 // the same dashboard over the caller's own leads/enrollments only (API
 // /api/dashboard/me scopes it on the server). Team-only panels are hidden.
-export default function TeamDashboardPageV2({ mode = 'team' }) {
-  const isMe = mode === 'me';
-  const contactsPath = isMe ? '/outreach/leads' : '/outreach/team-contacts';
+// 2026-11-27: My Dashboard and Team Dashboard are ONE page,
+// /outreach/performance?view=me|team. Team leads and admins get a Me / Team
+// switch (default Team); everyone else only ever sees their own numbers. The
+// old /my-dashboard and /team-dashboard links redirect here.
+export default function TeamDashboardPageV2({ mode: modeProp }) {
   const isLight = useIsLightTheme();
   const { user } = useAuth();
   const { orgPath } = usePlatform();
   const { getAppRole, currentOrg } = useOrg();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -277,7 +281,16 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
   // 2026-11-09: the org role (now the server-enforced Outreach role) wins;
   // user.role is only a fallback when no org context is loaded.
   const effectiveRole = orgRole || user?.role || 'member';
-  const canView = isMe || effectiveRole === 'admin' || effectiveRole === 'team_lead';
+  const canSeeTeam = effectiveRole === 'admin' || effectiveRole === 'team_lead';
+  const requestedView = modeProp || searchParams.get('view') || (canSeeTeam ? 'team' : 'me');
+  // A member asking for ?view=team gets their own view, not an error page.
+  const isMe = requestedView === 'me' || !canSeeTeam;
+  const contactsPath = isMe ? '/outreach/leads' : '/outreach/team-contacts';
+  const setView = (v) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('view', v);
+    setSearchParams(next, { replace: true });
+  };
 
   // Compute date params based on filter
   // Keyed on the two date STRINGS, so switching to "Custom Range" (still
@@ -288,6 +301,14 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
       ? [toDateStr(getYesterday()), toDateStr(getYesterday())]
       : [appliedFrom, appliedTo];
   const dateParams = useMemo(() => ({ dateFrom: rangeFrom, dateTo: rangeTo }), [rangeFrom, rangeTo]);
+
+  const prevIsMe = useRef(isMe);
+  useEffect(() => {
+    if (prevIsMe.current === isMe) return;
+    prevIsMe.current = isMe;
+    setData(null);
+    setLoading(true);
+  }, [isMe]);
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -316,20 +337,17 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
   }, [dateParams, isMe]);
 
   useEffect(() => {
-    if (canView) {
-      setLoading(true);
-      fetchData();
-    }
-  }, [canView, fetchData]);
+    setLoading(true);
+    fetchData();
+  }, [fetchData]);
 
   // Auto-refresh every 30 seconds (paused when tab is hidden)
   useEffect(() => {
-    if (!canView) return;
     const interval = setInterval(() => {
       if (!document.hidden) fetchData();
     }, 30000);
     return () => clearInterval(interval);
-  }, [canView, fetchData]);
+  }, [fetchData]);
 
   // Close date dropdown on outside click (ref-based to avoid closing on date picker interaction)
   useEffect(() => {
@@ -391,19 +409,6 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
 
   const { axisInk, axisInkMuted, cursorFill, barLead, barRest, rankGold, rankSilver, rankRest } = chartInk(isLight);
 
-  if (!canView) {
-    return (
-      <div style={{ padding: 32, minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <EmptyState
-          tone="warn"
-          icon={<ShieldAlert size={28} />}
-          title="Access Restricted"
-        >
-          This dashboard is available to Admin and Team Lead roles only.
-        </EmptyState>
-      </div>
-    );
-  }
 
   // Full skeleton only before the first data arrives; later loads keep the
   // page and spin the Refresh button.
@@ -488,7 +493,7 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
             }}>
               <BarChart3 size={16} />
             </span>
-            {isMe ? 'My Performance' : 'Team Performance'}
+            Dashboard
           </h1>
           <p style={{ ...metaStyle, marginTop: 4, marginLeft: 42, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
             {/* 2026-11-09: an admin sees the whole org even when they also
@@ -609,6 +614,14 @@ export default function TeamDashboardPageV2({ mode = 'team' }) {
           <Loader2 size={12} className="animate-spin" style={{ color: 'var(--brand-ink)' }} />
           <span style={metaStyle}>Updating...</span>
         </div>
+      )}
+
+      {canSeeTeam && (
+        <Tabs
+          tabs={[{ key: 'me', label: 'Me' }, { key: 'team', label: effectiveRole === 'admin' ? 'All teams' : 'My team' }]}
+          value={isMe ? 'me' : 'team'}
+          onChange={setView}
+        />
       )}
 
       {/* ─── KPI Cards Row ─── */}
