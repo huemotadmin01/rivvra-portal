@@ -27,7 +27,7 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import NewRequirementModal from '../../components/crm/NewRequirementModal';
 import {
   Activity, Archive, ArchiveRestore, Briefcase, Building2, Eye, FileText, Globe, Mail, MapPin,
-  MoreHorizontal, Paperclip, Phone, Receipt, Tag, Trash2, Upload, User, Users,
+  MoreHorizontal, Paperclip, Phone, Plus, Receipt, Tag, Trash2, Upload, User, Users,
 } from 'lucide-react';
 
 const GST_TREATMENT_OPTIONS = [
@@ -135,6 +135,12 @@ export default function ContactDetailV2() {
   // 2026-11-24: hand this client to a colleague (salesperson, lead or admin).
   const [transferOpts, setTransferOpts] = useState(null);
   const [showTransfer, setShowTransfer] = useState(false);
+  // "New person" form on a company (2026-11-26): the Add person search only
+  // offered a create entry BELOW the results — off-screen once a few names
+  // matched — and it took a name only.
+  const [newPerson, setNewPerson] = useState(null); // null = closed, else { name, jobTitle, email, phone }
+  const [newPersonError, setNewPersonError] = useState('');
+  const [savingPerson, setSavingPerson] = useState(false);
   const [transferTo, setTransferTo] = useState('');
   const [transferring, setTransferring] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -439,6 +445,31 @@ export default function ContactDetailV2() {
     reassignOptionsRef.current = options;
     return options;
   }, [orgSlug, contactId, contact?.type]);
+
+  const saveNewPerson = async () => {
+    const name = (newPerson?.name || '').trim();
+    if (!name) { setNewPersonError('Enter a name.'); return; }
+    setSavingPerson(true);
+    setNewPersonError('');
+    try {
+      const res = await contactsApi.create(orgSlug, {
+        type: 'individual',
+        name,
+        jobTitle: newPerson.jobTitle.trim() || undefined,
+        email: newPerson.email.trim() || undefined,
+        phone: newPerson.phone.trim() || undefined,
+        parentCompanyId: contactId,
+      });
+      if (!res?.contact?._id) throw new Error(res?.error || 'Could not create that contact');
+      setNewPerson(null);
+      showToast(`${name} added`);
+      fetchContact();
+    } catch (err) {
+      setNewPersonError(err?.message || 'Could not create that contact');
+    } finally {
+      setSavingPerson(false);
+    }
+  };
 
   const createIndividual = useCallback(async (name) => {
     const res = await contactsApi.create(orgSlug, { type: 'individual', name, parentCompanyId: contactId });
@@ -911,15 +942,21 @@ export default function ContactDetailV2() {
               title={`Contacts at ${contact.name}`}
               flush
               actions={isAdmin ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="secondary" size="sm" iconLeft={<Plus size={14} />}
+                  onClick={() => { setNewPersonError(''); setNewPerson({ name: '', jobTitle: '', email: '', phone: '' }); }}>
+                  New person
+                </Button>
                 <EntityLookup
                   variant="button"
-                  triggerLabel="Add person"
+                  triggerLabel="Link existing"
                   editable
                   placeholder="Search people…"
                   search={searchIndividuals}
                   onCreate={createIndividual}
                   onSelect={(_f, id) => handleAddPerson(id)}
                 />
+                </div>
               ) : null}
             >
               <DataTable
@@ -956,7 +993,7 @@ export default function ContactDetailV2() {
                 resizable={false}
                 empty={(
                   <EmptyState icon={<Users size={22} />} title="No people linked yet" compact>
-                    {isAdmin ? 'Use “Add person” to link an individual contact.' : 'Nobody is linked to this company.'}
+                    {isAdmin ? 'Use “New person” to add someone, or “Link existing” to pick a contact already in Rivvra.' : 'Nobody is linked to this company.'}
                   </EmptyState>
                 )}
               />
@@ -1312,6 +1349,52 @@ export default function ContactDetailV2() {
           </div>
           </>)}
         </div>
+      </Modal>
+      <Modal
+        open={!!newPerson}
+        onClose={savingPerson ? undefined : () => setNewPerson(null)}
+        size="sm"
+        icon={<User size={16} />}
+        title={`New person at ${contact.name}`}
+        sub="Creates a contact and links it to this company."
+        footer={(
+          <>
+            <Button variant="ghost" size="sm" disabled={savingPerson} onClick={() => setNewPerson(null)}>Cancel</Button>
+            <Button variant="primary" size="sm" disabled={savingPerson || !(newPerson?.name || '').trim()} onClick={saveNewPerson}>
+              {savingPerson ? 'Saving…' : 'Add person'}
+            </Button>
+          </>
+        )}
+      >
+        {newPerson && (
+          <form
+            onSubmit={(e) => { e.preventDefault(); saveNewPerson(); }}
+            style={{ display: 'grid', gap: 12, font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}
+          >
+            {[
+              ['name', 'Name', 'text', true],
+              ['jobTitle', 'Job title', 'text', false],
+              ['email', 'Email', 'email', false],
+              ['phone', 'Phone', 'tel', false],
+            ].map(([key, label, type, required]) => (
+              <label key={key} style={{ display: 'grid', gap: 6 }}>
+                <span style={{ font: "550 12.5px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg)' }}>
+                  {label}{required ? ' *' : ''}
+                </span>
+                <input
+                  type={type}
+                  value={newPerson[key]}
+                  autoFocus={key === 'name'}
+                  disabled={savingPerson}
+                  onChange={(e) => { const v = e.target.value; setNewPerson((p) => ({ ...p, [key]: v })); }}
+                  style={{ font: 'inherit', padding: '9px 10px', borderRadius: 'var(--r-2, 10px)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--fg)' }}
+                />
+              </label>
+            ))}
+            {newPersonError && <div style={{ color: 'var(--danger, #ef4444)' }}>{newPersonError}</div>}
+            <button type="submit" hidden />
+          </form>
+        )}
       </Modal>
       <NewRequirementModal
         open={showRequirement}
