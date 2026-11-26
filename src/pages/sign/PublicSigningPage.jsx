@@ -8,6 +8,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import signApi from '../../utils/signApi';
 import { todayStr } from '../../utils/dateUtils';
 import { API_BASE_URL } from '../../utils/config';
+import { useSignaturePadFit } from './signaturePadResize';
 import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
   CheckSquare, AlignLeft, Loader2, Check, CheckCircle2,
@@ -319,6 +320,9 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
   const fileInputRef = useRef(null);
   const isMobile = useIsMobileViewport();
   const [activeTab, setActiveTab] = useState('type'); // 'type' | 'draw' | 'upload' — Type first since most users prefer typing.
+  // Re-fits the drawing box only when its own size changes, never mid-stroke
+  // (signaturePadResize.js — iPhone Chrome wiped it on every scroll).
+  const sigPadFit = useSignaturePadFit(sigCanvasRef, isOpen && activeTab === 'draw');
   const [typedText, setTypedText] = useState(signerName || '');
   const [selectedFont, setSelectedFont] = useState(CURSIVE_FONTS[0]);
   const [isEmpty, setIsEmpty] = useState(true);
@@ -527,10 +531,12 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                   // drew 1.56x away from the cursor). With only CSS sizing,
                   // the library measures the rendered element itself and sizes
                   // the bitmap 1:1 (including devicePixelRatio), so strokes
-                  // track the pointer exactly. clearOnResize (library default)
-                  // wipes the pad if the element size changes mid-draw, which
-                  // is the safe behaviour — a resized bitmap would distort the
-                  // existing strokes anyway.
+                  // track the pointer exactly. clearOnResize is OFF (2026-11-26):
+                  // the library wiped the pad on every window resize, and
+                  // iPhone Chrome resizes the window while you scroll, so the
+                  // signature vanished mid-stroke and the next move crashed.
+                  // useSignaturePadFit re-fits only on a real size change,
+                  // after the finger lifts, and keeps the strokes.
                   canvasProps={{
                     className: 'w-full cursor-crosshair touch-none block',
                     style: { width: '100%', height: isMobile ? '250px' : (type === 'initials' ? '150px' : '200px') },
@@ -538,7 +544,9 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                   penColor="#0f3a8a"
                   minWidth={isMobile ? 3 : 2}
                   maxWidth={isMobile ? 6 : 4}
-                  onBegin={() => setIsEmpty(false)}
+                  clearOnResize={false}
+                  onBegin={() => { sigPadFit.onBegin(); setIsEmpty(false); }}
+                  onEnd={sigPadFit.onEnd}
                 />
                 {isEmpty && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
