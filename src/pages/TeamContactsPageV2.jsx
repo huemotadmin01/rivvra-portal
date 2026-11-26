@@ -50,8 +50,8 @@ export default function TeamContactsPageV2() {
   const [outreachStatusFilter, setOutreachStatusFilter] = useState(searchParams.get('status') || 'all');
   // 2026-11-25: Outreach dashboard "Scraped" opens this page with a created
   // range. Kept in state (the URL is cleared below, legacy contract).
-  const [created, setCreated] = useState(() => (searchParams.get('createdFrom') || searchParams.get('createdTo')
-    ? { createdFrom: searchParams.get('createdFrom') || undefined, createdTo: searchParams.get('createdTo') || undefined, tz: searchParams.get('tz') || undefined, report: searchParams.get('report') || '' }
+  const [created, setCreated] = useState(() => (searchParams.get('createdFrom') || searchParams.get('createdTo') || searchParams.get('statusFrom') || searchParams.get('statusTo')
+    ? { createdFrom: searchParams.get('createdFrom') || undefined, createdTo: searchParams.get('createdTo') || undefined, statusFrom: searchParams.get('statusFrom') || undefined, statusTo: searchParams.get('statusTo') || undefined, tz: searchParams.get('tz') || undefined, report: searchParams.get('report') || '' }
     : null));
   const [ownerFilter, setOwnerFilter] = useState(searchParams.get('owner') || 'all');
 
@@ -123,7 +123,7 @@ export default function TeamContactsPageV2() {
         profileType: profileTypeFilter,
         outreachStatus: outreachStatusFilter,
         _requestKey: 'leads:team',
-        ...(created ? { createdFrom: created.createdFrom, createdTo: created.createdTo, tz: created.tz } : {}), // newer page/filter aborts the older request
+        ...(created ? { createdFrom: created.createdFrom, createdTo: created.createdTo, statusFrom: created.statusFrom, statusTo: created.statusTo, tz: created.tz } : {}), // newer page/filter aborts the older request
       });
       if (response.success) {
         setLeads(response.leads || []);
@@ -294,7 +294,10 @@ export default function TeamContactsPageV2() {
       />
 
       <DashboardFilterNote
-        text={created ? [created.report, `added ${created.createdFrom === created.createdTo ? `on ${shortDate(created.createdFrom)}` : `${shortDate(created.createdFrom)} – ${shortDate(created.createdTo)}`}`].filter(Boolean).join(' · ') : ''}
+        text={created ? [created.report,
+          (created.createdFrom || created.createdTo) && `added ${created.createdFrom === created.createdTo ? `on ${shortDate(created.createdFrom)}` : `${shortDate(created.createdFrom)} – ${shortDate(created.createdTo)}`}`,
+          (created.statusFrom || created.statusTo) && `status set ${created.statusFrom === created.statusTo ? `on ${shortDate(created.statusFrom)}` : `${shortDate(created.statusFrom)} – ${shortDate(created.statusTo)}`}`,
+        ].filter(Boolean).join(' · ') : ''}
         onClear={() => { setCreated(null); setCurrentPage(1); }}
       />
       {loadError && !loading && leads.length === 0 ? (

@@ -945,17 +945,29 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
         <h3 style={{ ...h3Style, marginBottom: 16 }}>
           <UserCheck size={16} style={{ color: 'var(--acc-blue, var(--brand-ink))' }} />
           Status Breakdown
-          <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>all time</span>
+          <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()} · status set in this period</span>
+          <Chip style={{ marginLeft: 'auto' }}>{Number(data?.totalStatusInRange || 0).toLocaleString()}</Chip>
         </h3>
+        {/* 2026-11-27: follows the date filter — contacts whose status was set
+            in the range, counted by the status they have now. Dates are
+            recorded from statusDatesSince; before that a contact counts on the
+            day it was added. */}
+        {data?.statusDatesSince && rangeFrom < data.statusDatesSince && (
+          <p style={{ ...metaStyle, margin: '-8px 0 12px' }}>
+            Status-change dates are recorded from {new Date(`${data.statusDatesSince}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}. Before that, a contact is counted on the day it was added.
+          </p>
+        )}
         <div style={cardGrid(150)}>
           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-            const count = data?.leadsByStatus?.[key] || 0;
-            const pct = data?.totalLeads > 0 ? ((count / data.totalLeads) * 100).toFixed(1) : '0.0';
+            const count = data?.leadsByStatusInRange?.[key] || 0;
+            const pct = data?.totalStatusInRange > 0 ? ((count / data.totalStatusInRange) * 100).toFixed(1) : '0.0';
             const color = statusColor(key, isLight);
             return (
               <button
                 key={key}
-                onClick={() => navigate(orgPath(`${contactsPath}?status=${key}`))}
+                onClick={() => navigate(orgPath(contactsPath) + '?' + new URLSearchParams({
+                  status: key, statusFrom: rangeFrom, statusTo: rangeTo, tz: viewerTz, report: `Status breakdown · ${cfg.label}`,
+                }).toString())}
                 style={{
                   padding: 14, textAlign: 'left', cursor: 'pointer',
                   borderRadius: 'var(--r-3, 14px)', border: 0,

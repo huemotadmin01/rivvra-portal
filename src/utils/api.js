@@ -444,7 +444,7 @@ class ApiClient {
   // raced and whichever response landed LAST painted the table — page 2
   // could show page 1's rows (Kanishk, 2026-09-09). Same pattern as the
   // ATS / CRM / Contacts lists.
-  async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName, createdFrom, createdTo, tz, _requestKey } = {}) {
+  async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName, createdFrom, createdTo, statusFrom, statusTo, tz, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (profileType && profileType !== 'all') params.set('profileType', profileType);
@@ -453,7 +453,10 @@ class ApiClient {
     // 2026-11-25: dashboard "Scraped" deep link — created between two days.
     if (createdFrom) params.set('createdFrom', createdFrom);
     if (createdTo) params.set('createdTo', createdTo);
-    if (tz && (createdFrom || createdTo)) params.set('tz', tz);
+    // 2026-11-27: Status Breakdown deep link — status set between two days.
+    if (statusFrom) params.set('statusFrom', statusFrom);
+    if (statusTo) params.set('statusTo', statusTo);
+    if (tz && (createdFrom || createdTo || statusFrom || statusTo)) params.set('tz', tz);
     return this.request(`/api/portal/leads?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 
@@ -1251,7 +1254,7 @@ class ApiClient {
   }
 
   // Team Leads (admin/team_lead only)
-  async getTeamLeads({ page = 1, limit = 50, search, owner, profileType, outreachStatus, listName, createdFrom, createdTo, tz, _requestKey } = {}) {
+  async getTeamLeads({ page = 1, limit = 50, search, owner, profileType, outreachStatus, listName, createdFrom, createdTo, statusFrom, statusTo, tz, _requestKey } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);
     if (owner && owner !== 'all') params.set('owner', owner);
@@ -1261,7 +1264,10 @@ class ApiClient {
     // 2026-11-25: dashboard "Scraped" deep link — created between two days.
     if (createdFrom) params.set('createdFrom', createdFrom);
     if (createdTo) params.set('createdTo', createdTo);
-    if (tz && (createdFrom || createdTo)) params.set('tz', tz);
+    // 2026-11-27: Status Breakdown deep link — status set between two days.
+    if (statusFrom) params.set('statusFrom', statusFrom);
+    if (statusTo) params.set('statusTo', statusTo);
+    if (tz && (createdFrom || createdTo || statusFrom || statusTo)) params.set('tz', tz);
     return this.request(`/api/portal/leads/team?${params.toString()}`, _requestKey ? { _requestKey } : {});
   }
 
