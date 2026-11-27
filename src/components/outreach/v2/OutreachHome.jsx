@@ -91,6 +91,9 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
       .sort(byCount),
   ];
   const bouncedNow = totals.bouncedContacts ?? totals.bounced;
+  let viewerTz = 'Asia/Kolkata';
+  try { viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone || viewerTz; } catch { /* default */ }
+  const todayYmd = new Intl.DateTimeFormat('en-CA', { timeZone: viewerTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   // 2026-11-25: stopped before sending — the address check says no such mailbox.
   const invalidNow = totals.invalidContacts || 0;
   // Workspace plan cap (null limit = no cap). The engine stops at whichever
@@ -105,7 +108,9 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
         <TodayCard label="Emails sent today" to={orgPath('/outreach/engage')} toLabel="Engage" value={today.sent} suffix={`/ ${fmt(today.limit)} daily limit`}>
           <div style={{ marginTop: 8 }}><Meter value={today.limit ? Math.min(100, (today.sent / today.limit) * 100) : 0} /></div>
           <div style={t.hint}>
-            {orgCapHit ? 'Workspace daily cap reached' : `${fmt(remaining)} left`} · limit resets 5:30 am IST{home.gmailConnected ? '' : ' · Gmail not connected'}
+            {/* 2026-11-27: counted from 5:30 am IST, the sending-limit day —
+                the Dashboard's "today" starts at midnight. */}
+            Counted from 5:30 am IST · {orgCapHit ? 'workspace daily cap reached' : `${fmt(remaining)} left`}{home.gmailConnected ? '' : ' · Gmail not connected'}
           </div>
           {orgCap && (
             <div style={{ ...t.hint, color: orgCapHit ? 'var(--danger)' : t.hint.color }}>
@@ -113,16 +118,21 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
             </div>
           )}
         </TodayCard>
-        <TodayCard label="Enrolled today" to={orgPath('/outreach/leads?status=in_sequence')} toLabel="View" value={today.enrolled}>
+        {/* 2026-11-27: counts ENROLMENTS today; the contacts list cannot show
+            "enrolled today" (it opened everyone in a sequence) — Engage can. */}
+        <TodayCard label="Enrolled today" to={orgPath('/outreach/engage')} toLabel="Engage" value={today.enrolled}>
           <div style={t.hint}>{fmt(totals.active)} contacts in a sequence right now</div>
         </TodayCard>
-        <TodayCard label="Replies today" to={orgPath('/outreach/performance?view=me')} toLabel="Details" value={today.replies}>
+        <TodayCard label="Replies today" to={orgPath(`/outreach/team-lists?list=${encodeURIComponent('Hot Leads')}`)} toLabel="Hot Leads" value={today.replies}>
           <div style={t.hint}>
             {totals.lastReplyAt ? `Last reply: ${when(totals.lastReplyAt)}` : 'No replies yet'} · {fmt(totals.repliesWeek)} this week
           </div>
         </TodayCard>
-        <TodayCard label="Bounced today" to={orgPath('/outreach/leads?status=bounced')} toLabel="Fix" value={today.bounced} danger={today.bounced > 0}>
-          <div style={t.hint}>{fmt(totals.bounced)} of {fmt(totals.contacted)} people contacted have bounced ({pct(totals.bounced, totals.contacted)})</div>
+        {/* 2026-11-27: opens the contacts that bounced TODAY (status-change
+            dates), not every bounced contact; the hint counts contacts, the
+            same number as "to review" below. */}
+        <TodayCard label="Bounced today" to={orgPath(`/outreach/leads?${new URLSearchParams({ status: 'bounced', statusFrom: todayYmd, statusTo: todayYmd, tz: viewerTz, report: 'Bounced today' })}`)} toLabel="Fix" value={today.bounced} danger={today.bounced > 0}>
+          <div style={t.hint}>{fmt(bouncedNow)} contact{bouncedNow === 1 ? '' : 's'} bounced in total</div>
         </TodayCard>
       </div>
 
@@ -232,7 +242,7 @@ export default function OutreachHome({ home, lists = [], teamListCounts = null, 
             )}
             {totals.contacted >= 50 && bounceRate > 0.1 && (
               <Callout tone="danger" style={{ marginTop: 12 }}>
-                High bounce rate — {pct(totals.bounced, totals.contacted)} of the people you contacted bounced (address not found, or their company blocked the email). Verify emails before enrolling, and keep the first email short and plain, to protect your Gmail sending reputation.
+                High bounce rate — {pct(totals.bounced, totals.contacted)} of your sequence enrolments bounced (address not found, or their company blocked the email). Verify emails before enrolling, and keep the first email short and plain, to protect your Gmail sending reputation.
               </Callout>
             )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>

@@ -435,7 +435,12 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
   }));
 
   // Use enrollment-based count (source of truth) instead of leads.outreachStatus
-  const totalInSequence = data?.inSequenceCount || 0;
+  // 2026-11-27: PEOPLE whose status is In Sequence (the same number as the
+  // Lead Distribution chart and the list it opens) — was running enrolments.
+  const totalInSequence = data?.leadsByStatus?.in_sequence ?? data?.inSequenceCount ?? 0;
+  // Emails Scheduled only means something for today: once an email goes out
+  // its next date moves on, so past days always read 0 (2026-11-27).
+  const isTodayOnly = rangeFrom === toDateStr(getToday()) && rangeTo === toDateStr(getToday());
   // Date-filtered In Sequence (for KPI card, bar chart, detail table)
   const totalInSequenceInRange = data?.inSequenceCountInRange || 0;
   const inSequenceDataInRange = (data?.inSequenceByUserInRange || []).map(r => ({
@@ -473,11 +478,13 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
   const pipelineSteps = [
     { label: 'Total Leads', value: data?.totalLeads || 0, color: statusColor('not_contacted', isLight), link: contactsPath },
     { label: 'In Sequence', value: totalInSequence, color: statusColor('in_sequence', isLight), link: `${contactsPath}?status=in_sequence` },
-    { label: 'Interested', value: data?.interestedCount ?? data?.repliedCount ?? 0, color: statusColor('replied', isLight), link: `${contactsPath}?status=replied` },
+    // 2026-11-27: people whose status is Interested — the same set the link
+    // opens. Was every reply not marked "not interested" (369 vs 93).
+    { label: 'Interested', value: data?.leadsByStatus?.replied ?? 0, color: statusColor('replied', isLight), link: `${contactsPath}?status=replied` },
   ];
   const pipelineArrows = [
     (data?.totalLeads || 0) > 0 ? `${((totalInSequence / data.totalLeads) * 100).toFixed(0)}% in a sequence now` : null,
-    (data?.responseRate?.totalContacted || 0) > 0 ? `${data.responseRate.rate || 0}% reply rate (all replies ÷ contacted)` : null,
+    (data?.responseRate?.totalContacted || 0) > 0 ? `${data.responseRate.rate || 0}% reply rate (all replies ÷ enrolments)` : null,
   ];
 
   return (
@@ -646,7 +653,7 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
         <Stat
           label="Response Rate" value={`${data?.responseRate?.rate || 0}%`}
           icon={<TrendingUp size={16} />} color="var(--brand)"
-          note={`${data?.responseRate?.replied || 0} of ${data?.responseRate?.totalContacted || 0}`}
+          note={`all time · ${(data?.responseRate?.replied || 0).toLocaleString()} replies of ${(data?.responseRate?.totalContacted || 0).toLocaleString()} enrolments`}
           // Counts every reply (interested + not interested); opens the
           // Interested contacts, so say so (2026-11-09).
           title="Opens your Interested contacts"
@@ -659,9 +666,9 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
           onClick={() => toContacts({ from: rangeFrom, to: rangeTo, report: 'Scraped' })}
         />
         <Stat
-          label="Emails Scheduled" value={totalEmailsScheduled.toLocaleString()}
+          label={isTodayOnly ? 'Still to send today' : 'Emails Scheduled'} value={isTodayOnly ? totalEmailsScheduled.toLocaleString() : '—'}
           icon={<CalendarDays size={16} />} color="var(--acc-purple, var(--brand))"
-          note={dateLabel.toLowerCase()}
+          note={isTodayOnly ? 'emails due later today' : 'only shown for today'}
           onClick={() => navigate(orgPath('/outreach/engage'))}
         />
       </div>
@@ -717,7 +724,7 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
         {!isMe && <Panel style={{ gridColumn: 'span 1' }}>
           <h3 style={h3Style}>
             <Send size={16} style={{ color: 'var(--brand-ink)' }} />
-            In Sequence by Team Member
+            Enrolled by Team Member
           </h3>
           <p style={{ ...metaStyle, margin: '4px 0 16px' }}>{`Enrollments ${dateLabel.toLowerCase()} grouped by team member`}</p>
           {inSequenceDataInRange.length > 0 ? (
@@ -816,9 +823,11 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
           <EmailMetricCard label="Sent" value={data?.emailStats?.sent || 0} icon={<Send size={16} />} color="var(--acc-blue, var(--brand-ink))" />
           <EmailMetricCard label="Opened" value={data?.emailStats?.opened || 0} rate={emailOpenRate} rateLabel="open rate" icon={<Eye size={16} />} color="var(--acc-purple, var(--brand-ink))" />
           <EmailMetricCard label="Clicked" value={data?.emailStats?.clicked || 0} rate={emailClickRate} rateLabel="click-to-open" icon={<MousePointerClick size={16} />} color="var(--warn-ink)" />
-          <EmailMetricCard label="Interested" value={data?.emailStats?.replied || 0} rate={emailReplyRate} rateLabel="of people contacted" icon={<MessageSquare size={16} />} color="var(--brand-ink)" />
-          <EmailMetricCard label="Not Interested" value={data?.emailStats?.repliedNotInterested || 0} icon={<ArrowDownRight size={16} />} color="var(--warn-ink)" negative />
-          <EmailMetricCard label="Bounced" value={data?.emailStats?.bounced || 0} rate={emailBounceRate} rateLabel="of people contacted" icon={<ArrowDownRight size={16} />} color="var(--danger)" negative />
+          {/* 2026-11-27: Interested / Not Interested = PEOPLE by status now (the
+              lists they appear in); Bounced = enrolments, labelled as such. */}
+          <EmailMetricCard label="Interested" value={data?.leadsByStatus?.replied || 0} rate={emailReplyRate} rateLabel="replies of enrolments" icon={<MessageSquare size={16} />} color="var(--brand-ink)" />
+          <EmailMetricCard label="Not Interested" value={data?.leadsByStatus?.replied_not_interested || 0} icon={<ArrowDownRight size={16} />} color="var(--warn-ink)" negative />
+          <EmailMetricCard label="Bounced" value={data?.emailStats?.bounced || 0} rate={emailBounceRate} rateLabel="of enrolments" icon={<ArrowDownRight size={16} />} color="var(--danger)" negative />
         </div>
       </Panel>
 
@@ -954,7 +963,7 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
             day it was added. */}
         {data?.statusDatesSince && rangeFrom < data.statusDatesSince && (
           <p style={{ ...metaStyle, margin: '-8px 0 12px' }}>
-            Status-change dates are recorded from {new Date(`${data.statusDatesSince}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}. Before that, a contact is counted on the day it was added.
+            Status-change dates are recorded exactly from {new Date(`${data.statusDatesSince}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}. Earlier dates are estimated from enrolment, reply and bounce records.
           </p>
         )}
         <div style={cardGrid(150)}>
@@ -999,11 +1008,13 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
         <Panel>
           <h3 style={{ ...h3Style, marginBottom: 16 }}>
             <CalendarDays size={16} style={{ color: 'var(--acc-purple, var(--brand-ink))' }} />
-            Emails Scheduled
-            <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()} · contacts due for next email</span>
-            <Chip tone="purple" style={{ marginLeft: 'auto' }}>{Number(totalEmailsScheduled || 0).toLocaleString()}</Chip>
+            Still to send today
+            <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>contacts due for their next email</span>
+            {isTodayOnly && <Chip tone="purple" style={{ marginLeft: 'auto' }}>{Number(totalEmailsScheduled || 0).toLocaleString()}</Chip>}
           </h3>
-          {emailsScheduledInRange.length > 0 ? (
+          {!isTodayOnly ? (
+            <p style={{ ...metaStyle, padding: '16px 0', textAlign: 'center' }}>Only shown for today. Once an email is sent its next date moves on, so past days would always read 0.</p>
+          ) : emailsScheduledInRange.length > 0 ? (
             <div style={{ display: 'grid', gap: 10 }}>
               {emailsScheduledInRange.map((r, i) => (
                 <MemberBar
@@ -1016,15 +1027,15 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
               ))}
             </div>
           ) : (
-            <p style={{ ...metaStyle, padding: '16px 0', textAlign: 'center' }}>No emails scheduled for {dateLabel.toLowerCase()}</p>
+            <p style={{ ...metaStyle, padding: '16px 0', textAlign: 'center' }}>Nothing left to send today</p>
           )}
         </Panel>
 
         <Panel>
           <h3 style={{ ...h3Style, marginBottom: 16 }}>
             <Send size={16} style={{ color: 'var(--brand-ink)' }} />
-            In Sequence Detail
-            <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()}</span>
+            Enrolled Detail
+            <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()} · enrolments made, whatever their status now</span>
             <Chip tone="brand" style={{ marginLeft: 'auto' }}>{Number(totalInSequenceInRange || 0).toLocaleString()}</Chip>
           </h3>
           {(data?.inSequenceByUserInRange?.length || 0) > 0 ? (
