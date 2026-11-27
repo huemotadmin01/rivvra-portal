@@ -205,11 +205,18 @@ export default function AtsCandidatesV2() {
       if (groupBy === 'skill') {
         const skills = Array.isArray(cand.skills) ? cand.skills : [];
         if (skills.length === 0) return [{ key: '__no_skills__', label: 'No skills captured' }];
-        return skills.map((s) => {
+        // 2026-11-27: one group per skill name per candidate — the same skill
+        // saved twice listed the person twice in that group.
+        const seen = new Set();
+        const keys = [];
+        for (const s of skills) {
           const name = (s.skillName || '').trim();
-          if (!name) return { key: '__unknown__', label: 'Unknown skill' };
-          return { key: name.toLowerCase(), label: name };
-        });
+          const k = name ? name.toLowerCase() : '__unknown__';
+          if (seen.has(k)) continue;
+          seen.add(k);
+          keys.push(name ? { key: k, label: name } : { key: '__unknown__', label: 'Unknown skill' });
+        }
+        return keys;
       }
       return [];
     };
