@@ -416,14 +416,36 @@ export default function PayrollRunPageV2() {
       if (droppedCount > 0) {
         showToast(`${droppedCount} line${droppedCount > 1 ? 's' : ''} skipped (needs a label and an amount greater than 0)`, 'error');
       }
-      await setAdHocAdjustment(orgSlug, selectedRun._id, showAdHoc.employeeId, {
+      const saved = await setAdHocAdjustment(orgSlug, selectedRun._id, showAdHoc.employeeId, {
         earnings: cleanEarnings, deductions: cleanDeductions,
       });
-      // Auto re-process to recalculate net pay with ad-hoc applied (modal stays open with spinner)
-      const processRes = await processPayrollRun(orgSlug, selectedRun._id);
-      setSelectedRun(processRes.run);
-      setShowAdHoc(null);
-      showToast('Adjustment applied & payroll recalculated');
+      // The adjustment is saved (and the employee's net pay updated) at this
+      // point. The full re-process below can still be refused for a reason that
+      // has nothing to do with this employee (2026-11-27: another employee's
+      // rejected attendance sheet) — say the save worked instead of showing
+      // only the refusal, which read as "not saved".
+      const who = showAdHoc.employeeName || 'The employee';
+      if (saved?.item) {
+        setSelectedRun(prev => (prev ? {
+          ...prev,
+          adHocAdjustments: saved.adHocAdjustments || prev.adHocAdjustments,
+          items: (prev.items || []).map(i => (i.employeeId === saved.item.employeeId ? { ...i, ...saved.item } : i)),
+        } : prev));
+      }
+      try {
+        // Auto re-process to recalculate net pay with ad-hoc applied (modal stays open with spinner)
+        const processRes = await processPayrollRun(orgSlug, selectedRun._id);
+        setSelectedRun(processRes.run);
+        setShowAdHoc(null);
+        showToast('Adjustment applied & payroll recalculated');
+      } catch (procErr) {
+        setShowAdHoc(null);
+        const data = procErr.response?.data || {};
+        const blocked = data.code === 'ATTENDANCE_REJECTED' && Array.isArray(data.employees) && data.employees.length
+          ? `${data.employees.map(e => e.name || e.code).join(', ')} — attendance sheet rejected. Get it approved (or the rejection reversed), then click Process.`
+          : (data.message || 'please click Process again.');
+        showToast(`Adjustment saved — ${who}'s net pay is updated. Full payroll recalculation is on hold: ${blocked}`, 'warning');
+      }
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
     finally { setSavingAdHoc(false); }
   };
