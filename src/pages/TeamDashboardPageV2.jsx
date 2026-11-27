@@ -1038,6 +1038,32 @@ export default function TeamDashboardPageV2({ mode: modeProp }) {
             <span style={{ ...metaStyle, fontWeight: 400, marginLeft: 4 }}>{dateLabel.toLowerCase()} · enrolments made, whatever their status now</span>
             <Chip tone="brand" style={{ marginLeft: 'auto' }}>{Number(totalInSequenceInRange || 0).toLocaleString()}</Chip>
           </h3>
+          {/* 2026-11-27: the PEOPLE behind these enrolments and where they are
+              now, so the enrolment count and the outcomes sit side by side. */}
+          {(data?.enrolledCohort?.enrolledPeople || 0) > 0 && (() => {
+            const ch = data.enrolledCohort;
+            const repeats = Math.max(0, (totalInSequenceInRange || 0) - ch.enrolledPeople);
+            const gone = Math.max(0, ch.enrolledPeople - ch.people);
+            const rows = Object.entries(ch.byStatus).sort((x, y) => y[1] - x[1]);
+            return (
+              <div style={{ margin: '0 0 14px', padding: '10px 12px', borderRadius: 'var(--r-2, 10px)', background: 'var(--surface-2)', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}>
+                <div style={{ ...metaStyle, color: 'var(--fg-2)', marginBottom: 6 }}>
+                  <b style={{ color: 'var(--fg)' }}>{ch.people.toLocaleString()} people</b> · where they are now
+                  {(repeats > 0 || gone > 0) && (
+                    <span> ({[repeats > 0 && `${repeats.toLocaleString()} enrolled twice`, gone > 0 && `${gone.toLocaleString()} since deleted`].filter(Boolean).join(', ')})</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
+                  {rows.map(([key, n]) => (
+                    <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...metaStyle, color: 'var(--fg-2)' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: statusColor(key, isLight) }} />
+                      {(STATUS_CONFIG[key]?.label || key)} <b style={{ color: 'var(--fg)' }}>{n.toLocaleString()}</b>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {(data?.inSequenceByUserInRange?.length || 0) > 0 ? (
             <div style={{ display: 'grid', gap: 10 }}>
               {data.inSequenceByUserInRange.map((r, i) => (
