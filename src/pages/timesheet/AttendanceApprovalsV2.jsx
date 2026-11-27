@@ -152,6 +152,20 @@ export default function AttendanceApprovalsV2() {
     finally { setActionLoading(null); }
   };
 
+  // 2026-11-27: a rejection could not be taken back — only the employee could
+  // resubmit, and a rejected sheet blocks that month's payroll. Puts the sheet
+  // back to "waiting for approval" exactly as the employee sent it.
+  const handleUndoReject = async (id) => {
+    if (!window.confirm('Undo this rejection? The sheet goes back to "waiting for approval" exactly as the employee submitted it. You can then approve it.')) return;
+    setActionLoading(id);
+    try {
+      await timesheetApi.patch(`/attendance/${id}/undo-reject`);
+      showToast('Rejection undone — the sheet is waiting for approval again');
+      load();
+    } catch (err) { showToast(err.response?.data?.error || err.message || 'Could not undo the rejection', 'error'); }
+    finally { setActionLoading(null); }
+  };
+
   const handleReject = async () => {
     if (!rejectReason.trim()) { showToast('Please provide a reason', 'error'); return; }
     setActionLoading(rejectId);
@@ -435,6 +449,26 @@ export default function AttendanceApprovalsV2() {
                         </Button>
                       </div>
                     )}
+
+                    {att.status === 'rejected' && (() => {
+                      const lockInfo = lockedMonths[`${att.month}-${att.year}`];
+                      return lockInfo?.status === 'finalized' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: "400 12px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
+                          <Lock size={14} style={{ color: 'var(--warn-ink)', flexShrink: 0 }} />
+                          <span>Cannot undo — payroll is finalized for this month</span>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleUndoReject(att._id)}
+                          disabled={!!actionLoading}
+                          iconLeft={actionLoading === att._id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+                        >
+                          Undo rejection
+                        </Button>
+                      );
+                    })()}
 
                     {att.status === 'approved' && (() => {
                       const monthKey = `${att.month}-${att.year}`;
