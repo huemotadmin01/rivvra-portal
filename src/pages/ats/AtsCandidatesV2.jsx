@@ -146,6 +146,11 @@ export default function AtsCandidatesV2() {
           counts: Array.isArray(res.groupCounts)
             ? new Map(res.groupCounts.map((g) => [String(g.key), g.count]))
             : null,
+          // Skill groups carry their own label (CV + recruiter skills, worked
+          // out on the server — 2026-11-27).
+          labels: Array.isArray(res.groupCounts)
+            ? new Map(res.groupCounts.filter((g) => g.label).map((g) => [String(g.key), g.label]))
+            : null,
           truncated: !!res.groupedTruncated,
         });
         setTotal(res.total || 0);
@@ -202,6 +207,10 @@ export default function AtsCandidatesV2() {
           label: lookupName || cand.managerName || (cand.managerId ? 'Unknown manager' : 'No manager'),
         }];
       }
+      if (groupBy === 'skill' && Array.isArray(cand.skillGroupKeys)) {
+        // Server-assigned: recruiter-added + CV skills, top skills only.
+        return cand.skillGroupKeys.map((k) => ({ key: k, label: groupMeta.labels?.get(k) || k }));
+      }
       if (groupBy === 'skill') {
         const skills = Array.isArray(cand.skills) ? cand.skills : [];
         if (skills.length === 0) return [{ key: '__no_skills__', label: 'No skills captured' }];
@@ -220,8 +229,18 @@ export default function AtsCandidatesV2() {
       }
       return [];
     };
-    return sortGroupsByCount(groupRecords(candidates, extractor));
-  }, [candidates, groupBy, recruiters]);
+    const grouped = groupRecords(candidates, extractor);
+    if (groupBy === 'skill' && groupMeta.counts) {
+      // Order by the server's whole-set count; catch-all buckets last.
+      const tail = (k) => (k === '__other_skills__' || k === '__no_skills__' || k === '__unknown__' ? 1 : 0);
+      return [...grouped.entries()].sort(([a, ga], [b, gb]) => (tail(a) - tail(b))
+        || ((groupMeta.counts.get(b) ?? gb.records.length) - (groupMeta.counts.get(a) ?? ga.records.length)));
+    }
+    return sortGroupsByCount(grouped);
+  }, [candidates, groupBy, recruiters, groupMeta]);
+
+  // The set's meaning flips with the group-by (closed vs opened) — start clean.
+  useEffect(() => { setCollapsedGroups(new Set()); }, [groupBy]);
 
   const toggleGroup = (key) => {
     setCollapsedGroups((prev) => {
@@ -331,7 +350,10 @@ export default function AtsCandidatesV2() {
   // Grouped mode renders group headers + rows through DataTable's children
   // slot; cell markup mirrors the columns above via a shared renderer.
   const renderGroupedRows = () => (groupedCandidates || []).flatMap(([key, group]) => {
-    const collapsed = collapsedGroups.has(key);
+    // Skill groups start CLOSED (150 groups, a person in ~20 of them — all
+    // open would be tens of thousands of rows); the set then holds the ones
+    // opened. Other group-bys start open, the set holds the ones closed.
+    const collapsed = groupBy === 'skill' ? !collapsedGroups.has(key) : collapsedGroups.has(key);
     const isManagerGroup = groupBy === 'manager';
     const header = (
       <GroupedHeader
